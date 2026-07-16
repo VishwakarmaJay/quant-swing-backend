@@ -1,0 +1,367 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// The single operator of the platform. Exactly one active user is expected
+/// (single-user system, no signup/multi-user). BRL-001.
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  orders       Order[]
+  brokerTokens BrokerToken[]
+  positions    Position[]
+
+  @@map("user")
+}
+
+/// Key-value application configuration (risk limits, trading windows,
+/// instrument parameters, active strategies, paper/live mode). BRL-036.
+model AppConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("app_config")
+}
+
+/// Tradable/watchable contracts from the Angel One scrip master, filtered to
+/// the platform universe (index options on Nifty 50, Bank Nifty, Sensex plus
+/// their underlying index rows). BRL-004/005.
+model Instrument {
+  /// `${exchSeg}:${symbol}` e.g. NFO:NIFTY29JAN2621000CE
+  id             String    @id
+  /// Angel One instrument token (used for the WS feed and orders)
+  token          String
+  /// Angel One trading symbol e.g. NIFTY29JAN2621000CE
+  symbol         String
+  /// Underlying name e.g. NIFTY, BANKNIFTY, SENSEX
+  name           String
+  expiry         DateTime? @db.Date
+  strike         Float     @default(0)
+  lotSize        Int       @default(1)
+  tickSize       Float     @default(0)
+  /// OPTIDX (index option) or AMXIDX (underlying index)
+  instrumentType String
+  /// NFO | BFO | NSE | BSE
+  exchSeg        String
+  /// Max quantity allowed per order on an index
+  freezeQty      Int       @default(0)
+  /// Last traded price, refreshed by the LTP stream (throttled fallback for the Redis cache)
+  lastPrice      Float     @default(0)
+  /// Cumulative day volume, refreshed by the LTP stream (Float: day volumes
+  /// exceed the 2.1B integer cap, and BigInt does not JSON-serialize)
+  volume         Float     @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  orders         Order[]
+  tradeSetupLegs TradeSetupLeg[]
+  positionLegs   PositionLeg[]
+  candles        Ohlcv[]
+
+  @@unique([exchSeg, token])
+  @@index([symbol])
+  @@index([name])
+  @@index([expiry])
+  @@index([instrumentType])
+  @@map("instrument")
+}
+
+/// Daily historical OHLCV candles, the research foundation for the factor
+/// layer. Backfilled and kept current from the Angel One historical candle
+/// API (getCandleData), independent of the live LTP stream. Append-only:
+/// a re-fetch of an existing (instrument, date) overwrites in place via
+/// upsert; rows are never deleted. Prices/volume are Float (matching
+/// Instrument.lastPrice/volume — index day volumes exceed the int cap).
+model Ohlcv {
+  instrumentId String
+  instrument   Instrument @relation(fields: [instrumentId], references: [id])
+  /// Trading day of the candle (date only; daily interval).
+  tradeDate    DateTime   @db.Date
+  open   Float
+  high   Float
+  low    Float
+  close  Float
+  volume Float      @default(0)
+  createdAt DateTime @default(now())
+
+  /// PERF: PK covers the dominant query (instrument + date range).
+  @@id([instrumentId, tradeDate])
+  @@index([instrumentId, tradeDate])
+  @@map("ohlcv")
+}
+
+/// Brokers the platform can route orders to. PAPER is the built-in
+/// test/simulation broker (no external API; randomized outcomes).
+enum Broker {
+  PAPER
+}
+
+enum OrderStatus {
+  /// Row created, placement queued, not yet accepted by the broker
+  PENDING
+  /// Accepted by the broker, unfilled
+  OPEN
+  /// Partially filled (kept for pipeline completeness; Chaos never emits it)
+  PARTIAL
+  COMPLETED
+  CANCELLED
+  REJECTED
+}
+
+enum OrderType {
+  MARKET
+  LIMIT
+}
+
+enum TransactionType {
+  BUY
+  SELL
+}
+
+enum ProductType {
+  /// MIS — squared off same day
+  INTRADAY
+  /// NRML — carryforward
+  NORMAL
+}
+
+enum TradeSetupStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum PositionStatus {
+  OPEN
+  /// User asked to exit — legs reconcile toward zero until flat
+  MARKED_FOR_EXIT
+  CLOSED
+}
+
+/// Persisted display status (hedged ReadableStatusEnum). Recomputed by
+/// syncPosition after every order state change.
+enum ReadableStatus {
+  SYNCED
+  NOT_IN_SYNC
+  IN_PROGRESS
+  EXITED
+}
+
+/// User-defined multi-leg trade template (replaces hedged's B2CRecommendation
+/// as the reconcile target). No versioning: the setup is the current truth.
+model TradeSetup {
+  id        String           @id @default(uuid())
+  name      String
+  status    TradeSetupStatus @default(ACTIVE)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  legs      TradeSetupLeg[]
+  positions Position[]
+
+  @@map("trade_setup")
+}
+
+model TradeSetupLeg {
+  id           String          @id @default(uuid())
+  tradeSetupId String
+  tradeSetup   TradeSetup      @relation(fields: [tradeSetupId], references: [id])
+  instrumentId String
+  instrument   Instrument      @relation(fields: [instrumentId], references: [id])
+  action       TransactionType
+  /// Absolute target quantity at multiplier 1 (lots x lotSize), always positive
+  quantity     Int
+  entryPrice   Float?
+  exitPrice    Float?
+  createdAt    DateTime        @default(now())
+
+  positionLegs PositionLeg[]
+
+  @@index([tradeSetupId])
+  @@map("trade_setup_leg")
+}
+
+/// A live instance of a TradeSetup. Held quantities are never stored — they
+/// are derived from COMPLETED orders (hedged invariant).
+model Position {
+  id                String          @id @default(uuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id])
+  tradeSetupId      String
+  tradeSetup        TradeSetup      @relation(fields: [tradeSetupId], references: [id])
+  broker            Broker          @default(PAPER)
+  status            PositionStatus  @default(OPEN)
+  /// Scales every setup leg's target quantity
+  userMultiplier    Int             @default(1)
+  readableStatus    ReadableStatus?
+  /// Realized P&L (MTM poller output)
+  pnl               Float           @default(0)
+  /// Unrealized MTM on remaining quantity (MTM poller output)
+  calcUnrealisedPnl Float           @default(0)
+  totalCharges      Float           @default(0)
+  exitedAt          DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  legs   PositionLeg[]
+  orders Order[]
+
+  @@index([userId, status])
+  @@index([tradeSetupId])
+  @@map("position")
+}
+
+model PositionLeg {
+  id              String          @id @default(uuid())
+  positionId      String
+  position        Position        @relation(fields: [positionId], references: [id])
+  tradeSetupLegId String
+  tradeSetupLeg   TradeSetupLeg   @relation(fields: [tradeSetupLegId], references: [id])
+  instrumentId    String
+  instrument      Instrument      @relation(fields: [instrumentId], references: [id])
+  /// Snapshot of the setup leg's action at position creation
+  action          TransactionType
+  userId          String
+  createdAt       DateTime        @default(now())
+
+  orders Order[]
+
+  @@index([positionId])
+  @@map("position_leg")
+}
+
+/// A single order routed to a broker. BRL-010.
+model Order {
+  id           String     @id @default(uuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+  instrumentId String
+  instrument   Instrument @relation(fields: [instrumentId], references: [id])
+
+  broker          Broker          @default(PAPER)
+  status          OrderStatus     @default(PENDING)
+  transactionType TransactionType
+  orderType       OrderType
+  productType     ProductType     @default(INTRADAY)
+  quantity        Int
+  /// Limit price. MARKET orders are resolved to a limit at placement time.
+  price           Float           @default(0)
+
+  /// Broker-side order id (e.g. PAPER-<id>); null until the broker accepts
+  brokerOrderId         String?
+  filledQuantity        Int       @default(0)
+  averageExecutionPrice Float?
+  rejectReason          String?
+  placedAt              DateTime?
+  executedAt            DateTime?
+  cancelledAt           DateTime?
+
+  /// OMS linkage — null for quick-ticket (positionless) orders
+  positionId    String?
+  position      Position?    @relation(fields: [positionId], references: [id])
+  positionLegId String?
+  positionLeg   PositionLeg? @relation(fields: [positionLegId], references: [id])
+
+  /// Indian F&O charges, stamped when the order turns COMPLETED
+  stt             Float?
+  stampDuty       Float?
+  exchangeCharges Float?
+  sebiCharges     Float?
+  brokerage       Float?
+  gst             Float?
+  totalCharges    Float?
+
+  /// Price-chase state (restart-safe; chase poller re-quotes OPEN limit orders)
+  chase         Boolean   @default(false)
+  chaseAttempts Int       @default(0)
+  chaseFailures Int       @default(0)
+  lastChaseAt   DateTime?
+  remarks       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  brokerLogs BrokerLog[]
+
+  @@index([userId, status])
+  @@index([status])
+  @@index([brokerOrderId])
+  @@index([createdAt])
+  @@index([positionId])
+  @@map("order")
+}
+
+/// Broker session token. Paper tokens are dummy plaintext strings; `meta`
+/// carries { clientId, name, paperConfig }. TODO: encrypt `token` when the
+/// first real broker is added.
+model BrokerToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  broker    Broker
+  token     String
+  expiry    DateTime
+  meta      Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, broker, expiry])
+  @@map("broker_token")
+}
+
+/// Audit trail of every broker API call (real or simulated) so order flows can
+/// be reconstructed later, mirroring what a live broker integration persists.
+model BrokerLog {
+  id            String   @id @default(uuid())
+  broker        Broker
+  method        String
+  url           String
+  request       Json?
+  response      Json?
+  isError       Boolean  @default(false)
+  statusCode    Int      @default(200)
+  /// Simulated/observed call duration in ms
+  duration      Int      @default(0)
+  orderId       String?
+  order         Order?   @relation(fields: [orderId], references: [id])
+  brokerOrderId String?
+  userId        String?
+  createdAt     DateTime @default(now())
+
+  @@index([orderId])
+  @@index([createdAt])
+  @@map("broker_log")
+}
+
+/// Structured system/audit log persisted so any decision or action can be
+/// reconstructed later. BRL-034.
+model SystemLog {
+  id        String   @id @default(uuid())
+  level     String
+  event     String
+  message   String
+  context   Json?
+  requestId String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([level])
+  @@index([event])
+  @@map("system_log")
+}

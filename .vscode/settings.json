@@ -1,0 +1,14 @@
+{
+  "[prisma]": {
+    "editor.defaultFormatter": "Prisma.prisma"
+  },
+  "[typescript]": {
+    "js/ts.preferences.importModuleSpecifier": "non-relative"
+  },
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit",
+    "source.sort.json": "explicit"
+  },
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true
+}

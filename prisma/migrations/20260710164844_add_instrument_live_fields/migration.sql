@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "instrument" ADD COLUMN     "lastPrice" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "volume" INTEGER NOT NULL DEFAULT 0;

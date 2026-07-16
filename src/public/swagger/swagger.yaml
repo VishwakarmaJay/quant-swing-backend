@@ -1,0 +1,1635 @@
+swagger: '2.0'
+info:
+  description: QuantSwing — Automated Intraday Options Trading Platform, Backend API
+  version: 1.0.0
+  title: QuantSwing Backend
+
+basePath: /
+
+schemes:
+  - http
+  - https
+
+tags:
+  - name: health
+    description: Liveness and readiness probes
+  - name: auth
+    description: Authentication & single-user access
+  - name: user
+    description: Authenticated user APIs
+  - name: instrument
+    description: Instrument master (Angel One scrip universe)
+  - name: order
+    description: Order placement and lifecycle (routed to a broker via the queue pipeline)
+  - name: broker
+    description: Broker sessions. PAPER is the built-in test/simulation broker.
+  - name: trade-setup
+    description: User-defined multi-leg trade templates (the reconcile target for positions)
+  - name: position
+    description: Live positions with legs; held quantities derive from completed orders
+
+securityDefinitions:
+  BearerAuth:
+    type: apiKey
+    name: Authorization
+    in: header
+    description: 'JWT access token, sent as: `Bearer <token>`'
+  Token:
+    type: apiKey
+    name: token
+    in: header
+    description: 'Raw JWT access token (hedged-style `token` header). Alternative to BearerAuth.'
+
+paths:
+  /health-check:
+    get:
+      operationId: healthCheck
+      summary: Liveness/readiness flag check
+      description: >
+        Returns 200 when the service is ready, and 503 while draining or before
+        boot completes. Used by the load balancer.
+      tags:
+        - health
+      produces:
+        - text/plain
+      responses:
+        200:
+          description: Healthy
+          schema:
+            type: string
+            example: Healthy
+        503:
+          description: Draining or Not Ready
+          schema:
+            type: string
+            example: Not Ready
+
+  /health/ready:
+    get:
+      operationId: healthReady
+      summary: Deep readiness (dependency checks)
+      description: Verifies downstream dependencies (PostgreSQL and Redis).
+      tags:
+        - health
+      produces:
+        - application/json
+      responses:
+        200:
+          description: All dependencies healthy
+          schema:
+            $ref: '#/definitions/ReadyResponse'
+        503:
+          description: One or more dependencies unavailable
+          schema:
+            $ref: '#/definitions/ReadyResponse'
+
+  /auth/login:
+    post:
+      operationId: login
+      summary: Log in with credentials
+      description: >
+        Verifies credentials and issues a JWT. Opens a fresh single session — a
+        new login supersedes any prior session (single-user system, BRL-001).
+        Rate-limited to 10 requests per 15 minutes.
+      tags:
+        - auth
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/LoginRequest'
+      responses:
+        200:
+          description: Authenticated
+          schema:
+            $ref: '#/definitions/LoginResponse'
+        400:
+          description: Invalid payload
+          schema:
+            $ref: '#/definitions/Error'
+        401:
+          description: Invalid credentials
+          schema:
+            $ref: '#/definitions/Error'
+        429:
+          description: Too many login attempts
+          schema:
+            $ref: '#/definitions/Error'
+
+  /user/me:
+    get:
+      operationId: getMe
+      summary: Get the authenticated user
+      tags:
+        - user
+      produces:
+        - application/json
+      security:
+        - BearerAuth: []
+        - Token: []
+      responses:
+        200:
+          description: Current user
+          schema:
+            $ref: '#/definitions/MeResponse'
+        401:
+          description: Unauthenticated
+          schema:
+            $ref: '#/definitions/Error'
+
+  /instruments/sync:
+    get:
+      operationId: syncInstrumentMasterGet
+      summary: Refresh the instrument master (browser-friendly)
+      description: Same as the POST variant; provided so the sync can be triggered from a browser.
+      tags:
+        - instrument
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Sync completed
+          schema:
+            $ref: '#/definitions/InstrumentSyncResult'
+        503:
+          description: Angel One scrip master unavailable
+          schema:
+            $ref: '#/definitions/Error'
+    post:
+      operationId: syncInstrumentMaster
+      summary: Refresh the instrument master
+      description: >
+        Fetches the Angel One scrip master dump, filters it to the platform
+        universe (index options on Nifty 50, Bank Nifty, and Sensex plus their
+        underlying index rows), and atomically replaces the instrument table.
+      tags:
+        - instrument
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Sync completed
+          schema:
+            $ref: '#/definitions/InstrumentSyncResult'
+        503:
+          description: Angel One scrip master unavailable
+          schema:
+            $ref: '#/definitions/Error'
+
+  /instruments/search:
+    get:
+      operationId: searchInstruments
+      summary: Search instruments
+      tags:
+        - instrument
+      produces:
+        - application/json
+      parameters:
+        - name: q
+          in: query
+          required: false
+          type: string
+          description: Case-insensitive substring match on the trading symbol
+        - name: name
+          in: query
+          required: false
+          type: string
+          description: Underlying name (NIFTY, BANKNIFTY, SENSEX)
+        - name: instrumentType
+          in: query
+          required: false
+          type: string
+          enum:
+            - OPTIDX
+            - AMXIDX
+        - name: expiry
+          in: query
+          required: false
+          type: string
+          format: date
+        - name: limit
+          in: query
+          required: false
+          type: integer
+          default: 50
+          maximum: 200
+      responses:
+        200:
+          description: Matching instruments
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Instrument'
+        401:
+          description: Unauthenticated
+          schema:
+            $ref: '#/definitions/Error'
+
+  /instruments/expiries:
+    get:
+      operationId: getInstrumentExpiries
+      summary: Distinct upcoming expiries for an underlying
+      tags:
+        - instrument
+      produces:
+        - application/json
+      parameters:
+        - name: name
+          in: query
+          required: true
+          type: string
+          description: Underlying name (NIFTY, BANKNIFTY, SENSEX)
+      responses:
+        200:
+          description: Upcoming expiry dates, ascending
+          schema:
+            type: array
+            items:
+              type: string
+              format: date
+        401:
+          description: Unauthenticated
+          schema:
+            $ref: '#/definitions/Error'
+
+  /instruments/subscribe:
+    post:
+      operationId: subscribeInstrumentLtp
+      summary: Add an instrument to the live LTP feed
+      description: >
+        Subscribes the instrument's token on the market-data WebSocket so
+        `ltp_update` socket frames start covering it (index instruments are
+        subscribed at boot; traded instruments are auto-subscribed at order
+        placement). Idempotent.
+      tags:
+        - instrument
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/SubscribeLtpRequest'
+      responses:
+        200:
+          description: Subscription outcome
+          schema:
+            $ref: '#/definitions/SubscribeLtpResponse'
+        404:
+          description: Instrument not found
+          schema:
+            $ref: '#/definitions/Error'
+
+  /orders:
+    post:
+      operationId: placeOrder
+      summary: Place an order
+      description: >
+        Persists the order as PENDING and enqueues it for placement with the
+        broker. The transition to OPEN/REJECTED arrives asynchronously (poll
+        the order or listen for `order-update` socket events). MARKET orders
+        are resolved to a LIMIT at the current price before placement.
+      tags:
+        - order
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      security:
+        - BearerAuth: []
+        - Token: []
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/PlaceOrderRequest'
+      responses:
+        201:
+          description: Order created (PENDING)
+          schema:
+            $ref: '#/definitions/Order'
+        400:
+          description: Invalid payload, lot-size/freeze-qty violation, or no broker session
+          schema:
+            $ref: '#/definitions/Error'
+        404:
+          description: Instrument not found
+          schema:
+            $ref: '#/definitions/Error'
+        401:
+          description: Unauthenticated
+          schema:
+            $ref: '#/definitions/Error'
+    get:
+      operationId: listOrders
+      summary: List orders (newest first)
+      tags:
+        - order
+      produces:
+        - application/json
+      security:
+        - BearerAuth: []
+        - Token: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          type: string
+          enum:
+            - PENDING
+            - OPEN
+            - PARTIAL
+            - COMPLETED
+            - CANCELLED
+            - REJECTED
+        - name: limit
+          in: query
+          required: false
+          type: integer
+          default: 50
+          maximum: 200
+      responses:
+        200:
+          description: Orders with their instrument
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Order'
+        401:
+          description: Unauthenticated
+          schema:
+            $ref: '#/definitions/Error'
+
+  /orders/{id}:
+    get:
+      operationId: getOrder
+      summary: Get one order with its recent broker logs
+      tags:
+        - order
+      produces:
+        - application/json
+      security:
+        - BearerAuth: []
+        - Token: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: The order, its instrument, and up to 20 recent broker logs
+          schema:
+            $ref: '#/definitions/Order'
+        404:
+          description: Order not found
+          schema:
+            $ref: '#/definitions/Error'
+        401:
+          description: Unauthenticated
+          schema:
+            $ref: '#/definitions/Error'
+    patch:
+      operationId: modifyOrder
+      summary: Modify an OPEN order
+      description: >
+        Persists the new price/quantity and enqueues a broker modification.
+        The outcome (fill or no-op) arrives asynchronously.
+      tags:
+        - order
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      security:
+        - BearerAuth: []
+        - Token: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/ModifyOrderRequest'
+      responses:
+        200:
+          description: Updated order
+          schema:
+            $ref: '#/definitions/Order'
+        409:
+          description: Order is not OPEN
+          schema:
+            $ref: '#/definitions/Error'
+        404:
+          description: Order not found
+          schema:
+            $ref: '#/definitions/Error'
+        401:
+          description: Unauthenticated
+          schema:
+            $ref: '#/definitions/Error'
+
+  /orders/{id}/cancel:
+    post:
+      operationId: cancelOrder
+      summary: Request cancellation of an OPEN order
+      tags:
+        - order
+      produces:
+        - application/json
+      security:
+        - BearerAuth: []
+        - Token: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      responses:
+        202:
+          description: Cancellation enqueued
+          schema:
+            $ref: '#/definitions/MessageResponse'
+        409:
+          description: Order is not OPEN
+          schema:
+            $ref: '#/definitions/Error'
+        404:
+          description: Order not found
+          schema:
+            $ref: '#/definitions/Error'
+        401:
+          description: Unauthenticated
+          schema:
+            $ref: '#/definitions/Error'
+
+  /trade-setups:
+    post:
+      operationId: createTradeSetup
+      summary: Create a trade setup (name + legs)
+      tags: [trade-setup]
+      consumes: [application/json]
+      produces: [application/json]
+      security:
+        - BearerAuth: []
+        - Token: []
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/CreateTradeSetupRequest'
+      responses:
+        201:
+          description: Created setup with legs
+          schema:
+            $ref: '#/definitions/TradeSetup'
+        400:
+          description: Invalid legs (lot size / freeze quantity)
+          schema:
+            $ref: '#/definitions/Error'
+    get:
+      operationId: listTradeSetups
+      summary: List trade setups
+      tags: [trade-setup]
+      produces: [application/json]
+      security:
+        - BearerAuth: []
+        - Token: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          type: string
+          enum: [ACTIVE, ARCHIVED]
+      responses:
+        200:
+          description: Setups with legs and live-position counts
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/TradeSetup'
+
+  /trade-setups/{id}:
+    get:
+      operationId: getTradeSetup
+      summary: Get one trade setup
+      tags: [trade-setup]
+      produces: [application/json]
+      security:
+        - BearerAuth: []
+        - Token: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: The setup
+          schema:
+            $ref: '#/definitions/TradeSetup'
+        404:
+          description: Not found
+          schema:
+            $ref: '#/definitions/Error'
+    patch:
+      operationId: updateTradeSetup
+      summary: Update name/status/legs (legs only when no live position)
+      tags: [trade-setup]
+      consumes: [application/json]
+      produces: [application/json]
+      security:
+        - BearerAuth: []
+        - Token: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/UpdateTradeSetupRequest'
+      responses:
+        200:
+          description: Updated setup
+          schema:
+            $ref: '#/definitions/TradeSetup'
+        409:
+          description: Live position references this setup
+          schema:
+            $ref: '#/definitions/Error'
+    delete:
+      operationId: deleteTradeSetup
+      summary: Delete a setup (only when never used)
+      tags: [trade-setup]
+      produces: [application/json]
+      security:
+        - BearerAuth: []
+        - Token: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: Deleted
+          schema:
+            $ref: '#/definitions/MessageResponse'
+        409:
+          description: Referenced by positions
+          schema:
+            $ref: '#/definitions/Error'
+
+  /positions:
+    post:
+      operationId: createPosition
+      summary: Take a position on a trade setup
+      tags: [position]
+      consumes: [application/json]
+      produces: [application/json]
+      security:
+        - BearerAuth: []
+        - Token: []
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/CreatePositionRequest'
+      responses:
+        201:
+          description: Position with legs
+          schema:
+            $ref: '#/definitions/Position'
+        409:
+          description: A live position already exists for this setup
+          schema:
+            $ref: '#/definitions/Error'
+    get:
+      operationId: listPositions
+      summary: List positions (newest first)
+      tags: [position]
+      produces: [application/json]
+      security:
+        - BearerAuth: []
+        - Token: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          type: string
+          enum: [OPEN, MARKED_FOR_EXIT, CLOSED]
+      responses:
+        200:
+          description: Positions with legs, orders and setup
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Position'
+
+  /positions/{id}:
+    get:
+      operationId: getPosition
+      summary: Get one position
+      tags: [position]
+      produces: [application/json]
+      security:
+        - BearerAuth: []
+        - Token: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: The position
+          schema:
+            $ref: '#/definitions/Position'
+        404:
+          description: Not found
+          schema:
+            $ref: '#/definitions/Error'
+    patch:
+      operationId: updatePosition
+      summary: Mark for exit or change the multiplier
+      description: >
+        Setting status MARKED_FOR_EXIT flips every leg's target quantity to 0 —
+        the order dialog then generates the reverse (square-off) orders.
+      tags: [position]
+      consumes: [application/json]
+      produces: [application/json]
+      security:
+        - BearerAuth: []
+        - Token: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/UpdatePositionRequest'
+      responses:
+        200:
+          description: Updated position
+          schema:
+            $ref: '#/definitions/Position'
+        409:
+          description: Position closed / invalid transition
+          schema:
+            $ref: '#/definitions/Error'
+    delete:
+      operationId: deletePosition
+      summary: Delete a position and its orders (no live orders allowed)
+      tags: [position]
+      produces: [application/json]
+      security:
+        - BearerAuth: []
+        - Token: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: Deleted
+          schema:
+            $ref: '#/definitions/MessageResponse'
+        409:
+          description: Live orders present
+          schema:
+            $ref: '#/definitions/Error'
+
+  /positions/{id}/orders:
+    post:
+      operationId: placePositionOrders
+      summary: Place a batch of diff orders against the position's legs
+      description: >
+        The legacy place_order flow — the client computes the required orders
+        from held vs target quantities (sync) or reverse orders (exit) and
+        posts them together. Orders carrying an `id` modify that OPEN order.
+        Placement is risk-sorted (exits/hedges first). Market hours only.
+      tags: [position]
+      consumes: [application/json]
+      produces: [application/json]
+      security:
+        - BearerAuth: []
+        - Token: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/PlacePositionOrdersRequest'
+      responses:
+        201:
+          description: Persisted orders in placement order
+          schema:
+            type: object
+            properties:
+              orders:
+                type: array
+                items:
+                  $ref: '#/definitions/Order'
+        400:
+          description: Market closed / validation failure
+          schema:
+            $ref: '#/definitions/Error'
+        409:
+          description: Position closed or order no longer OPEN
+          schema:
+            $ref: '#/definitions/Error'
+
+  /orders/{id}/recheck:
+    post:
+      operationId: recheckOrder
+      summary: Force a broker status check for an order
+      tags: [order]
+      produces: [application/json]
+      security:
+        - BearerAuth: []
+        - Token: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      responses:
+        202:
+          description: Status check enqueued
+          schema:
+            $ref: '#/definitions/MessageResponse'
+        404:
+          description: Order not found
+          schema:
+            $ref: '#/definitions/Error'
+
+  /broker/paper/login:
+    post:
+      operationId: paperLogin
+      summary: Open a Paper broker session
+      description: >
+        Never fails (test broker). Mints a dummy token valid until end of day
+        and seeds the default paper config. Each login creates a fresh session.
+      tags:
+        - broker
+      produces:
+        - application/json
+      security:
+        - BearerAuth: []
+        - Token: []
+      responses:
+        200:
+          description: Session opened
+          schema:
+            $ref: '#/definitions/PaperLoginResponse'
+        401:
+          description: Unauthenticated
+          schema:
+            $ref: '#/definitions/Error'
+
+  /broker/paper/config:
+    get:
+      operationId: getPaperConfig
+      summary: Get the effective (clamped/merged) paper config
+      tags:
+        - broker
+      produces:
+        - application/json
+      security:
+        - BearerAuth: []
+        - Token: []
+      responses:
+        200:
+          description: Effective paper config
+          schema:
+            $ref: '#/definitions/PaperConfig'
+        404:
+          description: No valid Paper session
+          schema:
+            $ref: '#/definitions/Error'
+        401:
+          description: Unauthenticated
+          schema:
+            $ref: '#/definitions/Error'
+    patch:
+      operationId: updatePaperConfig
+      summary: Tune the paper knobs at runtime
+      description: >
+        Deep-merges the patch into the stored config. Takes effect on the next
+        broker call. Rates are probabilities in [0,1]; delays are milliseconds.
+      tags:
+        - broker
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      security:
+        - BearerAuth: []
+        - Token: []
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/PaperConfigPatch'
+      responses:
+        200:
+          description: Effective paper config after the patch
+          schema:
+            $ref: '#/definitions/PaperConfig'
+        404:
+          description: No valid Paper session
+          schema:
+            $ref: '#/definitions/Error'
+        401:
+          description: Unauthenticated
+          schema:
+            $ref: '#/definitions/Error'
+
+  /broker/paper/funds:
+    get:
+      operationId: getPaperFunds
+      summary: Simulated available funds
+      description: Returns 10 crore or 3 lakh at random (Paper semantics).
+      tags:
+        - broker
+      produces:
+        - application/json
+      security:
+        - BearerAuth: []
+        - Token: []
+      responses:
+        200:
+          description: Available funds
+          schema:
+            $ref: '#/definitions/FundsResponse'
+        404:
+          description: No valid Paper session
+          schema:
+            $ref: '#/definitions/Error'
+        401:
+          description: Unauthenticated
+          schema:
+            $ref: '#/definitions/Error'
+
+definitions:
+  Instrument:
+    type: object
+    title: Instrument
+    description: One tradable/watchable contract from the filtered Angel One scrip master.
+    properties:
+      id:
+        type: string
+        description: '`${exchSeg}:${symbol}`'
+        example: 'NFO:NIFTY29JAN2621000CE'
+      token:
+        type: string
+        description: Angel One instrument token (used for the WS feed and orders)
+      symbol:
+        type: string
+        example: NIFTY29JAN2621000CE
+      name:
+        type: string
+        description: Underlying name
+        example: NIFTY
+      expiry:
+        type: string
+        format: date
+        x-nullable: true
+      strike:
+        type: number
+        example: 21000
+      lotSize:
+        type: integer
+      tickSize:
+        type: number
+      instrumentType:
+        type: string
+        enum:
+          - OPTIDX
+          - AMXIDX
+      exchSeg:
+        type: string
+        enum:
+          - NFO
+          - BFO
+          - NSE
+          - BSE
+      freezeQty:
+        type: integer
+      lastPrice:
+        type: number
+        description: Last traded price, refreshed by the LTP stream
+      volume:
+        type: number
+        description: Cumulative day volume, refreshed by the LTP stream
+      createdAt:
+        type: string
+        format: date-time
+      updatedAt:
+        type: string
+        format: date-time
+
+  InstrumentSyncResult:
+    type: object
+    title: InstrumentSyncResult
+    description: Outcome of one instrument master refresh.
+    properties:
+      fetched:
+        type: integer
+        description: Rows fetched from the Angel One dump before filtering
+      stored:
+        type: integer
+        description: Rows stored after applying the universe filter
+
+  User:
+    type: object
+    title: User
+    description: The single platform operator. The password hash is never exposed.
+    properties:
+      id:
+        type: string
+        format: uuid
+      email:
+        type: string
+        format: email
+      name:
+        type: string
+        x-nullable: true
+      isActive:
+        type: boolean
+      createdAt:
+        type: string
+        format: date-time
+      updatedAt:
+        type: string
+        format: date-time
+
+  LoginRequest:
+    type: object
+    title: LoginRequest
+    required:
+      - email
+      - password
+    properties:
+      email:
+        type: string
+        example: admin@quantswing.local
+      password:
+        type: string
+        format: password
+        example: ChangeMe123!
+
+  LoginResponse:
+    type: object
+    title: LoginResponse
+    properties:
+      token:
+        type: string
+        description: JWT access token (HS256).
+      user:
+        $ref: '#/definitions/User'
+
+  MeResponse:
+    type: object
+    title: MeResponse
+    properties:
+      user:
+        $ref: '#/definitions/User'
+
+  MessageResponse:
+    type: object
+    title: MessageResponse
+    properties:
+      message:
+        type: string
+        example: Logged out
+
+  ReadyResponse:
+    type: object
+    title: ReadyResponse
+    properties:
+      status:
+        type: string
+        enum:
+          - ready
+          - not-ready
+      checks:
+        type: object
+        properties:
+          database:
+            type: boolean
+          redis:
+            type: boolean
+
+  TradeSetupLeg:
+    type: object
+    title: TradeSetupLeg
+    properties:
+      id:
+        type: string
+        format: uuid
+      tradeSetupId:
+        type: string
+        format: uuid
+      instrumentId:
+        type: string
+      instrument:
+        $ref: '#/definitions/Instrument'
+      action:
+        type: string
+        enum: [BUY, SELL]
+      quantity:
+        type: integer
+        description: Absolute target quantity at multiplier 1 (lots x lotSize)
+      entryPrice:
+        type: number
+        x-nullable: true
+      exitPrice:
+        type: number
+        x-nullable: true
+      createdAt:
+        type: string
+        format: date-time
+
+  TradeSetup:
+    type: object
+    title: TradeSetup
+    description: User-defined multi-leg trade template — the reconcile target for positions.
+    properties:
+      id:
+        type: string
+        format: uuid
+      name:
+        type: string
+      status:
+        type: string
+        enum: [ACTIVE, ARCHIVED]
+      legs:
+        type: array
+        items:
+          $ref: '#/definitions/TradeSetupLeg'
+      livePositions:
+        type: integer
+        description: Count of non-CLOSED positions referencing this setup (list endpoint only)
+      createdAt:
+        type: string
+        format: date-time
+      updatedAt:
+        type: string
+        format: date-time
+
+  TradeSetupLegInput:
+    type: object
+    title: TradeSetupLegInput
+    required: [instrumentId, action, quantity]
+    properties:
+      instrumentId:
+        type: string
+      action:
+        type: string
+        enum: [BUY, SELL]
+      quantity:
+        type: integer
+        description: Must be a lot-size multiple
+      entryPrice:
+        type: number
+      exitPrice:
+        type: number
+
+  CreateTradeSetupRequest:
+    type: object
+    title: CreateTradeSetupRequest
+    required: [name, legs]
+    properties:
+      name:
+        type: string
+      legs:
+        type: array
+        items:
+          $ref: '#/definitions/TradeSetupLegInput'
+
+  UpdateTradeSetupRequest:
+    type: object
+    title: UpdateTradeSetupRequest
+    properties:
+      name:
+        type: string
+      status:
+        type: string
+        enum: [ACTIVE, ARCHIVED]
+      legs:
+        type: array
+        description: Full replacement; only allowed with no live position
+        items:
+          $ref: '#/definitions/TradeSetupLegInput'
+
+  PositionLeg:
+    type: object
+    title: PositionLeg
+    description: >
+      One leg of a position. Carries no stored quantity — held quantity is
+      derived from its COMPLETED orders.
+    properties:
+      id:
+        type: string
+        format: uuid
+      positionId:
+        type: string
+        format: uuid
+      tradeSetupLegId:
+        type: string
+        format: uuid
+      tradeSetupLeg:
+        $ref: '#/definitions/TradeSetupLeg'
+      instrumentId:
+        type: string
+      instrument:
+        $ref: '#/definitions/Instrument'
+      action:
+        type: string
+        enum: [BUY, SELL]
+      orders:
+        type: array
+        items:
+          $ref: '#/definitions/Order'
+      createdAt:
+        type: string
+        format: date-time
+
+  Position:
+    type: object
+    title: Position
+    description: >
+      A live instance of a TradeSetup. `position-update` socket events carry
+      this shape after every reconcile.
+    properties:
+      id:
+        type: string
+        format: uuid
+      userId:
+        type: string
+        format: uuid
+      tradeSetupId:
+        type: string
+        format: uuid
+      tradeSetup:
+        $ref: '#/definitions/TradeSetup'
+      broker:
+        type: string
+        enum: [PAPER]
+      status:
+        type: string
+        enum: [OPEN, MARKED_FOR_EXIT, CLOSED]
+      userMultiplier:
+        type: integer
+      readableStatus:
+        type: string
+        x-nullable: true
+        enum: [SYNCED, NOT_IN_SYNC, IN_PROGRESS, EXITED]
+      pnl:
+        type: number
+        description: Realized P&L (MTM poller output)
+      calcUnrealisedPnl:
+        type: number
+        description: Unrealized MTM on remaining quantity
+      totalCharges:
+        type: number
+      legs:
+        type: array
+        items:
+          $ref: '#/definitions/PositionLeg'
+      exitedAt:
+        type: string
+        format: date-time
+        x-nullable: true
+      createdAt:
+        type: string
+        format: date-time
+      updatedAt:
+        type: string
+        format: date-time
+
+  CreatePositionRequest:
+    type: object
+    title: CreatePositionRequest
+    required: [tradeSetupId]
+    properties:
+      tradeSetupId:
+        type: string
+      userMultiplier:
+        type: integer
+        default: 1
+
+  UpdatePositionRequest:
+    type: object
+    title: UpdatePositionRequest
+    description: At least one of status or userMultiplier is required.
+    properties:
+      status:
+        type: string
+        enum: [MARKED_FOR_EXIT]
+      userMultiplier:
+        type: integer
+
+  PositionOrderInput:
+    type: object
+    title: PositionOrderInput
+    required: [positionLegId, transactionType, orderType, quantity]
+    properties:
+      id:
+        type: string
+        description: Present — modify this OPEN order instead of creating one
+      positionLegId:
+        type: string
+      transactionType:
+        type: string
+        enum: [BUY, SELL]
+      orderType:
+        type: string
+        enum: [MARKET, LIMIT]
+      quantity:
+        type: integer
+      price:
+        type: number
+        description: Required for LIMIT
+      productType:
+        type: string
+        enum: [INTRADAY, NORMAL]
+        default: INTRADAY
+
+  PlacePositionOrdersRequest:
+    type: object
+    title: PlacePositionOrdersRequest
+    required: [orders]
+    properties:
+      orders:
+        type: array
+        items:
+          $ref: '#/definitions/PositionOrderInput'
+
+  SubscribeLtpRequest:
+    type: object
+    title: SubscribeLtpRequest
+    required:
+      - instrumentId
+    properties:
+      instrumentId:
+        type: string
+        example: 'NFO:NIFTY21JUL2624100CE'
+
+  SubscribeLtpResponse:
+    type: object
+    title: SubscribeLtpResponse
+    properties:
+      subscribed:
+        type: boolean
+        description: False when the LTP stream is offline (no broker credentials)
+      message:
+        type: string
+        example: Subscribed to live LTP
+
+  Order:
+    type: object
+    title: Order
+    description: >
+      A single order routed to a broker. Status flow: PENDING (queued) -> OPEN
+      (accepted) -> COMPLETED/CANCELLED/REJECTED. `order-update` socket events
+      fire on every transition.
+    properties:
+      id:
+        type: string
+        format: uuid
+      userId:
+        type: string
+        format: uuid
+      instrumentId:
+        type: string
+        example: 'NFO:NIFTY29JAN2621000CE'
+      instrument:
+        $ref: '#/definitions/Instrument'
+      broker:
+        type: string
+        enum:
+          - PAPER
+      status:
+        type: string
+        enum:
+          - PENDING
+          - OPEN
+          - PARTIAL
+          - COMPLETED
+          - CANCELLED
+          - REJECTED
+      transactionType:
+        type: string
+        enum:
+          - BUY
+          - SELL
+      orderType:
+        type: string
+        description: MARKET orders are resolved to LIMIT at placement time
+        enum:
+          - MARKET
+          - LIMIT
+      productType:
+        type: string
+        enum:
+          - INTRADAY
+          - NORMAL
+      quantity:
+        type: integer
+      price:
+        type: number
+        description: Limit price
+      brokerOrderId:
+        type: string
+        x-nullable: true
+        description: Broker-side order id; null until accepted
+        example: PAPER-8fa85a5d-a2b2-4b1f-899e-5014436056ef
+      filledQuantity:
+        type: integer
+      averageExecutionPrice:
+        type: number
+        x-nullable: true
+      rejectReason:
+        type: string
+        x-nullable: true
+      placedAt:
+        type: string
+        format: date-time
+        x-nullable: true
+      executedAt:
+        type: string
+        format: date-time
+        x-nullable: true
+      cancelledAt:
+        type: string
+        format: date-time
+        x-nullable: true
+      brokerLogs:
+        type: array
+        description: Present only on GET /orders/{id} (up to 20 recent)
+        items:
+          $ref: '#/definitions/BrokerLog'
+      positionId:
+        type: string
+        x-nullable: true
+        description: OMS linkage; null for quick-ticket orders
+      positionLegId:
+        type: string
+        x-nullable: true
+      stt:
+        type: number
+        x-nullable: true
+      stampDuty:
+        type: number
+        x-nullable: true
+      exchangeCharges:
+        type: number
+        x-nullable: true
+      sebiCharges:
+        type: number
+        x-nullable: true
+      brokerage:
+        type: number
+        x-nullable: true
+      gst:
+        type: number
+        x-nullable: true
+      totalCharges:
+        type: number
+        x-nullable: true
+        description: Sum of all charges, stamped on COMPLETED fills
+      chase:
+        type: boolean
+        description: Whether the price chase re-quotes this order while OPEN
+      chaseAttempts:
+        type: integer
+      chaseFailures:
+        type: integer
+      remarks:
+        type: string
+        x-nullable: true
+      createdAt:
+        type: string
+        format: date-time
+      updatedAt:
+        type: string
+        format: date-time
+
+  BrokerLog:
+    type: object
+    title: BrokerLog
+    description: Audit trail of one broker API call (real or simulated).
+    properties:
+      id:
+        type: string
+        format: uuid
+      broker:
+        type: string
+        enum:
+          - PAPER
+      method:
+        type: string
+        example: POST
+      url:
+        type: string
+        example: https://paper.test.broker/place-order
+      request:
+        type: object
+        x-nullable: true
+      response:
+        type: object
+        x-nullable: true
+      isError:
+        type: boolean
+      statusCode:
+        type: integer
+      duration:
+        type: integer
+        description: Call duration in ms
+      orderId:
+        type: string
+        x-nullable: true
+      brokerOrderId:
+        type: string
+        x-nullable: true
+      userId:
+        type: string
+        x-nullable: true
+      createdAt:
+        type: string
+        format: date-time
+
+  PlaceOrderRequest:
+    type: object
+    title: PlaceOrderRequest
+    required:
+      - instrumentId
+      - transactionType
+      - orderType
+      - quantity
+    properties:
+      instrumentId:
+        type: string
+        example: 'NFO:NIFTY29JAN2621000CE'
+      transactionType:
+        type: string
+        enum:
+          - BUY
+          - SELL
+      orderType:
+        type: string
+        enum:
+          - MARKET
+          - LIMIT
+      quantity:
+        type: integer
+        description: Must be a multiple of the instrument lot size
+      price:
+        type: number
+        description: Required for LIMIT orders
+      productType:
+        type: string
+        enum:
+          - INTRADAY
+          - NORMAL
+        default: INTRADAY
+
+  ModifyOrderRequest:
+    type: object
+    title: ModifyOrderRequest
+    description: At least one of price or quantity is required.
+    properties:
+      price:
+        type: number
+      quantity:
+        type: integer
+
+  PaperSegmentConfig:
+    type: object
+    title: PaperSegmentConfig
+    properties:
+      delayMs:
+        type: number
+        description: Simulated API latency in ms
+      failRate:
+        type: number
+        description: Probability [0,1] of a domain failure (e.g. REJECTED)
+      errorRate:
+        type: number
+        description: Probability [0,1] of a hard failure (thrown broker error)
+
+  PaperOrderStatusConfig:
+    type: object
+    title: PaperOrderStatusConfig
+    allOf:
+      - $ref: '#/definitions/PaperSegmentConfig'
+      - type: object
+        properties:
+          fillRate:
+            type: number
+            description: Probability an eligible OPEN order fills on a status check
+          minFillAgeMs:
+            type: number
+            description: Min age since placedAt before an OPEN order may fill
+
+  PaperConfig:
+    type: object
+    title: PaperConfig
+    description: Effective per-session Paper behaviour, one segment per operation.
+    properties:
+      placement:
+        $ref: '#/definitions/PaperSegmentConfig'
+      modification:
+        $ref: '#/definitions/PaperSegmentConfig'
+      cancellation:
+        $ref: '#/definitions/PaperSegmentConfig'
+      orderStatus:
+        $ref: '#/definitions/PaperOrderStatusConfig'
+
+  PaperConfigPatch:
+    type: object
+    title: PaperConfigPatch
+    description: Deep-partial patch of PaperConfig; omitted fields keep their value.
+    properties:
+      placement:
+        $ref: '#/definitions/PaperSegmentConfig'
+      modification:
+        $ref: '#/definitions/PaperSegmentConfig'
+      cancellation:
+        $ref: '#/definitions/PaperSegmentConfig'
+      orderStatus:
+        $ref: '#/definitions/PaperOrderStatusConfig'
+
+  PaperLoginResponse:
+    type: object
+    title: PaperLoginResponse
+    properties:
+      message:
+        type: string
+        example: Login successful
+      expiry:
+        type: string
+        format: date-time
+        description: Session valid until end of day
+      availableFunds:
+        type: number
+        example: 100000000
+
+  FundsResponse:
+    type: object
+    title: FundsResponse
+    properties:
+      availableFunds:
+        type: number
+        example: 300000
+
+  Error:
+    type: object
+    title: Error
+    description: Standard error envelope returned by the central error handler.
+    properties:
+      error:
+        type: object
+        properties:
+          code:
+            type: string
+            example: UNAUTHORIZED
+          message:
+            type: string
+            example: Invalid credentials
+          requestId:
+            type: string
+          details:
+            type: object
+            x-nullable: true
+          stack:
+            type: string
+            description: Present only outside production.

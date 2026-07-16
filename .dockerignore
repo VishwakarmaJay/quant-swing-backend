@@ -1,0 +1,15 @@
+node_modules
+src/generated
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.log
+dist
+out
+coverage
+.DS_Store
+Dockerfile
+.dockerignore
+README.md

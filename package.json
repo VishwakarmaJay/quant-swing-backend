@@ -1,0 +1,60 @@
+{
+  "name": "quant-swing-backend",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --watch src/server.ts",
+    "start": "bun src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:studio": "prisma studio",
+    "seed": "bun src/scripts/seed.ts",
+    "sync:instruments": "bun src/scripts/syncInstruments.ts",
+    "backfill:ohlcv": "bun src/scripts/backfillOhlcv.ts",
+    "listen:ltp": "bun src/scripts/ltpListener.ts",
+    "postinstall": "prisma generate",
+    "debug": "bun run src/server.ts",
+    "generate:schema": "bunx prisma generate",
+    "format": "bunx prettier --write ."
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.10.8",
+    "@types/bun": "latest",
+    "@types/compression": "^1.8.1",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/swagger-ui-express": "^4.1.8",
+    "prisma": "^7.8.0",
+    "socket.io-client": "^4.8.3"
+  },
+  "peerDependencies": {
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "amqplib": "^2.0.1",
+    "compression": "^1.8.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dayjs": "^1.11.21",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.2.0",
+    "ioredis": "^5.11.1",
+    "jsonwebtoken": "^9.0.3",
+    "otplib": "^13.4.1",
+    "rate-limit-redis": "^5.0.0",
+    "socket.io": "^4.8.3",
+    "swagger-ui-express": "^5.0.1",
+    "winston": "^3.19.0",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
+  }
+}

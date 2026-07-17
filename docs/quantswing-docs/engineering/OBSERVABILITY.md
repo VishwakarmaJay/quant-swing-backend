@@ -1,5 +1,9 @@
 # Observability
 
+> ⚠️ **Stale on the job layer:** as-built uses **RabbitMQ** (not BullMQ) for scheduling/dispatch;
+> the FinBERT sidecar / Sentiment factor are **not yet built**, so health checks / metrics for them
+> don't exist yet. [`../../SYSTEM.md`](../../SYSTEM.md) §2 is authoritative.
+
 ## Structured logging
 JSON via pino. Every pipeline run gets a run ID; all log lines and persisted records
 carry it (pino child logger per run). // SECURITY: pino redact paths — tokens/secrets never logged.

@@ -1,5 +1,9 @@
 # Non-Functional Requirements
 
+> ⚠️ **Stale on the job layer:** the rate-limit/queue mechanism is **RabbitMQ** as-built (not
+> BullMQ); FinBERT batching refers to a factor **not yet built**. [`../../SYSTEM.md`](../../SYSTEM.md)
+> §2 is authoritative.
+
 | NFR | Target | Mechanism |
 |---|---|---|
 | Determinism | Same input → byte-identical FactorResult | Immutable FeatureBundle, golden dataset tests |

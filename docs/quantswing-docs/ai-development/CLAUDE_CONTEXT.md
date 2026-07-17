@@ -1,12 +1,20 @@
 # CLAUDE_CONTEXT.md — paste-first context for AI dev sessions
 
+> ⚠️ **This spec-era primer is partly stale. For a real session, paste
+> [`../../HANDOFF_NEXT_STEPS.md`](../../HANDOFF_NEXT_STEPS.md) instead** (current plan + status) and
+> treat [`../../SYSTEM.md`](../../SYSTEM.md) as authoritative. Corrections: jobs = **RabbitMQ** (not
+> BullMQ); indicators **in-house** (not indicatorts); FinBERT/Sentiment **not built**; base capital
+> **₹100k** (not ₹5k); Phases **1–4 done**; and the "architecture frozen — no new factors" rule
+> below is **superseded** — Step 1 attribution showed the entries lack edge, so building/pruning
+> factors *is* the sanctioned work now (per RESEARCH_PROTOCOL evidence).
+
 ## Project
 QuantSwing — deterministic quantitative research + trade decision support platform,
 Indian equities (NSE/BSE). Bun + TypeScript (strict) + Express, PostgreSQL (Prisma),
-Redis + BullMQ (jobs/cache/rate limiting; soft dependency — watchdog inline fallback,
-Postgres is the only fail-fast dependency), FinBERT sidecar (FastAPI :8001),
-Angel One Smart API, Telegram delivery. Long-only swing (2–7 days),
-₹5K capital, manual order placement. NO LLM in the pipeline.
+Redis (cache/LTP) + **RabbitMQ** (jobs/scheduling/rate limiting; Postgres is the only
+fail-fast dependency). FinBERT sidecar *(planned, not built)*, Angel One Smart API,
+Telegram delivery. Long-only swing (2–7 days), **₹100k base capital**, manual order
+placement. NO LLM in the pipeline.
 
 ## Pipeline (frozen)
 Providers → DataQualityService → Factors → FeatureBundle(immutable) → Strategy
@@ -30,8 +38,11 @@ Strategy.evaluate(FeatureBundle, MarketRegime) → Signal.
 PortfolioManager returns the discriminated union ApprovedSignal | Rejection(reason, detail).
 
 ## Current phase
-<UPDATE ME: phase + sprint + last completed milestone>
+Phases 1–4 complete (data, factors, golden gate, decision layer, backtesting). Backtest shows the
+technicals-only strategy has **no edge yet** (entries, not exits). Step 1 attribution done. Next:
+Step 3 (sector-relative RS) / orthogonal signal — see `../../HANDOFF_NEXT_STEPS.md`.
 
 ## Files that define truth
-project/ARCHITECTURE.md · research/TRADING_RULES.md · engineering/CONFIGURATION.md ·
-ai-development/IMPLEMENTATION_RULES.md
+`../../SYSTEM.md` (as-built) · `../../HANDOFF_NEXT_STEPS.md` (plan) · `../../ATTRIBUTION.md` (Step 1
+findings) · engineering/CONFIGURATION.md · ai-development/IMPLEMENTATION_RULES.md
+*(spec docs under quantswing-docs are original intent — partly stale, see HANDOFF §3)*

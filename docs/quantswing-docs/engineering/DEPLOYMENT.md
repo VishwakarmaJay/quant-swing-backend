@@ -1,5 +1,10 @@
 # Deployment
 
+> ⚠️ **Stale on the job layer:** as-built the scheduler/queue is **RabbitMQ** (not BullMQ), so a
+> RabbitMQ broker is required alongside Redis (cache/LTP). Indicators are **in-house**; the FinBERT
+> sidecar / Sentiment factor are **not yet built**. [`../../SYSTEM.md`](../../SYSTEM.md) §2 & §10 are
+> authoritative. BullMQ references below are the original spec.
+
 ## Local
 ```
 docker-compose up

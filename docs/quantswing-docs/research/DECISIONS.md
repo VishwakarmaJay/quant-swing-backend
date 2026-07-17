@@ -11,7 +11,8 @@ Running log; architectural decisions get full ADRs in /ADR.
 | 2026-06 | DataQualityService pre-stage | Factors never defend against bad data individually | 0005 |
 | 2026-06 | FinBERT as Python sidecar | Isolation; replaceable without touching the app | 0006 |
 | 2026-06 | PostgreSQL; fail-fast on DB errors | Reproducibility depends on persistence | 0007 |
-| 2026-07 | Stack: Bun + TypeScript + Express, Redis, BullMQ, Prisma (from Spring/Java) | One language, lighter footprint, persistent jobs + rate limiting on Redis | 0008 |
+| 2026-07 | Stack: Bun + TypeScript + Express, Redis, Prisma (from Spring/Java) | One language, lighter footprint | 0008 |
+| 2026-07 | **As-built amendment:** jobs on **RabbitMQ** (not BullMQ); indicators **in-house** (not indicatorts) | Golden-testable determinism (in-house math); RabbitMQ chosen in code — see SYSTEM.md §2 | 0008 |
 | 2026-07 | Redis is a soft dependency; Postgres stays the only fail-fast one | Watchdog inline dispatch + Postgres-backed alert redelivery — outage never loses a run or alert | 0008 |
 | 2026-06 | Stop/size decoupled (ATR→stop, vol→size) | One variable per concern; clean attribution | — |
 | 2026-06 | agreementScore naming (not "confidence") | Honest: uncalibrated | — |

@@ -1,5 +1,8 @@
 # Implementation Rules (AI + human)
 
+> ⚠️ **As-built note:** the job layer is **RabbitMQ** (not BullMQ, mentioned below) and indicators
+> are **in-house**. The rules themselves still hold. [`../../SYSTEM.md`](../../SYSTEM.md) §2 is authoritative.
+
 1. **Verify before writing** — confirm library versions on the npm registry before use;
    if unverifiable, mark: `Verify this — may be outdated`. Never guess signatures.
 2. **Diff, not rewrite** — show changed blocks only; mark rest `// ... unchanged`.

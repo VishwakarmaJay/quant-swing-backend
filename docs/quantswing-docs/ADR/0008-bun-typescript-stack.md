@@ -1,5 +1,16 @@
 # ADR 0008 — Bun + TypeScript + Express, Redis, BullMQ (supersedes Java/Spring platform choice)
-Status: Accepted
+Status: Accepted — **partially amended in implementation (see note)**
+
+> ⚠️ **AMENDED IN IMPLEMENTATION (2 of the decisions below were reversed as-built):**
+> - **Jobs/scheduling: RabbitMQ, not BullMQ.** The as-built system uses RabbitMQ durable queues
+>   + interval pollers. The "RabbitMQ instead of BullMQ" alternative below was *rejected here but
+>   adopted in code* — treat the BullMQ rationale as historical.
+> - **Indicators: in-house, not `indicatorts`.** The Phase-2 "verify vs in-house" check landed on
+>   owning the math in-repo, so it can be golden-tested for byte-identical determinism.
+>
+> Everything else (Bun/TS, Express, Redis cache, Prisma/Postgres, pino/otplib/prom-client,
+> bun:test) is as-built. [`../../SYSTEM.md`](../../SYSTEM.md) §2 is authoritative. This ADR is kept
+> unedited below as the record of the original decision.
 
 ## Context
 The platform was originally specified on Spring Boot 3 / Java 21 with TA4J, Caffeine,

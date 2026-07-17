@@ -10,11 +10,12 @@ All notable changes documented here. Format: [Keep a Changelog](https://keepacha
 
 ### Changed
 - Implementation stack redefined before Phase 1: Bun + TypeScript + Express (was
-  Spring Boot 3 / Java 21), Redis + BullMQ for scheduling/caching/rate limiting
-  (was Spring @Scheduled + Caffeine), Prisma + Prisma Migrate (was JPA + Flyway).
-  Redis is a soft dependency: in-process watchdog dispatches runs inline on Redis
-  outage; Postgres stays the only fail-fast dependency. PostgreSQL and the FinBERT
-  sidecar unchanged. Domain architecture unchanged. See ADR 0008.
+  Spring Boot 3 / Java 21), Redis for caching, Prisma + Prisma Migrate (was JPA + Flyway).
+  PostgreSQL unchanged. Domain architecture unchanged. See ADR 0008.
+  - **As-built amendments (post-spec):** the job/scheduling layer is **RabbitMQ** (not the
+    BullMQ originally specced), and indicators are **in-house** implementations (not `indicatorts`)
+    so they can be golden-tested. The FinBERT sidecar / Sentiment factor remain **not yet built**.
+    See `../SYSTEM.md` §2 and `HANDOFF_NEXT_STEPS.md` §3.
 
 ## [0.1.0] — Phase 1 (planned)
 - Angel One auth (TOTP), instrument master, PostgreSQL persistence, DataQualityService.

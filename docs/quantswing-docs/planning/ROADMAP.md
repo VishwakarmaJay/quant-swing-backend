@@ -1,5 +1,12 @@
 # Roadmap
 
+> ⚠️ **Status + re-sequencing (see [`../../HANDOFF_NEXT_STEPS.md`](../../HANDOFF_NEXT_STEPS.md) §4):**
+> Phases **1–4 are complete**. Phase **5 (paper trading) is NOT next** — its gate is "beat Nifty
+> risk-adjusted," which the backtest currently **fails** (no edge; the problem is the entries).
+> Actual next work: attribution (done — [`../../ATTRIBUTION.md`](../../ATTRIBUTION.md)) → orthogonal
+> signal (sector-relative RS, Fundamental) → Phase 6 evaluation → *then* Phase 5. The phase list
+> below is the original plan, not the running order.
+
 ## v1 (current) — Deterministic research platform
 | Phase | Deliverable |
 |---|---|

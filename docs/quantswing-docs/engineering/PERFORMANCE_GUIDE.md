@@ -1,5 +1,9 @@
 # Performance Guide
 
+> ⚠️ **Stale on the job layer:** rate-limiting/queue pacing is via **RabbitMQ** as-built (not the
+> BullMQ limiter named below); "Intraday check" budgets refer to a job that is **not implemented**.
+> [`../../SYSTEM.md`](../../SYSTEM.md) §2 & §10 are authoritative.
+
 ## Budgets
 | Path | Budget | Mechanism |
 |---|---|---|

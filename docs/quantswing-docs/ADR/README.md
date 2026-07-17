@@ -12,4 +12,4 @@ Numbered, immutable once accepted; superseding decisions get new ADRs that refer
 | 0005 | Data quality gate | Accepted |
 | 0006 | FinBERT as Python sidecar | Accepted |
 | 0007 | PostgreSQL + fail-fast persistence | Accepted |
-| 0008 | Bun + TypeScript + Express, Redis, BullMQ | Accepted |
+| 0008 | Bun + TypeScript + Express, Redis, BullMQ | Accepted — **amended: as-built uses RabbitMQ (not BullMQ) + in-house indicators (not indicatorts); see the note atop ADR 0008** |

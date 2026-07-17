@@ -110,11 +110,27 @@ sector-relative RS) over another momentum-family factor; consider **regime-condi
 (don't buy the most extended names in BULL); **prune/fix volume**; and defer weight-learning
 (Phase 6) until an orthogonal signal exists — reweighting a ρ≈0 composite won't help.
 
-### Step 2 — Reconcile the stale docs (parallel, low-effort)
+### Step 2 — Reconcile the stale docs (parallel, low-effort) ✅ DONE
 **Why now:** `FACTOR_CATALOG.md` claims factors that don't exist; `TRADING_RULES.md` and
 `STRATEGIES.md` describe old sizing (₹50 risk) and the R:R≥2.0 gate the code no longer uses.
 Anyone reading them reasons about a system that isn't real. ~1 hour of edits; prevents wrong
 decisions in Steps 3–6. Use the table in §3 as the checklist.
+
+**✅ RESULT — every §3 drift row reconciled.** Approach: kept the original spec as the frozen
+record but added a **⚠️ STALE/AS-BUILT banner** + inline `[AS-BUILT]` corrections to each affected
+doc, all pointing to `SYSTEM.md` as authoritative.
+- **Core (§3-named):** `FACTOR_CATALOG`, `TRADING_RULES`, `STRATEGIES`, `MARKET_REGIMES`,
+  `TECH_STACK`, `SYSTEM_PIPELINE`, `PROJECT_DESCRIPTION`, `MODULES`, `README`, `ASSUMPTIONS`,
+  `KNOWN_LIMITATIONS`.
+- **BullMQ→RabbitMQ + indicatorts→in-house drift** (pervaded the decision/ops docs): amended
+  **ADR 0008** (supersession note — the ADR that argued "BullMQ not RabbitMQ" is reversed as-built),
+  its indexes (`ADR/README`, `DECISIONS`), `CHANGELOG`, and the operational docs (`DEPLOYMENT`,
+  `OBSERVABILITY`, `PERFORMANCE_GUIDE`, `NON_FUNCTIONAL_REQUIREMENTS`, `CLAUDE_CONTEXT`,
+  `IMPLEMENTATION_RULES`, `TROUBLESHOOTING`).
+- **`ROADMAP`** got a status banner (Phases 1–4 done; Phase 5 is NOT next).
+- **Intentionally left as historical point-in-time artifacts:** the `planning/SPRINT_*`,
+  `IMPLEMENTATION_ORDER`, `BACKLOG` checklists (they record what was planned per sprint, like ADRs
+  of intent — not claims about current state).
 
 ### Step 3 — Sector-relative RS (first real build)
 **Why before Sentiment/Fundamental:** Smallest, self-contained improvement — the *deferred

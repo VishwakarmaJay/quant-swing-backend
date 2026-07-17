@@ -1,5 +1,8 @@
 # Troubleshooting
 
+> ⚠️ **As-built note:** the queue/rate-limiter is **RabbitMQ** (not the BullMQ limiter referenced
+> below); FinBERT/Sentiment are **not yet built**. [`../../SYSTEM.md`](../../SYSTEM.md) §2 is authoritative.
+
 ## Auth
 **Angel One auth fails at startup**
 - TOTP secret must be the base32 KEY, not a 6-digit code

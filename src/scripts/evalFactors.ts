@@ -41,7 +41,16 @@ const run = async () => {
     return;
   }
 
-  type Row = { symbol: string; sector: string; trend: number; momentum: number; volatility: number; dq: number; n: number };
+  type Row = {
+    symbol: string;
+    sector: string;
+    trend: number;
+    momentum: number;
+    volume: number;
+    volatility: number;
+    dq: number;
+    n: number;
+  };
   const rows: Row[] = [];
 
   for (const inst of instruments) {
@@ -53,6 +62,7 @@ const run = async () => {
       sector: inst.sector ?? '—',
       trend: bundle.results.trend?.score ?? NaN,
       momentum: bundle.results.momentum?.score ?? NaN,
+      volume: bundle.results.volume?.score ?? NaN,
       volatility: bundle.results.volatility?.score ?? NaN,
       dq: bundle.dataQualityScore,
       n: ctx.candles.length,
@@ -63,12 +73,12 @@ const run = async () => {
   rows.sort((a, b) => b.trend - a.trend || b.momentum - a.momentum);
 
   console.log(`\nFactors: ${factors.map((f) => f.name).join(', ')}   (${rows.length} instruments)\n`);
-  console.log(`  #  SYMBOL         SECTOR                 TREND   MOM   VOL    DQ    N`);
-  console.log(`  ${'-'.repeat(72)}`);
+  console.log(`  #  SYMBOL         SECTOR                 TRND   MOM   VOL  VLTY    DQ    N`);
+  console.log(`  ${'-'.repeat(78)}`);
   rows.forEach((r, i) => {
     console.log(
       `${String(i + 1).padStart(3)}  ${r.symbol.padEnd(13)} ${r.sector.slice(0, 20).padEnd(20)} ` +
-        `${cell(r.trend)} ${cell(r.momentum)} ${cell(r.volatility)}  ${r.dq.toFixed(2)} ${String(r.n).padStart(4)}`,
+        `${cell(r.trend)} ${cell(r.momentum)} ${cell(r.volume)} ${cell(r.volatility)}  ${r.dq.toFixed(2)} ${String(r.n).padStart(4)}`,
     );
   });
 

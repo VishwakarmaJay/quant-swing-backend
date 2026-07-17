@@ -1,6 +1,7 @@
 import { MomentumFactor } from './momentumFactor';
 import { TrendFactor } from './trendFactor';
 import { VolatilityFactor } from './volatilityFactor';
+import { VolumeFactor } from './volumeFactor';
 import type { Factor } from './types';
 
 /**
@@ -11,5 +12,6 @@ import type { Factor } from './types';
 export const factors: readonly Factor[] = [
   new TrendFactor(),
   new MomentumFactor(),
+  new VolumeFactor(),
   new VolatilityFactor(),
 ];

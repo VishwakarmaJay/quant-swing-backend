@@ -28,6 +28,7 @@ export {
   DEFAULT_VOLATILITY_CONFIG,
   type VolatilityFactorConfig,
 } from './volatilityFactor';
+export { VolumeFactor, DEFAULT_VOLUME_CONFIG, type VolumeFactorConfig } from './volumeFactor';
 export { buildFeatureBundle } from './featureBundle';
 export { buildStockContext } from './context';
 export { factors } from './registry';

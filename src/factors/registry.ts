@@ -1,3 +1,4 @@
+import { MomentumFactor } from './momentumFactor';
 import { TrendFactor } from './trendFactor';
 import type { Factor } from './types';
 
@@ -6,4 +7,4 @@ import type { Factor } from './types';
  * adding it here — the runner iterates this list, nothing else changes. Order
  * is stable so reports and snapshots read consistently.
  */
-export const factors: readonly Factor[] = [new TrendFactor()];
+export const factors: readonly Factor[] = [new TrendFactor(), new MomentumFactor()];

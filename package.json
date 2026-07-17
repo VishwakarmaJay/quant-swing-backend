@@ -18,6 +18,7 @@
     "ohlcv:update": "bun src/scripts/updateOhlcv.ts",
     "factors:eval": "bun src/scripts/evalFactors.ts",
     "regime:detect": "bun src/scripts/detectRegime.ts",
+    "signal:inspect": "bun src/scripts/inspectSignal.ts",
     "strategy:eval": "bun src/scripts/evalStrategy.ts",
     "golden:snapshot": "bun src/scripts/goldenSnapshot.ts",
     "golden:update": "bun src/scripts/goldenUpdate.ts",

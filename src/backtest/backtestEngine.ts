@@ -4,7 +4,7 @@ import { buildFeatureBundle, emaLatest, factors, round, type StockContext } from
 import { assessDataQuality, type Candle } from '@/ohlcv';
 import { detectRegime } from '@/regime';
 import { computeSignalLevels } from '@/signal';
-import { WeightedStrategy } from '@/strategy';
+import { WeightedStrategy, type Strategy, type StrategyEvaluation } from '@/strategy';
 
 import type { CandleStore } from './candleStore';
 import { DEFAULT_SIMULATOR_CONFIG, simulateTrade, type ClosedTrade, type SimulatorConfig } from './tradeSimulator';
@@ -29,12 +29,27 @@ export type RawSignal = {
   signalIndex: number;
   entry: number;
   stopLoss: number;
+  /**
+   * The full strategy evaluation at signal time (factor scores, composite,
+   * agreement, regime, gate results). Always populated; used by the attribution
+   * tooling to correlate the decision context with the realised outcome. The
+   * sweep ignores it, so the stable signal-set guarantee is unaffected.
+   */
+  evaluation: StrategyEvaluation;
+  /** Each factor's 0–100 score at signal time (trend, momentum, …, volatility). */
+  factorScores: Record<string, number>;
 };
 
 export type BacktestOptions = {
   warmupIndex?: number;
   fromIndex?: number;
   toIndex?: number;
+  /**
+   * Strategy to evaluate candidates with. Defaults to the production
+   * WeightedStrategy. Attribution injects variants (a gate disabled, or a
+   * factor dropped from the composite) to measure marginal edge.
+   */
+  strategy?: Strategy;
 };
 
 const DEFAULT_WARMUP = 205;
@@ -43,7 +58,7 @@ const RESIGNAL_COOLDOWN_DAYS = 5;
 
 /** The expensive pass: replay the pipeline and collect raw signals (entry + SL). */
 export const generateRawSignals = (store: CandleStore, opts: BacktestOptions = {}): RawSignal[] => {
-  const strategy = new WeightedStrategy();
+  const strategy = opts.strategy ?? new WeightedStrategy();
   const from = Math.max(opts.warmupIndex ?? DEFAULT_WARMUP, opts.fromIndex ?? 0);
   const to = Math.min(opts.toIndex ?? store.tradingDates.length, store.tradingDates.length);
 
@@ -90,10 +105,15 @@ export const generateRawSignals = (store: CandleStore, opts: BacktestOptions = {
         benchmark: niftySlice.length ? { symbol: 'NIFTY', candles: niftySlice } : null,
       };
 
-      if (!strategy.evaluate(buildFeatureBundle(ctx, factors), regime.regime).passed) continue;
+      const bundle = buildFeatureBundle(ctx, factors);
+      const evaluation = strategy.evaluate(bundle, regime.regime);
+      if (!evaluation.passed) continue;
 
       const math = computeSignalLevels(slice);
       if (!math.ok) continue;
+
+      const factorScores: Record<string, number> = {};
+      for (const name of Object.keys(bundle.results)) factorScores[name] = bundle.results[name]!.score;
 
       signals.push({
         symbol,
@@ -102,6 +122,8 @@ export const generateRawSignals = (store: CandleStore, opts: BacktestOptions = {
         signalIndex: slice.length - 1,
         entry: math.entry,
         stopLoss: math.stopLoss,
+        evaluation,
+        factorScores,
       });
       lastSignalDate.set(symbol, asOf);
     }
@@ -110,32 +132,49 @@ export const generateRawSignals = (store: CandleStore, opts: BacktestOptions = {
   return signals;
 };
 
+/** A raw signal paired with the trade it produced (for attribution). */
+export type SignalTrade = { signal: RawSignal; trade: ClosedTrade };
+
+/**
+ * The cheap pass, keeping the signal→trade pairing. Attribution needs each
+ * trade's originating decision context (factor scores, composite, regime).
+ */
+export const simulateSignalsPaired = (
+  store: CandleStore,
+  signals: RawSignal[],
+  opts: { targetRr?: [number, number]; simulatorConfig?: SimulatorConfig } = {},
+): SignalTrade[] => {
+  const [rr1, rr2] = opts.targetRr ?? [2, 3];
+  const simConfig = opts.simulatorConfig ?? DEFAULT_SIMULATOR_CONFIG;
+  const pairs: SignalTrade[] = [];
+
+  for (const signal of signals) {
+    const risk = signal.entry - signal.stopLoss;
+    if (risk <= 0) continue;
+    const series = store.seriesById.get(signal.instrumentId);
+    if (!series) continue;
+    const trade = simulateTrade(
+      series,
+      signal.signalIndex,
+      {
+        stopLoss: signal.stopLoss,
+        target1: round(signal.entry + rr1 * risk, 2),
+        target2: round(signal.entry + rr2 * risk, 2),
+      },
+      { symbol: signal.symbol, sector: signal.sector },
+      simConfig,
+    );
+    if (trade) pairs.push({ signal, trade });
+  }
+  return pairs;
+};
+
 /** The cheap pass: simulate raw signals under a target/time-stop config. */
 export const simulateSignals = (
   store: CandleStore,
   signals: RawSignal[],
   opts: { targetRr?: [number, number]; simulatorConfig?: SimulatorConfig } = {},
-): ClosedTrade[] => {
-  const [rr1, rr2] = opts.targetRr ?? [2, 3];
-  const simConfig = opts.simulatorConfig ?? DEFAULT_SIMULATOR_CONFIG;
-  const trades: ClosedTrade[] = [];
-
-  for (const s of signals) {
-    const risk = s.entry - s.stopLoss;
-    if (risk <= 0) continue;
-    const series = store.seriesById.get(s.instrumentId);
-    if (!series) continue;
-    const trade = simulateTrade(
-      series,
-      s.signalIndex,
-      { stopLoss: s.stopLoss, target1: round(s.entry + rr1 * risk, 2), target2: round(s.entry + rr2 * risk, 2) },
-      { symbol: s.symbol, sector: s.sector },
-      simConfig,
-    );
-    if (trade) trades.push(trade);
-  }
-  return trades;
-};
+): ClosedTrade[] => simulateSignalsPaired(store, signals, opts).map((p) => p.trade);
 
 export type BacktestRun = {
   trades: ClosedTrade[];

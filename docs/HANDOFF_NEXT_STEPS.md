@@ -79,7 +79,7 @@ None are bugs — they're drift. But `FACTOR_CATALOG.md`, `TRADING_RULES.md`, an
 Ordered by "cheapest thing that most changes what you do next" — **not** by what's most
 exciting to build. **Measure before you build.**
 
-### Step 1 — Attribution on the 4 existing factors (before building anything)
+### Step 1 — Attribution on the 4 existing factors (before building anything) ✅ DONE
 **Why first:** The backtest says entries lack edge, but no one has measured *which* factor is
 responsible. `RESEARCH_PROTOCOL.md` demands out-of-sample attribution before promotion — yet
 all 4 current factors were "grandfathered as H-0," never tested. Use the Phase-4 harness
@@ -89,6 +89,26 @@ everything downstream. You may find a factor is actively *hurting* → pruning b
 
 **Decision gate:** if nothing in the current set shows edge, the *entry style itself* (buying
 trend strength) is the problem — which reframes Steps 3–4.
+
+**✅ RESULT — the decision gate tripped. Full findings: [`ATTRIBUTION.md`](./ATTRIBUTION.md).**
+Built `bun run backtest:attribution` (conditioning + gate/factor leave-one-out). Over the same
+981 trades:
+- **Nothing discriminates winners from losers** — Spearman(score, return) ≈ 0 for every factor
+  *and for the composite* (ρ = −0.02). The conviction score that drives sizing is uninformative.
+- **The scoring gates are largely inert** — the composite-threshold and technical-floor gates earn
+  nothing (disabling them doesn't change expectancy); only the **RSI 35–68 band** does real
+  filtering. Gates trim the losing tail but can't create edge.
+- **Losses are structural and regime-linked** — BULL regime is the sink (397 trades, expectancy
+  −0.67%, PF 0.61); SIDEWAYS is ~breakeven. The strategy buys the most extended trend-strength
+  names right as they revert.
+- **Factor ranking:** trend contributes most, relativeStrength mild, momentum ≈ 0, **volume is
+  mildly harmful** (dropping it *helps*).
+
+**⇒ It's the entry *style*, not any one factor.** This **reprioritises the plan**: piling on more
+lagging trend-aligned factors won't fix a style problem. Favour **orthogonal** signal (Fundamental,
+sector-relative RS) over another momentum-family factor; consider **regime-conditioned entries**
+(don't buy the most extended names in BULL); **prune/fix volume**; and defer weight-learning
+(Phase 6) until an orthogonal signal exists — reweighting a ρ≈0 composite won't help.
 
 ### Step 2 — Reconcile the stale docs (parallel, low-effort)
 **Why now:** `FACTOR_CATALOG.md` claims factors that don't exist; `TRADING_RULES.md` and

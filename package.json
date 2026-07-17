@@ -23,6 +23,7 @@
     "signals:run": "bun src/scripts/runNightly.ts",
     "backtest:run": "bun src/scripts/runBacktest.ts",
     "backtest:sweep": "bun src/scripts/runSweep.ts",
+    "backtest:attribution": "bun src/scripts/runAttribution.ts",
     "golden:snapshot": "bun src/scripts/goldenSnapshot.ts",
     "golden:update": "bun src/scripts/goldenUpdate.ts",
     "listen:ltp": "bun src/scripts/ltpListener.ts",

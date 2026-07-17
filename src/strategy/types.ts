@@ -26,6 +26,13 @@ export type StrategyConfig = {
   buckets: { technical: string[]; sentiment: string[]; fundamental: string[] };
   /** Sub-weights within the technical bucket (renormalized over present factors). */
   technicalFactorWeights: Record<string, number>;
+  /**
+   * Gate names to skip when evaluating (default: none). Used only by offline
+   * attribution/ablation tooling to measure a gate's marginal edge — production
+   * config leaves this absent, so live behaviour and the weights hash are
+   * unchanged.
+   */
+  disabledGates?: string[];
 };
 
 export const DEFAULT_STRATEGY_CONFIG: StrategyConfig = {

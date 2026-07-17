@@ -13,8 +13,20 @@ export {
   runBacktest,
   generateRawSignals,
   simulateSignals,
+  simulateSignalsPaired,
   type BacktestOptions,
   type BacktestRun,
   type RawSignal,
+  type SignalTrade,
 } from './backtestEngine';
+export {
+  spearman,
+  bucketByScore,
+  conditionFeatures,
+  metricsByRegime,
+  CONDITIONING_FEATURES,
+  type Bucket,
+  type Conditioning,
+  type RegimeBreakdown,
+} from './attribution';
 export { runSweep, DEFAULT_SWEEP_GRID, type SweepCombo, type SweepResult } from './sweep';

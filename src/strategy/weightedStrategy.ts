@@ -128,7 +128,10 @@ export class WeightedStrategy implements Strategy {
       });
     }
 
-    const firstFailed = gates.find((g) => !g.passed);
+    // Offline ablation only: a disabled gate still reports its pass/fail (for the
+    // record) but cannot cause a rejection. Absent in production config.
+    const disabled = cfg.disabledGates ?? [];
+    const firstFailed = gates.find((g) => !g.passed && !disabled.includes(g.name));
     const passed = firstFailed === undefined;
 
     const explanations = passed

@@ -56,7 +56,9 @@ export const DEFAULT_SIGNAL_MATH_CONFIG: SignalMathConfig = {
   swingLookback: 15,
   swingBuffer: 0.997,
   slMinPct: 0.5,
-  slMaxPct: 3.0,
+  // Widened from 3% → 10%: keep the ATR/swing stop (adapts per stock), just
+  // accept wider stops. atrRejectPct (6%) still guards genuinely wild names.
+  slMaxPct: 10.0,
   entryBandPct: 0.5,
   targetRr: [2.0, 3.0],
   resistanceLookback: 60,

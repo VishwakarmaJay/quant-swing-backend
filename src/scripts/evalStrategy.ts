@@ -1,19 +1,25 @@
 import { buildFeatureBundle, buildStockContext, factors, loadBenchmarkCandles } from '@/factors';
+import { PortfolioManager, portfolioConfigFromEnv, type PortfolioCandidate } from '@/portfolio';
 import { detectMarketRegime } from '@/regime';
-import { computeSignalLevels, type SignalLevels } from '@/signal';
+import { computeSignalLevels, DEFAULT_SIGNAL_MATH_CONFIG, type SignalLevels } from '@/signal';
 import { WeightedStrategy, type StrategyEvaluation } from '@/strategy';
 import { prisma } from '@services/prisma';
 
 /**
- * Full decision pipeline over the equity universe: detect regime → run factors
- * → WeightedStrategy → ranked candidates + rejection breakdown. Read-only.
+ * Full decision pipeline over the equity universe: regime → factors →
+ * WeightedStrategy → signal math → PortfolioManager. Read-only.
  *
- *   bun run strategy:eval          # uses the ATR volatility proxy for regime
- *   bun run strategy:eval 22       # with a VIX of 22
+ *   bun run strategy:eval             # ATR volatility proxy for regime
+ *   bun run strategy:eval 22          # with a VIX of 22
+ *   bun run strategy:eval na 5        # widen the SL band to 5% (tuning/demo)
  */
 const run = async () => {
   const vixArg = process.argv[2];
-  const vix = vixArg !== undefined ? Number(vixArg) : null;
+  const vix = vixArg && vixArg !== 'na' ? Number(vixArg) : null;
+  const slMaxArg = process.argv[3];
+  const signalConfig = slMaxArg
+    ? { ...DEFAULT_SIGNAL_MATH_CONFIG, slMaxPct: Number(slMaxArg) }
+    : DEFAULT_SIGNAL_MATH_CONFIG;
 
   const regime = await detectMarketRegime(new Date(), { vix });
   const benchmarkCandles = await loadBenchmarkCandles();
@@ -36,7 +42,7 @@ const run = async () => {
     let levels: SignalLevels | null = null;
     let mathReason: string | null = null;
     if (strat.passed) {
-      const math = computeSignalLevels(ctx.candles);
+      const math = computeSignalLevels(ctx.candles, signalConfig);
       if (math.ok) levels = math;
       else mathReason = math.reason;
     }
@@ -62,13 +68,41 @@ const run = async () => {
     );
   }
 
-  // Rejections: strategy gate failures + signal-math rejections of passed candidates.
+  // PortfolioManager: allocate the signals into approved positions (empty book).
+  const portfolioConfig = portfolioConfigFromEnv();
+  const pm = new PortfolioManager(portfolioConfig);
+  const candidates: PortfolioCandidate[] = signals.map((e) => ({
+    symbol: e.symbol.replace(/-EQ$/, ''),
+    sector: e.sector,
+    regime: regime.regime,
+    compositeScore: e.compositeScore,
+    agreementScore: e.agreementScore,
+    levels: e.levels!,
+  }));
+  const decision = pm.manage(candidates);
+
+  console.log(
+    `\n=== Approved positions (${decision.approved.length}) ` +
+      `[base ₹${portfolioConfig.baseCapitalPerTrade.toLocaleString('en-IN')}/trade, ` +
+      `max ${portfolioConfig.maxOpenPositions} positions, ${portfolioConfig.maxPerSector}/sector] ===`,
+  );
+  for (const a of decision.approved) {
+    console.log(
+      `  ${a.symbol.padEnd(12)} ${(a.sector ?? '—').slice(0, 18).padEnd(18)} ` +
+        `qty ${String(a.qty).padStart(4)} @ ${a.entry}  SL ${a.stopLoss}  T1 ${a.target1}  ` +
+        `risk ₹${a.riskAmount}  value ₹${a.positionValue}${a.sizeReduced ? '  (size-reduced)' : ''}`,
+    );
+  }
+
+  // Rejections: strategy gate failures + signal-math + portfolio rejections.
   const byReason = new Map<string, number>();
   for (const e of evals) {
     const reason = !e.passed ? e.rejectionReason! : e.mathReason;
     if (reason) byReason.set(reason, (byReason.get(reason) ?? 0) + 1);
   }
-  console.log(`\n=== Rejections (${evals.length - signals.length}) by reason ===`);
+  for (const r of decision.rejected) byReason.set(r.reason, (byReason.get(r.reason) ?? 0) + 1);
+
+  console.log(`\n=== Rejections by reason ===`);
   for (const [reason, count] of [...byReason.entries()].sort((a, b) => b[1] - a[1])) {
     console.log(`  ${reason.padEnd(20)} ${count}`);
   }

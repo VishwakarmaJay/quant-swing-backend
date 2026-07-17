@@ -61,11 +61,9 @@ describe('computeSignalLevels', () => {
     if (!r.ok) expect(r.reason).toBe('rr-resistance');
   });
 
-  test('stop wider than the max band → sl-band', () => {
-    // ~4% ATR (both stops wide) plus a deep recent swing low.
-    const candles = flat(70, 100, 2);
-    candles[62] = { ...candles[62]!, low: 95 };
-    const r = computeSignalLevels(candles);
+  test('stop tighter than the min band → sl-band', () => {
+    // Very calm, recent low hugging price → stop < 0.5% min.
+    const r = computeSignalLevels(flat(70, 100, 0.1));
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toBe('sl-band');
   });

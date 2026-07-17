@@ -20,6 +20,14 @@ const EnvSchema = z.object({
   POSITION_MTM_POLL_MS: z.coerce.number().int().positive().default(180000),
   /** How often squared-off MARKED_FOR_EXIT positions are flipped to CLOSED. */
   POSITION_CLEANUP_POLL_MS: z.coerce.number().int().positive().default(1800000),
+
+  // ---- PortfolioManager (sizing + limits; set at runtime) ----
+  /** Capital (₹) allocated to a trade at full conviction; scaled by composite. */
+  PORTFOLIO_BASE_CAPITAL: z.coerce.number().positive().default(100000),
+  /** Max concurrent positions the PortfolioManager will hold. */
+  PORTFOLIO_MAX_OPEN_POSITIONS: z.coerce.number().int().positive().default(2),
+  /** Max concurrent positions per sector. */
+  PORTFOLIO_MAX_PER_SECTOR: z.coerce.number().int().positive().default(1),
   /**
    * Reject OMS placements outside 09:15–15:30 IST. Off by default: the Paper
    * broker exists to test after hours (hedged's marketTime guard was

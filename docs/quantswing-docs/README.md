@@ -1,5 +1,10 @@
 # QuantSwing
 
+> ℹ️ **These are the original spec / planning docs.** For the *implemented* system
+> (Phases 1–4 done) with exact math and current state, read
+> [`../SYSTEM.md`](../SYSTEM.md) and [`../START_HERE.md`](../START_HERE.md) — those are
+> the authoritative source of what actually exists in the code.
+
 **A deterministic quantitative research and trade decision support platform for Indian equities (NSE/BSE).**
 
 > QuantSwing is intentionally designed as a deterministic research platform. Every recommendation is reproducible from historical data, versioned configuration, and stored feature snapshots, enabling transparent evaluation and continuous improvement.

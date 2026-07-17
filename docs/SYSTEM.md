@@ -1,4 +1,4 @@
-# QuantSwing — System Overview (Zero → Phase 3)
+# QuantSwing — System Overview (Zero → Phase 4)
 
 A deterministic, explainable quantitative decision-support system for Indian equities
 (NSE). It scans a ~166-stock universe every evening and produces **ranked, gated,
@@ -19,12 +19,13 @@ execution bot.
 4. [Phase 2 — The factor layer (with exact math)](#4-phase-2--the-factor-layer-with-exact-math)
 5. [Phase 2.5 — Golden determinism gate](#5-phase-25--golden-determinism-gate)
 6. [Phase 3 — The decision layer (with exact math)](#6-phase-3--the-decision-layer-with-exact-math)
-7. [Database schema](#7-database-schema)
-8. [Configuration reference](#8-configuration-reference)
-9. [Scripts & scheduled jobs](#9-scripts--scheduled-jobs)
-10. [CI/CD](#10-cicd)
-11. [End-to-end worked example](#11-end-to-end-worked-example)
-12. [Roadmap status](#12-roadmap-status)
+7. [Phase 4 — Backtesting (with exact math + the key finding)](#7-phase-4--backtesting-with-exact-math)
+8. [Database schema](#8-database-schema)
+9. [Configuration reference](#9-configuration-reference)
+10. [Scripts & scheduled jobs](#10-scripts--scheduled-jobs)
+11. [CI/CD](#11-cicd)
+12. [End-to-end worked example](#12-end-to-end-worked-example)
+13. [Roadmap status & where to go next](#13-roadmap-status--where-to-go-next)
 
 ---
 
@@ -430,7 +431,74 @@ config produced any signal.
 
 ---
 
-## 7. Database schema
+## 7. Phase 4 — Backtesting (with exact math)
+
+Replays the whole pipeline over history to answer the only question that matters:
+**does the strategy have edge?**
+
+### 7.1 BacktestEngine — as-of-date replay (no lookahead)
+- Loads all candles once into memory (`candleStore`), then for each trading day D
+  reconstructs the pipeline **as of D** using candles ≤ D only (**no lookahead**):
+  regime (breadth from that day's slices) → factors → strategy → signal math.
+- Signal generation is **separated from exit simulation** (`generateRawSignals` +
+  `simulateSignals`) so a parameter sweep generates signals once (the expensive replay)
+  and cheaply re-simulates them under many exit configs.
+- Dedup: a fixed 5-day re-signal cooldown per stock (config-independent → the signal set
+  is stable across a sweep). Measures **signal edge** — every signal is taken; it does
+  NOT enforce the live 2-position / sizing caps.
+
+### 7.2 TradeSimulator — the 5 exit triggers (docs TRADING_RULES)
+Entry fills at the **next day's open** (a signal fires on the close). Then each forward
+day, in priority order (SL checked first = conservative):
+```
+risk    = entry − SL ;  T1 = entry + 2×risk ;  T2 = entry + 3×risk
+
+1. stop-loss    : low ≤ SL              → exit remainder at SL
+2. target1       : high ≥ T1 & !taken    → sell 50% at T1, move SL to breakeven (entry)
+3. target2       : high ≥ T2             → exit remainder at T2
+4. time-stop     : held ≥ 7 cal days     → exit remainder at close
+5. thesis-break  : 2 closes < EMA20  OR  MACD histogram flips negative → exit at close
+   (end-of-data) : ran out of candles    → mark out at last close
+```
+Costs: **5 bps slippage** each side (worse fills) + **0.05% commission** each side
+(≈0.10% round trip). Sentiment-based thesis break omitted (no historical sentiment).
+
+### 7.3 Metrics & benchmark
+Per-trade **net-% returns** (sizing-agnostic → measures signal edge): win rate, expectancy,
+profit factor (Σ gross wins ÷ |Σ gross losses|), max drawdown (additive equity curve),
+Sharpe/Sortino (trade-level, not annualized), exit-reason breakdown. Benchmark = **Nifty
+Buy & Hold** over the same window.
+
+### 7.4 Parameter sweep
+`generateRawSignals` once, then a grid of (time-stop × target R-multiple) is re-simulated
+and ranked by profit factor (`backtest:sweep`). Isolates the exit/target hypotheses.
+
+### 7.5 THE KEY FINDING — the strategy has no edge (yet)
+Backtested over **~16 months / 981 trades** (2 years of history backfilled):
+```
+Win rate      41.3%
+Expectancy    −0.22% / trade
+Profit factor 0.86         (< 1 = loses money)
+Nifty B&H     +10.01%      (strategy badly underperforms)
+Exit reasons  539 time-stop · 242 stop-loss · 172 thesis-break · ONLY 21 target2
+```
+The **sweep is decisive**: all **16** (time-stop × target) combos lose (PF 0.81–0.88), and
+extending the time stop makes it *worse*. **Conclusion: the problem is the entries, not the
+exits.** If every exit variation loses, the signal generation (4 technical factors + gates)
+is not selecting stocks that outperform — no exit tuning rescues entries that lack edge.
+
+> This is the backtest doing its job: proving — on paper, at zero cost — that the current
+> strategy fails the Phase 5 gate ("beat Nifty risk-adjusted") **before** any capital is
+> risked. Most people learn this after losing money; here it's a green test result.
+
+**Caveats** stamped on every report: technicals-only (no sentiment/fundamental factors, no
+historical sentiment); survivorship bias (universe = today's constituents); signal-edge (no
+2-position cap); the additive max-drawdown is a naive artifact (overlapping trades summed),
+not a real portfolio drawdown.
+
+---
+
+## 8. Database schema
 
 Research / decision tables (Phase 1–3):
 
@@ -450,7 +518,7 @@ independent of them.
 
 ---
 
-## 8. Configuration reference
+## 9. Configuration reference
 
 **Factor params** (per-factor config objects, defaults):
 | Factor | Params |
@@ -480,21 +548,23 @@ roundTripCostPct 0.25%, size-reduction 3–6% ATR × 0.75.
 
 ---
 
-## 9. Scripts & scheduled jobs
+## 10. Scripts & scheduled jobs
 
 **Scripts** (`bun run <name>`):
 | Script | Does |
 |---|---|
 | `sync:instruments` | Refresh instrument master + universe |
-| `backfill:ohlcv [scope] [days]` | Backfill history (`all` / `equities` / `indices` / NAME) |
+| `backfill:ohlcv [scope] [days]` | Backfill history (`all` / `equities` / `indices` / NAME). For backtesting use `all 800` (~2yr) |
 | `ohlcv:update` | Incremental candle update (also the nightly cron) |
 | `factors:eval [scope]` | Universe-wide factor scan (ranked table) |
 | `regime:detect [vix]` | Current market regime |
 | `strategy:eval [vix] [slMax]` | Full pipeline preview (regime → portfolio) |
 | `signal:inspect NAME` | Drill into one stock's signal math |
 | `signals:run [vix]` | **Nightly run** — pipeline → persist → deliver |
+| `backtest:run` | Historical replay + performance report vs Nifty B&H |
+| `backtest:sweep` | Parameter sensitivity sweep (time-stop × targets), ranked by profit factor |
 | `golden:snapshot` / `golden:update` | Refresh / re-baseline the golden fixture |
-| `test`, `typecheck` | 102 tests; strict tsc |
+| `test`, `typecheck` | **112 tests**; strict tsc |
 
 **Cron schedule** (RabbitMQ-backed, IST):
 | Time | Job |
@@ -506,7 +576,7 @@ roundTripCostPct 0.25%, size-reduction 3–6% ATR × 0.75.
 
 ---
 
-## 10. CI/CD
+## 11. CI/CD
 
 - **GitHub Actions** (`.github/workflows/ci.yml`): on push/PR → `bun install` →
   `prisma generate` → `typecheck` → `bun test` (unit + golden, no DB needed via dummy
@@ -515,7 +585,7 @@ roundTripCostPct 0.25%, size-reduction 3–6% ATR × 0.75.
 
 ---
 
-## 11. End-to-end worked example
+## 12. End-to-end worked example
 
 A real run (SIDEWAYS regime, threshold 65, ₹100k base capital, max 2 positions):
 
@@ -539,7 +609,7 @@ and persisted; the alert renders to Telegram.
 
 ---
 
-## 12. Roadmap status
+## 13. Roadmap status & where to go next
 
 | Phase | Status |
 |---|---|
@@ -548,17 +618,38 @@ and persisted; the alert renders to Telegram.
 | **2.5 — Golden determinism gate** | ✅ Done |
 | **CI/CD** | ✅ Done |
 | **3 — Decision layer** (Regime, Strategy, Signal math, Portfolio, Persistence, Delivery) | ✅ Done |
-| 4 — Backtesting (as-of replay, cost sim, vs Nifty B&H) | ⏳ Next |
-| 5 — Paper trading (≥2-week beat-Nifty gate) | Pending |
-| 6 — Evaluation + ML weighting | Pending |
+| **4 — Backtesting** (as-of replay, cost sim, vs Nifty B&H, sweep) | ✅ Done |
+| 5 — Paper trading (≥2-week beat-Nifty gate) | ⛔ **Gated — strategy must first show edge** |
+| 6 — Evaluation + ML weighting | ⏳ The natural next work |
+
+### Why Phase 5 is NOT next
+**Phase 5 (paper trading) is not warranted yet** — its gate is "beat Nifty risk-adjusted,"
+and the backtest already shows the opposite over 16 months (§7.5). Paper-trading a
+known-negative strategy would just burn calendar time.
+
+### The work is in the entries — concrete, evidence-based next moves
+1. **Build the missing factors — Sentiment (FinBERT) and Fundamental.** The strategy is
+   running on **4 technical factors alone**; the docs' whole thesis is that sentiment +
+   fundamentals add the edge technicals lack. Their weight-buckets currently **renormalize
+   out entirely** (composite = technical score today).
+2. **Sector-relative RS** — the deferred half of `RelativeStrengthFactor` (today it's
+   vs-Nifty only).
+3. **Factor pruning + ML weighting (Phase 6)** — you now have the backtest harness to
+   measure whether any factor combination *does* have edge, which is precisely what Phase 6
+   needs.
+
+### The honest bottom line
+You now have a **complete, working, reproducible signal factory and a backtest that proves
+it doesn't yet have edge.** That's a real, valuable place to be — most people discover this
+*after* losing money. The next phase isn't Phase 5; it's improving the **entries**
+(sentiment/fundamental factors, then Phase 6 evaluation).
 
 **Known simplifications** (documented, non-blocking): RS is vs-Nifty only (sector-relative
 pending); `instrumentMasterVersion` is best-effort; `snapshotJson` holds the approved
 signal (could carry the full factor bundle); VIX is proxied by Nifty ATR% until a VIX feed
-is wired; Sentiment + Fundamental factors are later sprints (their buckets renormalize out
-today).
+is wired; Sentiment + Fundamental factors not yet built (their buckets renormalize out).
 
 ---
 
-*Generated at the completion of Phase 3. Every formula above is the exact implementation
-in `src/` and is covered by the 102-test suite + golden determinism gate.*
+*Generated at the completion of Phase 4. Every formula above is the exact implementation
+in `src/` and is covered by the 112-test suite + golden determinism gate.*

@@ -77,6 +77,7 @@ model Instrument {
   tradeSetupLegs TradeSetupLeg[]
   positionLegs   PositionLeg[]
   candles        Ohlcv[]
+  signals        Signal[]
 
   @@unique([exchSeg, token])
   @@index([symbol])
@@ -368,4 +369,104 @@ model SystemLog {
   @@index([level])
   @@index([event])
   @@map("system_log")
+}
+
+/// One nightly decision run — the summary + version stamps that make every
+/// signal reproducible (docs ARCHITECTURE/NON_FUNCTIONAL). Append-only.
+model SignalRun {
+  id                   String   @id @default(uuid())
+  createdAt            DateTime @default(now())
+  asOf                 DateTime @db.Date
+  marketRegime         String
+  regimeDetail         String
+  approvedCount        Int
+  rejectedCount        Int
+  engineVersion        String
+  weightsVersion       String
+  factorConfigChecksum String
+
+  @@index([createdAt])
+  @@map("signal_run")
+}
+
+/// An approved trade signal with its full snapshot + version stamps. Long-only
+/// v1 (action BUY). Append-only; never mutated (docs DATABASE rules).
+model Signal {
+  id           String     @id @default(uuid())
+  runId        String
+  createdAt    DateTime   @default(now())
+  asOf         DateTime   @db.Date
+  instrumentId String
+  instrument   Instrument @relation(fields: [instrumentId], references: [id])
+  symbol       String
+  sector       String?
+
+  action         String  @default("BUY")
+  entry          Float
+  entryLow       Float
+  entryHigh      Float
+  stopLoss       Float
+  target1        Float
+  target2        Float
+  riskPerShare   Float
+  rrToResistance Float?
+  atrPct         Float
+
+  qty              Int
+  positionValue    Float
+  allocatedCapital Float
+  riskAmount       Float
+
+  compositeScore Float
+  agreementScore Float
+  marketRegime   String
+
+  /// Full reproducibility snapshot (the approved signal + factor scores).
+  snapshotJson            Json
+  snapshotSchemaVersion   String
+  weightsVersion          String
+  /// git sha of the engine that produced this signal.
+  engineVersion           String
+  instrumentMasterVersion String
+  constituentSnapshotDate DateTime @db.Date
+  factorConfigChecksum    String
+
+  @@index([runId])
+  @@index([createdAt])
+  @@index([instrumentId])
+  @@map("signal")
+}
+
+/// Telegram alerts that failed to send — the recoverability queue (docs
+/// NON_FUNCTIONAL: no silently lost signal). Postgres is the source of truth;
+/// a resend pass retries them next cycle.
+model UndeliveredAlert {
+  id          String    @id @default(uuid())
+  /// The rendered message text.
+  payload     String
+  runId       String?
+  attempts    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  deliveredAt DateTime?
+
+  @@index([deliveredAt])
+  @@map("undelivered_alert")
+}
+
+/// Every candidate that did NOT become a signal, with the stage + reason it was
+/// dropped — the auditable rejection trail (docs: "every reject has a reason").
+model SignalRejection {
+  id           String   @id @default(uuid())
+  runId        String
+  createdAt    DateTime @default(now())
+  instrumentId String
+  symbol       String
+  /// strategy | signal-math | portfolio
+  stage        String
+  reason       String
+  detail       String
+
+  @@index([runId])
+  @@index([reason])
+  @@map("signal_rejection")
 }

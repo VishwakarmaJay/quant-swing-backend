@@ -20,6 +20,7 @@
     "regime:detect": "bun src/scripts/detectRegime.ts",
     "signal:inspect": "bun src/scripts/inspectSignal.ts",
     "strategy:eval": "bun src/scripts/evalStrategy.ts",
+    "signals:run": "bun src/scripts/runNightly.ts",
     "golden:snapshot": "bun src/scripts/goldenSnapshot.ts",
     "golden:update": "bun src/scripts/goldenUpdate.ts",
     "listen:ltp": "bun src/scripts/ltpListener.ts",

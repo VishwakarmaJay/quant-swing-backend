@@ -5,6 +5,7 @@ export enum CRONJOBS {
   INSTRUMENT_SYNC = 'INSTRUMENT_SYNC',
   FAIL_POST_MARKET_PENDING_ORDERS = 'FAIL_POST_MARKET_PENDING_ORDERS',
   OHLCV_INCREMENTAL = 'OHLCV_INCREMENTAL',
+  SIGNAL_RUN = 'SIGNAL_RUN',
 }
 
 /** Time of day (server-local) at which a daily cron fires. */

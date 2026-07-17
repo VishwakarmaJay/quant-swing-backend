@@ -1,0 +1,564 @@
+# QuantSwing — System Overview (Zero → Phase 3)
+
+A deterministic, explainable quantitative decision-support system for Indian equities
+(NSE). It scans a ~166-stock universe every evening and produces **ranked, gated,
+risk-sized trade signals** with a full reproducibility trail, delivered to Telegram.
+Orders are placed **manually** by the operator — this is decision support, not an
+execution bot.
+
+> **Design creed:** every number is reproducible from stored data + versioned config.
+> No randomness, no wall-clock reads inside factor logic, every rejection has a reason.
+
+---
+
+## Table of contents
+
+1. [The pipeline at a glance](#1-the-pipeline-at-a-glance)
+2. [Tech stack](#2-tech-stack)
+3. [Phase 1 — Data foundation](#3-phase-1--data-foundation)
+4. [Phase 2 — The factor layer (with exact math)](#4-phase-2--the-factor-layer-with-exact-math)
+5. [Phase 2.5 — Golden determinism gate](#5-phase-25--golden-determinism-gate)
+6. [Phase 3 — The decision layer (with exact math)](#6-phase-3--the-decision-layer-with-exact-math)
+7. [Database schema](#7-database-schema)
+8. [Configuration reference](#8-configuration-reference)
+9. [Scripts & scheduled jobs](#9-scripts--scheduled-jobs)
+10. [CI/CD](#10-cicd)
+11. [End-to-end worked example](#11-end-to-end-worked-example)
+12. [Roadmap status](#12-roadmap-status)
+
+---
+
+## 1. The pipeline at a glance
+
+```
+Angel One (scrip master + historical candles + live LTP)
+        │
+        ▼
+ Instrument master ──► Universe (166 equities + 3 indices)
+        │
+        ▼
+ OHLCV store (daily candles)  ◄── nightly incremental update
+        │
+        ▼
+ DataQualityService  ──► StockContext (candles ≤ asOf, no lookahead, + Nifty benchmark)
+        │
+        ▼
+ 5 Factors ──► FeatureBundle (immutable, deep-frozen)
+        │
+        ▼
+ MarketRegimeService (Nifty trend + breadth + VIX)
+        │
+        ▼
+ WeightedStrategy (regime-weighted composite + 7 gates) ──► TradeCandidate | Rejection
+        │
+        ▼
+ Signal math (ATR stop, targets, R:R)                   ──► levels | Rejection
+        │
+        ▼
+ PortfolioManager (conviction sizing, caps, kill switch) ──► ApprovedSignal | Rejection
+        │
+        ▼
+ Persistence (SignalRun + Signal + SignalRejection, version-stamped)
+        │
+        ▼
+ Delivery (AlertFormatter → Telegram, retry → undelivered queue)
+```
+
+Each stage is a **pure function of injected inputs** (candles, regime, config) plus a
+thin I/O “builder” that loads data. This is what makes the system deterministic and
+unit-testable: the same inputs always produce byte-identical outputs.
+
+---
+
+## 2. Tech stack
+
+| Concern | Choice |
+|---|---|
+| Runtime / language | **Bun** + **TypeScript** (strict) |
+| HTTP | Express 5 (internal `/health`) |
+| DB | **PostgreSQL** via **Prisma** ORM + Prisma Migrate |
+| Cache / live LTP | **Redis** (`ltp:<id>` keys, pub/sub) |
+| Jobs / cron | **RabbitMQ** durable queues + interval pollers |
+| Market data | **Angel One SmartAPI** (scrip master, historical candles, WebSocket LTP) |
+| Delivery | **Telegram Bot API** |
+| Tests | `bun:test` (unit + golden), Testcontainers-ready |
+| CI/CD | GitHub Actions (typecheck + test) + Docker image → ghcr.io |
+
+All indicator math is **in-house** (no external TA library) so it is versioned,
+auditable, and golden-tested.
+
+---
+
+## 3. Phase 1 — Data foundation
+
+### 3.1 Instrument master & universe
+- `syncInstrumentMaster` downloads the Angel One scrip master JSON and filters it to the
+  platform universe:
+  - **166 NSE equities** (`instrumentType = 'EQ'`) grouped into **23 sectors**
+    (`src/universe/equityUniverse.ts`, committed reference data).
+  - **3 index rows** (`AMXIDX`): NIFTY, BANKNIFTY, SENSEX (used as benchmark + regime).
+  - Index options (`OPTIDX`) for the legacy OMS.
+- Corporate-action aliases are handled explicitly (e.g. `ZOMATO → ETERNAL`,
+  `LTIM → LTM`, `TATAMOTORS → TMCV + TMPV`); symbols that don't resolve are **reported,
+  never silently dropped**.
+- Equity tick sizes are converted paise → ₹ (`tick_size / 100`).
+- Each equity carries its **sector** (used later for RS peer group + 1-per-sector cap).
+
+### 3.2 OHLCV store
+- `Ohlcv` table: daily candles keyed on `(instrumentId, tradeDate)`, `Float` prices +
+  volume, **append-only via upsert** (re-fetch overwrites in place, never duplicates).
+- **Backfill** (`backfill:ohlcv`): fetches ~400 calendar days (~270 trading days) of
+  history per instrument from Angel's `getCandleData`. This gives comfortable margin
+  over EMA200 (needs 200) and the RS lookback (needs 61).
+- **Nightly incremental** (`OHLCV_INCREMENTAL` cron, 16:30 IST): for every instrument
+  that already has history, fetches forward from its last stored candle and upserts.
+  Overlapping the last day re-settles a candle first captured mid-session.
+
+### 3.3 DataQualityService — the choke point
+Factors never see bad data. Before feature extraction, each candle series is scored:
+
+```
+malformed(c)  = any(o,h,l,c ≤ 0) OR volume < 0 OR high < low
+                OR high < max(open,close) OR low > min(open,close)
+
+continuity    = min(1, present_candles / (weekdays_in_span × tradingDayFraction))
+                where tradingDayFraction = 0.94  (≈ 1 − holiday ratio)
+
+stalenessDays = asOf − last_candle_date  (calendar days)
+
+score = continuity × (1 − malformedRatio)
+        × (stale ? 0.5 : 1)          // stale if stalenessDays > 5
+        × (tooShort ? 0.5 : 1)       // tooShort if candles < 200
+```
+
+A score **< 0.8** means the instrument is skipped for the run. Index candles have
+`volume = 0` (legitimate — spot indices have no traded volume), which is *not* malformed.
+
+---
+
+## 4. Phase 2 — The factor layer (with exact math)
+
+### 4.1 Contracts
+
+```typescript
+interface Factor {
+  name: string;
+  category: FactorCategory;                 // TREND | MOMENTUM | RELATIVE_STRENGTH | VOLUME | VOLATILITY | ...
+  evaluate(ctx: StockContext): FactorOutput; // PURE — no clock/random/env
+}
+
+type FactorOutput = {
+  score: number;                 // 0–100, higher = more bullish
+  agreementContribution: number; // directional lean in [−1, +1]
+  explanations: string[];        // human-readable reasons
+  metrics: Record<string, MetricValue>; // raw values (ema, rsi, atr, …)
+};
+
+type StockContext = {
+  symbol: string;
+  asOf: string;                  // ISO date — injected, never wall clock
+  candles: Candle[];             // ascending, ≤ asOf (no lookahead)
+  dataQualityScore: number;
+  sector: string | null;
+  benchmark: { symbol: 'NIFTY'; candles: Candle[] } | null;
+};
+```
+
+The **runner** (`buildFeatureBundle`) times each factor and attaches `executionTimeMs`
+to form the `FactorResult`, then **deep-freezes** the bundle. Timing lives outside
+`evaluate` so factor output stays byte-identical across runs.
+
+### 4.2 Indicators (in-house, exact formulas)
+
+**EMA (SMA-seeded)** — period `p`:
+```
+EMA[p−1] = SMA(values[0..p−1])
+k        = 2 / (p + 1)
+EMA[i]   = (value[i] − EMA[i−1]) × k + EMA[i−1]     for i ≥ p
+```
+
+**RSI (Wilder smoothing)** — period `p` (default 14):
+```
+seed:  avgGain = mean(gains over first p changes)
+       avgLoss = mean(losses over first p changes)
+step:  avgGain = (avgGain × (p−1) + gain_i) / p
+       avgLoss = (avgLoss × (p−1) + loss_i) / p
+RS   = avgGain / avgLoss
+RSI  = 100 − 100 / (1 + RS)     (avgLoss = 0 ⇒ RSI = 100)
+```
+
+**MACD** — fast 12, slow 26, signal 9:
+```
+macdLine = EMA(close, 12) − EMA(close, 26)
+signal   = EMA(macdLine, 9)
+histogram = macdLine − signal
+```
+
+**ATR (Wilder)** — period 14:
+```
+TR[i]  = max(high[i]−low[i], |high[i]−close[i−1]|, |low[i]−close[i−1]|)
+ATR[p] = mean(TR[1..p])
+ATR[i] = (ATR[i−1] × (p−1) + TR[i]) / p
+```
+
+### 4.3 The 5 factors
+
+Each factor is 0–100 (higher = more bullish) with `agreementContribution = (score−50)/50`
+unless noted. All parameters are config, not literals.
+
+#### TrendFactor — EMA 20/50/200 stack
+Awards 25 points per satisfied condition (sum = 100):
+```
++25 if price > EMA20
++25 if EMA20 > EMA50
++25 if EMA50 > EMA200
++25 if price > EMA200
+```
+100 = perfect bullish stack, 0 = perfect bearish stack.
+
+#### MomentumFactor — MACD + RSI (50/50 blend)
+```
+macdScore = (macd > 0 ? 50 : 0) + (histogram > 0 ? 50 : 0)   // 0 / 50 / 100
+rsiScore  = clamp(RSI, 0, 100)                               // RSI used directly
+score     = 0.5 × macdScore + 0.5 × rsiScore
+```
+Overbought filtering is the *strategy's* job (its RSI gate), not this factor's — a
+momentum factor reports strong momentum, it doesn't mean-revert it.
+
+#### RelativeStrengthFactor — vs Nifty (lookback 60)
+```
+stockRet = (close_now − close_60ago) / close_60ago × 100
+benchRet = same for NIFTY
+excess   = stockRet − benchRet
+norm     = clamp(excess / excessCapPct, −1, +1)   // excessCapPct = 20
+score    = 50 + norm × 50
+```
+Outperforming Nifty by ≥ 20% over 60 days → 100; underperforming by ≥ 20% → 0.
+(*Sector-relative RS is a planned extension — needs a cross-sectional pre-pass.*)
+
+#### VolumeFactor — volume-confirmed direction
+```
+baseVol   = SMA(volume, 20)                 // the "20-day average"
+recentVol = SMA(volume, 5)
+relVol    = recentVol / baseVol
+recentRet = (close − close_5ago) / close_5ago
+dir       = sign(recentRet)                 // −1 / 0 / +1
+conviction = clamp((relVol − 1) / convictionCap, 0, 1)   // convictionCap = 1 (2× avg = full)
+score     = 50 + dir × conviction × 50
+```
+Volume **amplifies** the price direction, never flips it: up-move on heavy volume →
+toward 100 (accumulation); down-move on heavy volume → toward 0 (distribution);
+average/thin volume → 50 (move unconfirmed). Index rows (volume 0) return the
+insufficient branch.
+
+#### VolatilityFactor — ATR% favorability (non-directional)
+```
+atrPct = ATR14 / close × 100
+score  = 100                              if atrPct ≤ idealAtrPct (1.5)
+       = 0                                if atrPct ≥ rejectAtrPct (6.0)
+       = 100 × (reject − atrPct)/(reject − ideal)   otherwise (linear)
+```
+`agreementContribution = 0` always (volatility isn't bull or bear). The ATR percentile
+(mid-rank, tie-safe) is exposed as an informational metric. This factor's `atr`/`atrPct`
+feed the downstream stop/size rules.
+
+---
+
+## 5. Phase 2.5 — Golden determinism gate
+
+- A **fixed, committed fixture** of real candles for 15 stocks + the Nifty benchmark
+  (`__fixtures__/golden-candles.json`, ~210 candles each, frozen at a fixed `asOf`).
+- `golden-expected.json` holds the exact factor output those inputs must produce.
+- The golden test asserts **byte-identical** output (score, agreement, explanations,
+  metrics — everything except `executionTimeMs`). Any factor change that shifts a number
+  fails CI until re-baselined (`bun run golden:update`) with justification.
+- Proven to catch drift: a one-line factor tweak fails 15/16 golden tests.
+
+---
+
+## 6. Phase 3 — The decision layer (with exact math)
+
+### 6.1 MarketRegimeService
+Classifies the market as of `asOf` from Nifty trend, **breadth** (% of the equity
+universe above its EMA50), and VIX (optional — Nifty ATR% proxy when absent). Priority:
+
+```
+return1d = (nifty_close − nifty_prevClose) / nifty_prevClose × 100
+breadth  = 100 × (# universe stocks with close > EMA50) / (# with enough history)
+
+1. CRASH     if return1d ≤ −3%  OR  vix ≥ 30           → no new signals
+2. HIGH_VOL  if vix ≥ 20  OR  (no vix AND niftyAtrPct ≥ 2%)
+3. else based on trend + breadth:
+     BULL     if nifty_close > EMA200  AND breadth ≥ 55%
+     BEAR     if nifty_close < EMA200  AND breadth ≤ 40%
+     SIDEWAYS otherwise
+```
+
+### 6.2 WeightedStrategy — "is this a good trade?"
+
+**Bucket scores.** Factors group into 3 buckets; each bucket = mean of its present
+factors:
+- `technical` = weighted mean of the 4 *directional* technical factors:
+  ```
+  weights: trend 0.35, momentum 0.30, relativeStrength 0.25, volume 0.10
+  (renormalized over whichever factors are present)
+  ```
+  *(Volatility is non-directional → not in the composite; it feeds signal math.)*
+- `sentiment`, `fundamental` = null today (those factors are later sprints).
+
+**Composite** — regime-weighted blend, **renormalized over present buckets**:
+```
+regime weights (technical / sentiment / fundamental):
+  BULL      0.50 / 0.30 / 0.20
+  SIDEWAYS  0.35 / 0.25 / 0.40
+  HIGH_VOL  0.40 / 0.45 / 0.15
+  BEAR      0.30 / 0.30 / 0.40
+
+composite = Σ(bucketScore × weight) / Σ(weight)   over present buckets
+```
+Today only `technical` exists, so **composite = technicalScore**. When Sentiment/
+Fundamental factors land, the full blend activates automatically — no code change.
+
+**Agreement score** (uncalibrated factor agreement):
+```
+agreement = clamp(1 − stddev(directional factor scores) / 50, 0, 1)
+```
+
+**Threshold** (regime-adjusted): `65 + adj` where `adj` = BULL 0, SIDEWAYS 0,
+HIGH_VOL +5, BEAR +10.
+
+**The 7 gates** (all must pass; first failure = rejection reason):
+```
+1. regime            : regime ≠ CRASH
+2. composite         : composite ≥ threshold
+3. technical-floor   : technicalScore ≥ 60
+4. macd-bullish      : momentum.histogram > 0
+5. price-above-ema20 : close > EMA20
+6. rsi-band          : 35 ≤ RSI ≤ 68
+7. sentiment-floor   : sentiment ≥ 40   (only when a SentimentFactor exists)
+```
+Gate 6's *reward:risk* form is realized by signal math (below).
+
+### 6.3 Signal math — entry, stop, targets, R:R
+
+For a passing candidate (`entry` = last close):
+```
+entryLow  = entry × 0.995
+entryHigh = entry × 1.005
+
+atrPct = ATR14 / entry × 100
+  REJECT "atr-too-high"  if atrPct ≥ 6%
+
+mult    = atrPct < 1.5 ? 2.0 : 1.5           // wider stop for calmer stocks
+SL_ATR  = entry − mult × ATR14
+SL_SWING = min(low over last 15) × 0.997
+SL      = max(SL_ATR, SL_SWING)              // the tighter of the two
+slPct   = (entry − SL) / entry × 100
+  REJECT "sl-band"  if slPct < 0.5%  OR  slPct > 10%
+
+risk    = entry − SL
+target1 = entry + 2 × risk
+target2 = entry + 3 × risk
+
+resistance = max(high over prior 60 candles, excluding today)   // null if ≤ entry (breakout)
+rrToResistance = (resistance − entry) / risk
+  REJECT "rr-resistance"  if resistance exists AND rrToResistance < 1.5
+```
+> **Note:** the SL band max was set to **10%** (from the docs' 3%) per operator config;
+> the ATR/swing computation is unchanged — stops still adapt per stock.
+
+### 6.4 PortfolioManager — "can we take it now?"
+
+Order of checks: kill switch → per-candidate viability → rank-order allocation.
+
+```
+KILL SWITCH:  if dailyRealizedLoss ≥ dailyKillSwitch → reject ALL ("kill-switch")
+
+SIZING (conviction-based, no capital cap):
+  allocatedCapital = baseCapitalPerTrade × (compositeScore / 100)
+  qty              = floor(allocatedCapital / entry)
+  size-reduction:  if 3% ≤ atrPct < 6% → qty = floor(qty × 0.75)
+  REJECT "sizing"  if qty < 1
+
+COST-DRAG:
+  expectedProfit = qty × (target1 − entry)
+  cost           = positionValue × roundTripCostPct/100   (roundTripCostPct = 0.25)
+  REJECT "cost-drag"  if expectedProfit < 3 × cost
+
+ALLOCATION (candidates ranked by composite desc):
+  slots = maxOpenPositions − open_positions       (maxOpenPositions = 2, runtime-configurable)
+  REJECT "position-limit"  if slots exhausted
+  REJECT "sector-cap"      if sector already at maxPerSector (1)
+  else APPROVE, decrement slots, mark sector
+```
+`baseCapitalPerTrade` and `maxOpenPositions` (+ `maxPerSector`) are **runtime env vars**
+(`PORTFOLIO_BASE_CAPITAL`, `PORTFOLIO_MAX_OPEN_POSITIONS`, `PORTFOLIO_MAX_PER_SECTOR`) —
+set per run/deploy, no code change.
+
+An `ApprovedSignal` carries: symbol, sector, regime, composite/agreement, full levels
+(entry band, SL, T1/T2, risk/share, R:R, atrPct), and sizing (qty, positionValue,
+allocatedCapital, riskAmount, sizeReduced).
+
+### 6.5 Persistence — the reproducibility trail
+Each run writes, in **one append-only transaction**:
+- `SignalRun` — summary (regime, counts, version stamps).
+- `Signal` — every approved signal with full levels + sizing + **version stamps** +
+  `snapshotJson`.
+- `SignalRejection` — every dropped candidate with `stage` (strategy | signal-math |
+  portfolio) + reason + detail.
+
+**Version stamps** (make any historical signal reconstructable):
+```
+snapshotSchemaVersion   = "1.0.0"
+engineVersion           = git sha  (env ENGINE_VERSION → git → "dev")
+weightsVersion          = "w-" + sha256(strategy weights + thresholds)[0..12]
+factorConfigChecksum    = "f-" + sha256(all 5 factor default configs)[0..12]
+instrumentMasterVersion = "im-<universeCount>@<lastSyncDate>"
+constituentSnapshotDate = asOf
+```
+Change any factor param or weight ⇒ the checksum changes ⇒ you always know exactly which
+config produced any signal.
+
+### 6.6 Delivery
+- `AlertFormatter` renders an explainable Telegram (Markdown) message: regime, each
+  signal's entry band / stop (with %) / targets / qty / composite / agreement, and a
+  manual-order disclaimer. A no-signal run reports the regime + top rejection reasons.
+- `deliverAlert`: sends with **3× exponential backoff**; on final failure persists to
+  the `UndeliveredAlert` queue (Postgres = source of truth). `resendUndelivered` flushes
+  the backlog on the next run. **No-throw** — delivery never fails the pipeline; when
+  `TELEGRAM_*` env vars are unset it logs the alert instead of sending.
+
+---
+
+## 7. Database schema
+
+Research / decision tables (Phase 1–3):
+
+| Table | Role |
+|---|---|
+| `instrument` | Universe: token, symbol, name, sector, lot/tick, `lastPrice`, `volume` |
+| `ohlcv` | Daily candles `(instrumentId, tradeDate)`, append-only |
+| `signal_run` | One nightly run — regime, counts, engine/weights versions |
+| `signal` | Approved signals — levels, sizing, scores, snapshot, all version stamps |
+| `signal_rejection` | Every rejected candidate — stage + reason + detail |
+| `undelivered_alert` | Failed Telegram alerts awaiting resend |
+| `app_config` | KV config (e.g. instrument universe filter) |
+
+Legacy OMS tables also exist (`order`, `position`, `trade_setup`, `broker_token`,
+`broker_log`, …) from the options order-management layer; the research pipeline above is
+independent of them.
+
+---
+
+## 8. Configuration reference
+
+**Factor params** (per-factor config objects, defaults):
+| Factor | Params |
+|---|---|
+| Trend | EMA 20 / 50 / 200, 25 pts each |
+| Momentum | RSI 14, MACD 12/26/9, weights macd 0.5 / rsi 0.5 |
+| RelativeStrength | lookback 60, excessCapPct 20 |
+| Volume | lookback 20, priceWindow 5, convictionCap 1.0 |
+| Volatility | ATR 14, idealAtrPct 1.5, rejectAtrPct 6.0, percentileLookback 100 |
+
+**Regime:** trend EMA 200, fast EMA 50, bull breadth 55%, bear breadth 40%,
+crash drop 3%, crash VIX 30, high-vol VIX 20, high-vol ATR% 2.0.
+
+**Strategy:** baseThreshold 65, technicalFloor 60, sentimentFloor 40, RSI band 35–68,
+regime weight matrix (§6.2), threshold adj HIGH_VOL +5 / BEAR +10.
+
+**Signal math:** SL band 0.5%–10%, ATR mult 2.0 (<1.5%) / 1.5 (≥1.5%), swing lookback 15
+× 0.997, target R-multiples 2 / 3, resistance lookback 60, minResistanceRr 1.5,
+atrRejectPct 6.
+
+**Portfolio (env):** `PORTFOLIO_BASE_CAPITAL` (₹100,000), `PORTFOLIO_MAX_OPEN_POSITIONS`
+(2), `PORTFOLIO_MAX_PER_SECTOR` (1); dailyKillSwitch ₹5,000, minReturnVsCost 3×,
+roundTripCostPct 0.25%, size-reduction 3–6% ATR × 0.75.
+
+**Secrets (env):** `ANGELONE_*`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `DATABASE_URL`,
+`REDIS_*`, `RABBITMQ_URL`, `JWT_SECRET`, `ENGINE_VERSION`.
+
+---
+
+## 9. Scripts & scheduled jobs
+
+**Scripts** (`bun run <name>`):
+| Script | Does |
+|---|---|
+| `sync:instruments` | Refresh instrument master + universe |
+| `backfill:ohlcv [scope] [days]` | Backfill history (`all` / `equities` / `indices` / NAME) |
+| `ohlcv:update` | Incremental candle update (also the nightly cron) |
+| `factors:eval [scope]` | Universe-wide factor scan (ranked table) |
+| `regime:detect [vix]` | Current market regime |
+| `strategy:eval [vix] [slMax]` | Full pipeline preview (regime → portfolio) |
+| `signal:inspect NAME` | Drill into one stock's signal math |
+| `signals:run [vix]` | **Nightly run** — pipeline → persist → deliver |
+| `golden:snapshot` / `golden:update` | Refresh / re-baseline the golden fixture |
+| `test`, `typecheck` | 102 tests; strict tsc |
+
+**Cron schedule** (RabbitMQ-backed, IST):
+| Time | Job |
+|---|---|
+| 08:00 | Instrument master sync |
+| 16:00 | Post-market cleanup (legacy OMS) |
+| 16:30 | OHLCV incremental update |
+| **17:00** | **Nightly signal run → persist → Telegram** |
+
+---
+
+## 10. CI/CD
+
+- **GitHub Actions** (`.github/workflows/ci.yml`): on push/PR → `bun install` →
+  `prisma generate` → `typecheck` → `bun test` (unit + golden, no DB needed via dummy
+  env). On push to `main` → build Docker image → publish to **ghcr.io**.
+- Frontend has its own lint + build workflow.
+
+---
+
+## 11. End-to-end worked example
+
+A real run (SIDEWAYS regime, threshold 65, ₹100k base capital, max 2 positions):
+
+```
+167 equities scanned
+ └─ 114 rejected: composite < 65
+ └─  28 rejected: MACD not bullish
+ └─   6 rejected: RSI outside 35–68
+ └─  14 rejected: R:R to resistance < 1.5 (signal math)
+ └─   3 rejected: position-limit (qualified but slots full)
+ └─   2 APPROVED
+
+BHEL   composite 91.28  entry ₹435.40  SL ₹411.72 (5.44%)  T1 ₹482.76  T2 ₹506.44
+       qty 156  value ₹67,922  (size-reduced: ATR in 3–6% band)
+BAJAJ-AUTO composite 82.24  entry ₹10,331.50  SL ₹9,998.16 (3.23%)  T1 ₹10,998.18
+       qty 7  value ₹72,320
+```
+BHEL got more capital (composite 91 → ~₹91k allocation → 156 sh); BAJAJ-AUTO's high price
+(₹10k/sh) yields only 7 shares. Both stamped with `engine <sha>`, `w-<hash>`, `f-<hash>`
+and persisted; the alert renders to Telegram.
+
+---
+
+## 12. Roadmap status
+
+| Phase | Status |
+|---|---|
+| **1 — Data foundation** (OHLCV, universe, DataQuality, nightly update) | ✅ Done |
+| **2 — Factor layer** (Trend, Momentum, RS, Volume, Volatility) | ✅ Done |
+| **2.5 — Golden determinism gate** | ✅ Done |
+| **CI/CD** | ✅ Done |
+| **3 — Decision layer** (Regime, Strategy, Signal math, Portfolio, Persistence, Delivery) | ✅ Done |
+| 4 — Backtesting (as-of replay, cost sim, vs Nifty B&H) | ⏳ Next |
+| 5 — Paper trading (≥2-week beat-Nifty gate) | Pending |
+| 6 — Evaluation + ML weighting | Pending |
+
+**Known simplifications** (documented, non-blocking): RS is vs-Nifty only (sector-relative
+pending); `instrumentMasterVersion` is best-effort; `snapshotJson` holds the approved
+signal (could carry the full factor bundle); VIX is proxied by Nifty ATR% until a VIX feed
+is wired; Sentiment + Fundamental factors are later sprints (their buckets renormalize out
+today).
+
+---
+
+*Generated at the completion of Phase 3. Every formula above is the exact implementation
+in `src/` and is covered by the 102-test suite + golden determinism gate.*

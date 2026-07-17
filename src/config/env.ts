@@ -44,7 +44,14 @@ const EnvSchema = z.object({
   ANGELONE_MPIN: z.string().min(1).optional(),
   ANGELONE_TOTP_SECRET: z.string().min(1).optional(),
 
+  // Telegram delivery (optional — alerts are logged, not sent, when unset)
+  TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
+  TELEGRAM_CHAT_ID: z.string().min(1).optional(),
+
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).optional(),
+
+  /** git sha stamped onto signals for reproducibility (set in CI/deploy). */
+  ENGINE_VERSION: z.string().optional(),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

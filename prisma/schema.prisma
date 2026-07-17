@@ -56,10 +56,13 @@ model Instrument {
   strike         Float     @default(0)
   lotSize        Int       @default(1)
   tickSize       Float     @default(0)
-  /// OPTIDX (index option) or AMXIDX (underlying index)
+  /// OPTIDX (index option), AMXIDX (underlying index), or EQ (NSE cash equity)
   instrumentType String
   /// NFO | BFO | NSE | BSE
   exchSeg        String
+  /// Sector label for equities (RS peer group + portfolio 1-per-sector cap);
+  /// null for index/option instruments.
+  sector         String?
   /// Max quantity allowed per order on an index
   freezeQty      Int       @default(0)
   /// Last traded price, refreshed by the LTP stream (throttled fallback for the Redis cache)
@@ -80,6 +83,7 @@ model Instrument {
   @@index([name])
   @@index([expiry])
   @@index([instrumentType])
+  @@index([sector])
   @@map("instrument")
 }
 

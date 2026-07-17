@@ -2,6 +2,7 @@ import type { Prisma } from '@generated/prisma/client';
 import logger from '@services/logger';
 import { prisma } from '@services/prisma';
 import { ServiceUnavailableError } from '@utils/errors';
+import { EQUITY_UNIVERSE } from '@/universe/equityUniverse';
 import type { AngelOneScrip, InstrumentUniverse } from '../types/instrument';
 
 const SCRIP_MASTER_URL =
@@ -69,11 +70,33 @@ const toInstrument = (scrip: AngelOneScrip): Prisma.InstrumentCreateManyInput =>
   freezeQty: Number(scrip.freeze_qty),
 });
 
+/** NSE cash equity (Angel instrumenttype ""), stamped with our EQ type + sector. */
+const toEquityInstrument = (
+  scrip: AngelOneScrip,
+  sector: string,
+): Prisma.InstrumentCreateManyInput => ({
+  id: `${scrip.exch_seg}:${scrip.symbol}`,
+  token: scrip.token,
+  symbol: scrip.symbol,
+  name: scrip.name,
+  expiry: null,
+  strike: 0,
+  lotSize: Number(scrip.lotsize) || 1,
+  // Equity tick_size is published in paise (e.g. 5 → ₹0.05), unlike derivatives.
+  tickSize: Number(scrip.tick_size) / 100,
+  instrumentType: 'EQ',
+  exchSeg: scrip.exch_seg,
+  sector,
+  freezeQty: Number(scrip.freeze_qty) || 0,
+});
+
 /**
- * Fetches the Angel One scrip master, filters it to the platform universe
- * (index options + their underlying index rows), and merges it into the
- * instrument table: existing rows are updated in place (primary key unchanged),
- * new contracts are inserted, and nothing is ever deleted.
+ * Fetches the Angel One scrip master, filters it to the platform universe —
+ * index options + their underlying index rows, plus the NSE equity universe —
+ * and merges it into the instrument table: existing rows update in place
+ * (primary key unchanged), new rows insert, nothing is ever deleted. Equity
+ * symbols that don't resolve (renames/delistings) are reported, never dropped
+ * silently.
  */
 export const syncInstrumentMaster = async (by: string) => {
   const universe = await getUniverse();
@@ -93,7 +116,29 @@ export const syncInstrumentMaster = async (by: string) => {
     universe.optionSegments.includes(scrip.exch_seg) &&
     universe.names.includes(scrip.name);
 
-  const instruments = scrips.filter((s) => isUnderlying(s) || isIndexOption(s)).map(toInstrument);
+  // Equity universe, keyed by the Angel scrip-master `name` (alias-aware).
+  const equityByAngelName = new Map(EQUITY_UNIVERSE.map((e) => [e.angelName, e]));
+  const isEquity = (scrip: AngelOneScrip) =>
+    scrip.exch_seg === 'NSE' &&
+    scrip.instrumenttype === '' &&
+    scrip.symbol.endsWith('-EQ') &&
+    equityByAngelName.has(scrip.name);
+
+  const derivativeInstruments = scrips
+    .filter((s) => isUnderlying(s) || isIndexOption(s))
+    .map(toInstrument);
+
+  const equityScrips = scrips.filter(isEquity);
+  const equityInstruments = equityScrips.map((s) =>
+    toEquityInstrument(s, equityByAngelName.get(s.name)!.sector),
+  );
+
+  const resolvedNames = new Set(equityScrips.map((s) => s.name));
+  const unresolvedEquities = EQUITY_UNIVERSE.filter((e) => !resolvedNames.has(e.angelName)).map(
+    (e) => e.symbol,
+  );
+
+  const instruments = [...derivativeInstruments, ...equityInstruments];
 
   // Upsert in slices: update existing rows by primary key, insert new ones.
   for (let i = 0; i < instruments.length; i += UPSERT_SLICE_SIZE) {
@@ -109,7 +154,20 @@ export const syncInstrumentMaster = async (by: string) => {
   }
 
   logger.info(
-    `[InstrumentMaster]: merged ${instruments.length} of ${scrips.length} scrips (by ${by})`,
+    `[InstrumentMaster]: merged ${instruments.length} scrips ` +
+      `(${derivativeInstruments.length} derivative, ${equityInstruments.length} equity) by ${by}`,
   );
-  return { fetched: scrips.length, stored: instruments.length };
+  if (unresolvedEquities.length) {
+    logger.warn(
+      `[InstrumentMaster]: ${unresolvedEquities.length} equity symbol(s) did not resolve — ` +
+        `add an alias in equityUniverse.ts: ${unresolvedEquities.join(', ')}`,
+    );
+  }
+
+  return {
+    fetched: scrips.length,
+    stored: instruments.length,
+    equities: equityInstruments.length,
+    unresolvedEquities,
+  };
 };

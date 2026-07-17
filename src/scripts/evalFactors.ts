@@ -2,42 +2,78 @@ import { buildFeatureBundle, buildStockContext, factors } from '@/factors';
 import { prisma } from '@services/prisma';
 
 /**
- * Evaluate the registered factors over the underlying-index OHLCV history and
- * print the FeatureBundle — the Phase 2 proof (factor layer running on real
- * data). Read-only.
+ * Evaluate the registered factors across a universe and print a compact,
+ * ranked table (one line per instrument). Read-only.
  *
- *   bun run factors:eval            # all 3 indices
- *   bun run factors:eval NIFTY      # one underlying by name
+ *   bun run factors:eval             # whole equity universe (default)
+ *   bun run factors:eval indices     # the 3 underlying indices
+ *   bun run factors:eval RELIANCE    # one instrument by name
  */
-const run = async () => {
-  const [nameArg] = process.argv.slice(2);
 
+const scopeWhere = (arg?: string) => {
+  switch ((arg ?? '').toLowerCase()) {
+    case '':
+    case 'equities':
+    case 'eq':
+      return { instrumentType: 'EQ' };
+    case 'all':
+      return { instrumentType: { in: ['EQ', 'AMXIDX'] } };
+    case 'indices':
+    case 'index':
+      return { instrumentType: 'AMXIDX' };
+    default:
+      return { name: arg!.toUpperCase() };
+  }
+};
+
+const cell = (v: number) => (Number.isFinite(v) ? v.toFixed(0).padStart(5) : '   —');
+
+const run = async () => {
+  const [scopeArg] = process.argv.slice(2);
   const instruments = await prisma.instrument.findMany({
-    where: { instrumentType: 'AMXIDX', ...(nameArg ? { name: nameArg.toUpperCase() } : {}) },
+    where: scopeWhere(scopeArg),
     orderBy: { name: 'asc' },
   });
 
   if (!instruments.length) {
-    console.error('No matching AMXIDX instruments — run "bun run backfill:ohlcv" first.');
+    console.error('No matching instruments — run "bun run sync:instruments" / "backfill:ohlcv" first.');
     process.exitCode = 1;
     return;
   }
 
-  for (const instrument of instruments) {
-    const ctx = await buildStockContext(instrument.id);
-    if (!ctx) continue;
+  type Row = { symbol: string; sector: string; trend: number; momentum: number; volatility: number; dq: number; n: number };
+  const rows: Row[] = [];
 
+  for (const inst of instruments) {
+    const ctx = await buildStockContext(inst.id);
+    if (!ctx) continue;
     const bundle = buildFeatureBundle(ctx, factors);
-    console.log(`\n=== ${instrument.name} (${ctx.symbol}) as of ${ctx.asOf} ===`);
-    console.log(`candles=${ctx.candles.length}  dataQuality=${bundle.dataQualityScore}`);
-    for (const [name, r] of Object.entries(bundle.results)) {
-      console.log(
-        `  [${name}] score=${r.score} lean=${r.agreementContribution} (${r.executionTimeMs}ms)`,
-      );
-      for (const line of r.explanations) console.log(`      • ${line}`);
-      console.log(`      metrics: ${JSON.stringify(r.metrics)}`);
-    }
+    rows.push({
+      symbol: inst.symbol.replace(/-EQ$/, ''),
+      sector: inst.sector ?? '—',
+      trend: bundle.results.trend?.score ?? NaN,
+      momentum: bundle.results.momentum?.score ?? NaN,
+      volatility: bundle.results.volatility?.score ?? NaN,
+      dq: bundle.dataQualityScore,
+      n: ctx.candles.length,
+    });
   }
+
+  // Rank by trend, then momentum — strongest setups surface first.
+  rows.sort((a, b) => b.trend - a.trend || b.momentum - a.momentum);
+
+  console.log(`\nFactors: ${factors.map((f) => f.name).join(', ')}   (${rows.length} instruments)\n`);
+  console.log(`  #  SYMBOL         SECTOR                 TREND   MOM   VOL    DQ    N`);
+  console.log(`  ${'-'.repeat(72)}`);
+  rows.forEach((r, i) => {
+    console.log(
+      `${String(i + 1).padStart(3)}  ${r.symbol.padEnd(13)} ${r.sector.slice(0, 20).padEnd(20)} ` +
+        `${cell(r.trend)} ${cell(r.momentum)} ${cell(r.volatility)}  ${r.dq.toFixed(2)} ${String(r.n).padStart(4)}`,
+    );
+  });
+
+  const short = rows.filter((r) => r.dq < 0.8).length;
+  console.log(`\n  ${rows.length - short} with full history (DQ ≥ 0.8), ${short} short/low-quality.`);
 };
 
 run()

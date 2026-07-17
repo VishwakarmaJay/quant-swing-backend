@@ -3,14 +3,33 @@ import { prisma } from '@services/prisma';
 import { backfillInstruments } from '@/ohlcv';
 
 /**
- * OHLCV backfill script — the Phase 1 "M1 proof" entry point: fetch, validate,
- * and persist daily history for one or more instruments.
+ * OHLCV backfill script: fetch, validate, and persist daily history.
  *
  * Usage:
- *   bun run backfill:ohlcv                 # all 3 underlying indices, 300 days
- *   bun run backfill:ohlcv NIFTY           # one underlying by name
- *   bun run backfill:ohlcv NIFTY 500       # ...with a custom lookback
+ *   bun run backfill:ohlcv                 # whole universe (equities + indices), 400 days
+ *   bun run backfill:ohlcv equities        # just the equity universe
+ *   bun run backfill:ohlcv indices         # just the 3 underlying indices
+ *   bun run backfill:ohlcv RELIANCE        # one instrument by name
+ *   bun run backfill:ohlcv RELIANCE 500    # ...with a custom lookback
  */
+
+const DEFAULT_DAYS = 400; // ~265 trading days — comfortable margin over EMA200
+
+const scopeWhere = (arg?: string) => {
+  switch ((arg ?? '').toLowerCase()) {
+    case '':
+    case 'all':
+      return { instrumentType: { in: ['EQ', 'AMXIDX'] } };
+    case 'equities':
+    case 'eq':
+      return { instrumentType: 'EQ' };
+    case 'indices':
+    case 'index':
+      return { instrumentType: 'AMXIDX' };
+    default:
+      return { name: arg!.toUpperCase() };
+  }
+};
 
 const run = async () => {
   if (!hasAngelOneCredentials()) {
@@ -19,41 +38,37 @@ const run = async () => {
     return;
   }
 
-  const [nameArg, daysArg] = process.argv.slice(2);
-  const days = Number(daysArg) || 300;
+  const [scopeArg, daysArg] = process.argv.slice(2);
+  const days = Number(daysArg) || DEFAULT_DAYS;
 
   const instruments = await prisma.instrument.findMany({
-    where: {
-      instrumentType: 'AMXIDX',
-      ...(nameArg ? { name: nameArg.toUpperCase() } : {}),
-    },
-    orderBy: { name: 'asc' },
+    where: scopeWhere(scopeArg),
+    orderBy: [{ instrumentType: 'asc' }, { name: 'asc' }],
   });
 
   if (!instruments.length) {
-    console.error(
-      nameArg
-        ? `No AMXIDX instrument named "${nameArg}". Run "bun run sync:instruments" first.`
-        : 'No AMXIDX instruments in DB. Run "bun run sync:instruments" first.',
-    );
+    console.error(`No matching instruments for "${scopeArg ?? 'all'}". Run "bun run sync:instruments" first.`);
     process.exitCode = 1;
     return;
   }
 
-  console.log(`Backfilling ${days} days for: ${instruments.map((i) => i.name).join(', ')}\n`);
+  console.log(`Backfilling ${days} days for ${instruments.length} instrument(s)…\n`);
 
   const results = await backfillInstruments(instruments, days);
 
-  console.log('\n=== Backfill report ===');
-  for (const r of results) {
-    const flag = r.quality.score >= 0.8 ? 'OK ' : 'LOW';
-    console.log(
-      `[${flag}] ${r.symbol.padEnd(12)} fetched=${String(r.fetched).padStart(4)} ` +
-        `persisted=${String(r.persisted).padStart(4)} quality=${r.quality.score} ` +
-        `(${r.quality.metrics.total} candles, ${r.quality.metrics.malformed} malformed, ` +
-        `continuity ${r.quality.metrics.continuity.toFixed(2)}, ${r.quality.metrics.stalenessDays}d stale)` +
-        (r.quality.warnings.length ? `\n       warnings: ${r.quality.warnings.join('; ')}` : ''),
-    );
+  const low = results.filter((r) => r.quality.score < 0.8);
+  console.log('\n=== Backfill summary ===');
+  console.log(`  instruments: ${results.length}`);
+  console.log(`  candles persisted: ${results.reduce((s, r) => s + r.persisted, 0)}`);
+  console.log(`  quality OK (≥0.8): ${results.length - low.length}   LOW (<0.8): ${low.length}`);
+  if (low.length) {
+    console.log('\n  LOW-quality instruments (likely short history / recent listings):');
+    for (const r of low) {
+      console.log(
+        `    ${r.symbol.padEnd(14)} quality=${r.quality.score} ` +
+          `(${r.quality.metrics.total} candles) — ${r.quality.warnings.join('; ')}`,
+      );
+    }
   }
 };
 

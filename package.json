@@ -16,6 +16,7 @@
     "sync:instruments": "bun src/scripts/syncInstruments.ts",
     "backfill:ohlcv": "bun src/scripts/backfillOhlcv.ts",
     "ohlcv:update": "bun src/scripts/updateOhlcv.ts",
+    "factors:eval": "bun src/scripts/evalFactors.ts",
     "listen:ltp": "bun src/scripts/ltpListener.ts",
     "postinstall": "prisma generate",
     "debug": "bun run src/server.ts",

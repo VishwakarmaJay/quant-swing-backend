@@ -271,6 +271,7 @@ tells you that, at near-zero cost.**
 
 | To understand… | Read |
 |---|---|
+| **What to do next, in order (live checklist)** | `docs/ROADMAP_CHECKLIST.md` ← the master tracker |
 | **Everything in one file** (math, factors, findings, limitations) | `docs/COMPLETE_REFERENCE.md` |
 | Whole system + all math | `docs/SYSTEM.md` (authoritative as-built) |
 | Onboarding | `docs/START_HERE.md` |

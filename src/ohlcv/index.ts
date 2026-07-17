@@ -8,5 +8,8 @@ export {
 export {
   backfillInstrument,
   backfillInstruments,
+  incrementalUpdate,
+  runOhlcvIncremental,
   type BackfillResult,
+  type IncrementalResult,
 } from './backfill';

@@ -75,6 +75,10 @@ const isMalformed = (c: Candle): boolean =>
   c.high < Math.max(c.open, c.close) ||
   c.low > Math.min(c.open, c.close);
 
+/** True when a candle is well-formed (OHLC sane, volume ≥ 0). Reusable at the
+ * ingest boundary so malformed rows never reach the ohlcv store. */
+export const isValidCandle = (c: Candle): boolean => !isMalformed(c);
+
 /**
  * Scores a candle series as of `asOf` (ISO date). Assumes candles are for a
  * single instrument; sorts defensively so callers need not pre-sort.

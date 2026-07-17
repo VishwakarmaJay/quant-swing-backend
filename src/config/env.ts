@@ -48,6 +48,14 @@ const EnvSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
   TELEGRAM_CHAT_ID: z.string().min(1).optional(),
 
+  // ---- News ingestion (ROADMAP B3; the sentiment archive clock) ----
+  /** How often the news ingestion cron fetches all feeds (default 15 min). */
+  NEWS_INGEST_INTERVAL_MS: z.coerce.number().int().positive().default(900000),
+  /** Recency window (days) over which near-duplicate headlines are deduped. */
+  NEWS_DEDUPE_WINDOW_DAYS: z.coerce.number().int().positive().default(3),
+  /** Per-feed HTTP fetch timeout (ms). A slow/dead feed is skipped, not fatal. */
+  NEWS_FETCH_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).optional(),
 
   /** git sha stamped onto signals for reproducibility (set in CI/deploy). */

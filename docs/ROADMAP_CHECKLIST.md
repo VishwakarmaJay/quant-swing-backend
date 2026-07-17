@@ -82,19 +82,29 @@ pullback-v2` config (still not edge — orders remain manual, Phase 5 stays gate
       `pullback+srs0.25` config `backtest:phase6`/`backtest:portfolio` evaluated. (First live
       `signals:run` requires networked infra + backfill — not runnable in-repo.)
 
-### B3. News scraper + archive — *clock #1, start ASAP* ⏰ needs network/infra
+### 🟡 B3. News scraper + archive — *clock #1* ⏰ — CODE COMPLETE, live-deploy pending infra
 The archive is the asset; FinBERT can score it retroactively. Every week not collecting
-is a week of sentiment backtest lost.
-- [ ] `NewsArticle` schema: source, url, title, body?, symbols[], `publishedAt`,
-      **`fetchedAt`** (the as-of date — lookahead discipline)
-- [ ] RSS ingestion job (15-min RabbitMQ cron): ET Markets, Moneycontrol, BSE
-      announcements XML, Google News RSS
-- [ ] Title normalization + Jaccard dedup across sources
-- [ ] **Symbol mapper** (the hard part): alias dictionary for the 166 tickers,
-      conservative matching, unmatched-headline log to grow the dictionary
-- [ ] Deployed + verified live on networked infra; monitor daily volume/dupe rate
+is a week of sentiment backtest lost. Module built under `src/news/` (+ `bun run news:ingest`);
+187/187 tests, typecheck clean. Live fetch/deploy needs networked infra this session can't run.
+- [x] `NewsArticle` schema (`prisma/schema.prisma`): source, url, title, titleNormalized,
+      body?, symbols[], `publishedAt`, **`fetchedAt`** (as-of date; model note forbids using
+      publishedAt as as-of). `@@unique([source, url])` for idempotent re-ingest.
+- [x] RSS ingestion job (15-min RabbitMQ cron): added `createIntervalCron` (`crons/cron.ts`)
+      + `NEWS_INGEST` cron; sources = ET Markets, Moneycontrol, BSE announcements XML,
+      Google News RSS (`src/news/sources.ts`). In-house tolerant RSS/Atom/BSE parser
+      (`rssParser.ts`) — no new dependency. Per-feed no-throw fetch (degrades independently).
+- [x] Title normalization + Jaccard dedup across sources (`dedupe.ts`, threshold 0.7;
+      recency window `NEWS_DEDUPE_WINDOW_DAYS`); dedups within a run and against the recent DB.
+- [x] **Symbol mapper** (`symbolMapper.ts` + `companyAliases.ts`): curated alias dictionary
+      covering **all 166** universe symbols (coverage asserted in tests); precision-first —
+      conservative multi-word matching, bare group words ("Tata"/"Adani") and word-colliding
+      tickers (OIL/SAIL/TITAN/TRENT) deliberately unmatched; unmatched-headline sample +
+      `aliasCoverage()` gap report logged by `news:ingest` to grow the dictionary.
+- [ ] ⏳ Deployed + verified live on networked infra; confirm feed URLs (esp. BSE schema);
+      monitor daily volume/dupe rate.
 - **Done when:** articles/day flowing for all 4 sources, deduped, ≥90% of matched symbols
   correct on a manual sample. **Archive start date = sentiment backtest clock start.**
+  *(Pending the live-deploy step above — code + unit/integration verification done in-repo.)*
 
 ### B4. Fundamentals: snapshotter + point-in-time backfill — *clock #2 + the unblock* ⏰
 - [ ] Weekly snapshotter: current Screener/NSE fundamentals per stock with `fetchedAt`

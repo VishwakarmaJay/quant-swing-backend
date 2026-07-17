@@ -470,3 +470,39 @@ model SignalRejection {
   @@index([reason])
   @@map("signal_rejection")
 }
+
+/// Archived news article — the sentiment asset (ROADMAP B3). The archive is the
+/// asset: we collect now so FinBERT (B6) can score it retroactively; every week
+/// not collecting is a week of sentiment backtest lost. Append-only.
+///
+/// Point-in-time discipline: `fetchedAt` is the as-of date — when WE could have
+/// known it — and is what the sentiment backtest must key on. `publishedAt` is
+/// the feed's own timestamp (can be backdated/wrong) and must NEVER be used as
+/// the as-of date. Same lookahead rule the fundamentals pipeline (B4) depends on.
+model NewsArticle {
+  id              String   @id @default(uuid())
+  /// Feed of origin: ET_MARKETS | MONEYCONTROL | BSE_ANNOUNCEMENTS | GOOGLE_NEWS
+  source          String
+  /// Canonical article URL. (source, url) is the idempotency key — re-ingesting
+  /// the same article no-ops rather than duplicating.
+  url             String
+  title           String
+  /// Normalized title (lowercased, punctuation-stripped, collapsed) — the basis
+  /// for cross-source Jaccard dedup and a fast lookup key.
+  titleNormalized String
+  /// Article body/summary when the feed provides one (RSS description / content).
+  body            String?
+  /// Canonical universe symbols matched in the headline (conservative; may be []).
+  symbols         String[]
+  /// Feed-declared publish time. NOT the as-of date (see model note).
+  publishedAt     DateTime
+  /// The as-of date: when we fetched / could have known it (lookahead discipline).
+  fetchedAt       DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  @@unique([source, url])
+  @@index([titleNormalized])
+  @@index([publishedAt])
+  @@index([fetchedAt])
+  @@map("news_article")
+}

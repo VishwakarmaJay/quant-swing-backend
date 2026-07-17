@@ -6,6 +6,7 @@ export enum CRONJOBS {
   FAIL_POST_MARKET_PENDING_ORDERS = 'FAIL_POST_MARKET_PENDING_ORDERS',
   OHLCV_INCREMENTAL = 'OHLCV_INCREMENTAL',
   SIGNAL_RUN = 'SIGNAL_RUN',
+  NEWS_INGEST = 'NEWS_INGEST',
 }
 
 /** Time of day (server-local) at which a daily cron fires. */
@@ -40,31 +41,36 @@ const msUntilNext = ({ hour, minute }: CronPattern): number => {
   return next.getTime() - now.getTime();
 };
 
+/** Publishes a fire message to the cron's queue; logs (never throws) if Rabbit is down. */
+const publishFire = (name: CRONJOBS, queueName: string): void => {
+  try {
+    // Resolve the channel at fire time — the boot-time one may be dead by now.
+    getChannel().sendToQueue(queueName, Buffer.from(JSON.stringify({ name, firedAt: new Date() })), {
+      persistent: true,
+    });
+  } catch (err) {
+    logger.error(
+      `[Cron]: ${name} publish failed — RabbitMQ unavailable, run skipped: ${err instanceof Error ? err.message : err}`,
+    );
+  }
+};
+
 /**
- * Creates a cron backed by RabbitMQ: a scheduler publishes to `CRON_<name>` at
- * the given time each day, and a consumer runs the job function. Splitting
- * schedule from execution keeps runs durable — a message published while the
- * consumer is busy waits in the queue instead of being lost.
+ * Asserts the cron's durable queue and attaches the consumer that runs `jobFn`.
+ * Splitting schedule from execution keeps runs durable — a message published
+ * while the consumer is busy waits in the queue instead of being lost.
  */
-export async function createCron(
-  name: CRONJOBS,
-  pattern: CronPattern,
-  jobFn: () => Promise<void>,
-): Promise<void> {
+const attachConsumer = async (name: CRONJOBS, queueName: string, jobFn: () => Promise<void>): Promise<void> => {
   const channel = getChannel();
-  const queueName = `CRON_${name}`;
-
   await channel.assertQueue(queueName, { durable: true });
-
   await channel.consume(queueName, (message) => {
     if (!message) return;
-
     jobFn()
       .then(() => channel.ack(message))
       .catch((err) => {
         logger.error(`[Cron]: ${name} failed: ${err instanceof Error ? err.message : err}`);
         try {
-          // Drop the message: daily crons should wait for the next scheduled run,
+          // Drop the message: a cron should wait for its next scheduled run,
           // not retry-loop on a persistent failure.
           channel.nack(message, false, false);
         } catch (nackErr) {
@@ -74,6 +80,19 @@ export async function createCron(
         }
       });
   });
+};
+
+/**
+ * Creates a daily cron backed by RabbitMQ: a scheduler publishes to `CRON_<name>`
+ * at the given time each day, and a consumer runs the job function.
+ */
+export async function createCron(
+  name: CRONJOBS,
+  pattern: CronPattern,
+  jobFn: () => Promise<void>,
+): Promise<void> {
+  const queueName = `CRON_${name}`;
+  await attachConsumer(name, queueName, jobFn);
 
   if (!isCronEnabled(name)) {
     logger.info(`[Cron]: ${name} disabled via CRONS_ENABLED`);
@@ -83,27 +102,42 @@ export async function createCron(
   const scheduleNext = () => {
     const delay = msUntilNext(pattern);
     const timer = setTimeout(() => {
-      try {
-        // Resolve the channel at fire time — the boot-time one may be dead by now.
-        getChannel().sendToQueue(
-          queueName,
-          Buffer.from(JSON.stringify({ name, firedAt: new Date() })),
-          { persistent: true },
-        );
-      } catch (err) {
-        logger.error(
-          `[Cron]: ${name} publish failed — RabbitMQ unavailable, run skipped: ${err instanceof Error ? err.message : err}`,
-        );
-      }
+      publishFire(name, queueName);
       scheduleNext();
     }, delay);
     timer.unref();
     timers.push(timer);
-
     logger.info(`[Cron]: ${name} next run in ${Math.round(delay / 60000)} minutes`);
   };
 
   scheduleNext();
+}
+
+/**
+ * Creates an interval cron backed by RabbitMQ: same durable queue + consumer as
+ * the daily crons, but the scheduler fires every `intervalMs` (e.g. the 15-min
+ * news poll, ROADMAP B3) rather than at a fixed time of day. Fires once
+ * immediately on boot so the archive starts collecting without waiting a full
+ * interval.
+ */
+export async function createIntervalCron(
+  name: CRONJOBS,
+  intervalMs: number,
+  jobFn: () => Promise<void>,
+): Promise<void> {
+  const queueName = `CRON_${name}`;
+  await attachConsumer(name, queueName, jobFn);
+
+  if (!isCronEnabled(name)) {
+    logger.info(`[Cron]: ${name} disabled via CRONS_ENABLED`);
+    return;
+  }
+
+  publishFire(name, queueName); // kick off immediately
+  const timer = setInterval(() => publishFire(name, queueName), intervalMs);
+  timer.unref();
+  timers.push(timer);
+  logger.info(`[Cron]: ${name} scheduled every ${Math.round(intervalMs / 60000)} minutes`);
 }
 
 /** Cancels every scheduled timer (called during graceful shutdown). */

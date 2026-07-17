@@ -9,7 +9,7 @@ import {
   DEFAULT_VOLATILITY_CONFIG,
   DEFAULT_VOLUME_CONFIG,
 } from '@/factors';
-import { DEFAULT_STRATEGY_CONFIG } from '@/strategy';
+import { PRODUCTION_BULL_PULLBACK_CONFIG, PRODUCTION_STRATEGY_CONFIG } from '@/strategy';
 import { prisma } from '@services/prisma';
 
 /**
@@ -49,11 +49,14 @@ export const computeRunVersions = async (): Promise<RunVersions> => {
     volatility: DEFAULT_VOLATILITY_CONFIG,
   })}`;
 
+  // Stamps the *production* config that actually ships (ROADMAP B2), including the
+  // graduated BULL pullback entry — so a stored signal names the exact live config.
   const weightsVersion = `w-${shortHash({
-    regimeWeights: DEFAULT_STRATEGY_CONFIG.regimeWeights,
-    technicalFactorWeights: DEFAULT_STRATEGY_CONFIG.technicalFactorWeights,
-    baseThreshold: DEFAULT_STRATEGY_CONFIG.baseThreshold,
-    regimeThresholdAdj: DEFAULT_STRATEGY_CONFIG.regimeThresholdAdj,
+    regimeWeights: PRODUCTION_STRATEGY_CONFIG.regimeWeights,
+    technicalFactorWeights: PRODUCTION_STRATEGY_CONFIG.technicalFactorWeights,
+    baseThreshold: PRODUCTION_STRATEGY_CONFIG.baseThreshold,
+    regimeThresholdAdj: PRODUCTION_STRATEGY_CONFIG.regimeThresholdAdj,
+    bullPullback: PRODUCTION_BULL_PULLBACK_CONFIG,
   })}`;
 
   // Best-effort instrument-master version: universe size + latest sync date.

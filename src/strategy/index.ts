@@ -13,3 +13,8 @@ export {
   DEFAULT_BULL_PULLBACK_CONFIG,
   type BullPullbackConfig,
 } from './bullPullbackStrategy';
+export {
+  createProductionStrategy,
+  PRODUCTION_STRATEGY_CONFIG,
+  PRODUCTION_BULL_PULLBACK_CONFIG,
+} from './productionStrategy';

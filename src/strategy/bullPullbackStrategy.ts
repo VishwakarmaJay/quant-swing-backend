@@ -14,9 +14,12 @@ import type { GateResult, Strategy, StrategyEvaluation } from './types';
  * RSI cooled into a low band) rather than at fresh, extended highs.
  *
  * In every regime other than BULL it delegates byte-for-byte to the injected
- * base strategy (default WeightedStrategy), so only the BULL entry changes. It
- * is a measurement vehicle for the harness (`backtest:pullback`), not wired into
- * production — if it earns its keep, it graduates into the real strategy.
+ * base strategy (default WeightedStrategy), so only the BULL entry changes.
+ *
+ * GRADUATED (ROADMAP B2): the pullback+resumption variant earned its keep on
+ * walk-forward (Step 4b-v2 / Phase 6) and now runs in production via
+ * `createProductionStrategy()` (see `productionStrategy.ts`). It remains the
+ * measurement vehicle for the `backtest:pullback` / `backtest:phase6` harnesses.
  */
 
 export type BullPullbackConfig = {

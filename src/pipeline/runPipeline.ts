@@ -15,7 +15,7 @@ import {
 } from '@/portfolio';
 import { detectMarketRegime, type MarketRegime } from '@/regime';
 import { computeSignalLevels, type SignalMathConfig } from '@/signal';
-import { WeightedStrategy } from '@/strategy';
+import { createProductionStrategy } from '@/strategy';
 import { prisma } from '@services/prisma';
 
 import { computeRunVersions, type RunVersions } from './versions';
@@ -57,7 +57,9 @@ export const runPipeline = async (
   const regime = await detectMarketRegime(asOf, { vix: opts?.vix ?? null });
   const benchmarkCandles = await loadBenchmarkCandles(asOf);
   const sectorPeerReturns = await loadSectorPeerReturns(asOf);
-  const strategy = new WeightedStrategy();
+  // ROADMAP B2: the graduated production strategy — OOS-validated combined config
+  // (SRS composite weight 0.25 + BULL pullback+resumption entry), not the baseline.
+  const strategy = createProductionStrategy();
 
   const instruments = await prisma.instrument.findMany({
     where: { instrumentType: 'EQ' },

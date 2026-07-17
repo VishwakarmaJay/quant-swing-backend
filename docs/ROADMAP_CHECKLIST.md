@@ -67,14 +67,20 @@ Results: [`PORTFOLIO_BACKTEST.md`](./PORTFOLIO_BACKTEST.md) · `bun run backtest
   Phase-6 lever generalizes. New measurable lever surfaced: **slot-allocation ranking**.
   → Reinforces B4→B5 (orthogonal signal) as the critical path; B10 stays hard-gated.
 
-### B2. Wire the validated config into the nightly run — *operator decision* ⚙️ tiny
-Production still emits the known-worst baseline. `srs0.25 + pullback-v2` is the
-OOS-validated better config (still not edge — orders remain manual, Phase 5 stays gated).
-- [ ] Operator sign-off to change live signal behaviour
-- [ ] Set SRS weight 0.25 in `technicalFactorWeights` + adopt BullPullback entry for BULL
-      (graduate `BullPullbackStrategy` or equivalent config into the production path)
-- [ ] Re-baseline `weightsVersion` expectations; golden untouched (factor layer unchanged)
-- **Done when:** nightly Telegram signals come from the validated config, version-stamped.
+### ✅ B2. Wire the validated config into the nightly run — *operator decision* ⚙️ — DONE
+Production emitted the known-worst baseline; now it runs the OOS-validated `srs0.25 +
+pullback-v2` config (still not edge — orders remain manual, Phase 5 stays gated).
+- [x] Operator sign-off to change live signal behaviour
+- [x] Set SRS weight 0.25 in `technicalFactorWeights` + adopt BullPullback entry for BULL —
+      graduated via `createProductionStrategy()` (`src/strategy/productionStrategy.ts`), wired
+      into `runPipeline`. `DEFAULT_STRATEGY_CONFIG` kept **frozen** as the research baseline so
+      the attribution/regime/phase6/portfolio controls stay intact.
+- [x] Re-baseline `weightsVersion` (`w-fd0e1dec2aa9` → `w-6edfeb770e4a`, now stamps the
+      production config incl. the pullback entry); golden untouched (factor layer unchanged)
+- **Done when:** nightly Telegram signals come from the validated config, version-stamped. ✅
+      Verified: typecheck clean, 157/157 tests pass, production strategy = the exact
+      `pullback+srs0.25` config `backtest:phase6`/`backtest:portfolio` evaluated. (First live
+      `signals:run` requires networked infra + backfill — not runnable in-repo.)
 
 ### B3. News scraper + archive — *clock #1, start ASAP* ⏰ needs network/infra
 The archive is the asset; FinBERT can score it retroactively. Every week not collecting

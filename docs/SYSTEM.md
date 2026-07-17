@@ -582,8 +582,12 @@ roundTripCostPct 0.25%, size-reduction 3–6% ATR × 0.75.
 | `signals:run [vix]` | **Nightly run** — pipeline → persist → deliver |
 | `backtest:run` | Historical replay + performance report vs Nifty B&H |
 | `backtest:sweep` | Parameter sensitivity sweep (time-stop × targets), ranked by profit factor |
+| `backtest:attribution` | Factor/gate attribution — conditioning + leave-one-out ([`ATTRIBUTION.md`](./ATTRIBUTION.md)) |
+| `backtest:regime` | Regime-conditioned entry experiment ([`REGIME_ENTRIES.md`](./REGIME_ENTRIES.md)) |
+| `backtest:pullback` | BULL pullback-entry experiment + out-of-sample split ([`REGIME_ENTRIES.md`](./REGIME_ENTRIES.md) Step-4b) |
+| `backtest:phase6` | Walk-forward evaluation of the combined levers ([`PHASE6.md`](./PHASE6.md)) |
 | `golden:snapshot` / `golden:update` | Refresh / re-baseline the golden fixture |
-| `test`, `typecheck` | **112 tests**; strict tsc |
+| `test`, `typecheck` | **149 tests**; strict tsc |
 
 **Cron schedule** (RabbitMQ-backed, IST):
 | Time | Job |

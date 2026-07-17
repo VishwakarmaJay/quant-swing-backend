@@ -63,6 +63,7 @@ backtest already fails. See `SYSTEM.md` §7.5 and §13.
 
 | To understand… | Read |
 |---|---|
+| **Everything in one file** (all math, all factors, findings, limitations) | [`docs/COMPLETE_REFERENCE.md`](./COMPLETE_REFERENCE.md) |
 | **The whole system + all the math** | [`docs/SYSTEM.md`](./SYSTEM.md) ← the authoritative doc |
 | Original spec / planning / ADRs | [`docs/quantswing-docs/`](./quantswing-docs/) (project, engineering, research, planning) |
 | Factors + indicators (pure math) | `src/factors/` |

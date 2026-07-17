@@ -29,4 +29,13 @@ export {
   type Conditioning,
   type RegimeBreakdown,
 } from './attribution';
+export {
+  makeExpandingFolds,
+  pickBest,
+  runWalkForward,
+  type Fold,
+  type WFCandidate,
+  type FoldResult,
+  type WalkForwardResult,
+} from './walkForward';
 export { runSweep, DEFAULT_SWEEP_GRID, type SweepCombo, type SweepResult } from './sweep';

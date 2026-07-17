@@ -224,10 +224,29 @@ pullback+resumption entry (Step 4b) — each an improvement, **neither a standal
 gated on sourcing point-in-time fundamentals and starting the news-archive clock, both of which
 need a networked data-engineering environment this session can't provide.
 
-### Step 5 — Phase 6: evaluation + ML weighting
+### Step 5 — Phase 6: evaluation + ML weighting ✅ DONE (evaluation built; ML weighting deferred)
 Only once attribution shows the factor set contains edge. Re-run sweep/attribution across the
 enriched set, prune what doesn't contribute, then let weighting be **learned** rather than
 hand-set.
+
+**✅ RESULT — walk-forward harness built; combined levers validated OOS; still no edge. Findings:
+[`PHASE6.md`](./PHASE6.md).** Built a reusable walk-forward harness (`src/backtest/walkForward.ts`:
+`makeExpandingFolds` + `runWalkForward`) + `bun run backtest:phase6`; +4 tests; **149/149 pass**.
+- Combined the two levers (SRS composite weight 0.25 + BULL pullback+resumption entry) and evaluated
+  by **walk-forward** (config selected on train, measured on unseen test, 3 expanding folds).
+- **The combined strategy robustly beats baseline out-of-sample**: PF **0.78 → 0.91**, expectancy
+  **−0.34 → −0.12** (≈⅓ of the loss removed), and `pullback+srs0.25` was selected on *all 3 folds*
+  (stable, not a fluke). First result that is both an improvement *and* OOS-validated.
+- **But still no positive edge** — OOS PF 0.91 < 1, expectancy still negative. Cuts the loss; doesn't
+  cross into profit. **Phase 5 stays gated.** (Most recent fold was +0.11/PF 1.07 — one fold ≠ edge.)
+- **ML weighting deliberately deferred:** with ρ≈0 composite features + heavy single-window overfit
+  risk, a GBM/logistic model would be premature. Walk-forward config selection is the honest, light
+  form of "learned" weighting for now; full ML is gated on more orthogonal signal + this harness.
+
+**Biggest remaining gap = orthogonal signal.** Technical-entry tuning has been largely exhausted (two
+levers found, combined, validated — still negative OOS). The Fundamental factor (still data-blocked on
+point-in-time history) is the most likely source of the edge that closes the gap. Sourcing that data
+is now the highest-leverage move; everything else can be evaluated honestly through the new harness.
 
 ### Step 6 — Phase 5: paper trading (last, still gated)
 Its entry criterion is "beat Nifty risk-adjusted," which the backtest currently **fails**. Do
@@ -252,6 +271,7 @@ tells you that, at near-zero cost.**
 
 | To understand… | Read |
 |---|---|
+| **Everything in one file** (math, factors, findings, limitations) | `docs/COMPLETE_REFERENCE.md` |
 | Whole system + all math | `docs/SYSTEM.md` (authoritative as-built) |
 | Onboarding | `docs/START_HERE.md` |
 | Original spec / ADRs (⚠️ partly stale — see §3) | `docs/quantswing-docs/` |

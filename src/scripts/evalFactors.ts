@@ -1,4 +1,10 @@
-import { buildFeatureBundle, buildStockContext, factors, loadBenchmarkCandles } from '@/factors';
+import {
+  buildFeatureBundle,
+  buildStockContext,
+  factors,
+  loadBenchmarkCandles,
+  loadSectorPeerReturns,
+} from '@/factors';
 import { prisma } from '@services/prisma';
 
 /**
@@ -41,8 +47,9 @@ const run = async () => {
     return;
   }
 
-  // Load the Nifty benchmark once and reuse it for every stock's context.
+  // Load the Nifty benchmark + sector peer returns once and reuse per stock.
   const benchmarkCandles = await loadBenchmarkCandles();
+  const sectorPeerReturns = await loadSectorPeerReturns();
 
   type Row = {
     symbol: string;
@@ -50,6 +57,7 @@ const run = async () => {
     trend: number;
     momentum: number;
     rs: number;
+    srs: number;
     volume: number;
     volatility: number;
     dq: number;
@@ -58,7 +66,7 @@ const run = async () => {
   const rows: Row[] = [];
 
   for (const inst of instruments) {
-    const ctx = await buildStockContext(inst.id, new Date(), { benchmarkCandles });
+    const ctx = await buildStockContext(inst.id, new Date(), { benchmarkCandles, sectorPeerReturns });
     if (!ctx) continue;
     const bundle = buildFeatureBundle(ctx, factors);
     rows.push({
@@ -67,6 +75,7 @@ const run = async () => {
       trend: bundle.results.trend?.score ?? NaN,
       momentum: bundle.results.momentum?.score ?? NaN,
       rs: bundle.results.relativeStrength?.score ?? NaN,
+      srs: bundle.results.sectorRelativeStrength?.score ?? NaN,
       volume: bundle.results.volume?.score ?? NaN,
       volatility: bundle.results.volatility?.score ?? NaN,
       dq: bundle.dataQualityScore,
@@ -78,12 +87,12 @@ const run = async () => {
   rows.sort((a, b) => b.trend - a.trend || b.rs - a.rs);
 
   console.log(`\nFactors: ${factors.map((f) => f.name).join(', ')}   (${rows.length} instruments)\n`);
-  console.log(`  #  SYMBOL         SECTOR                 TRND   MOM    RS   VOL  VLTY    DQ    N`);
-  console.log(`  ${'-'.repeat(84)}`);
+  console.log(`  #  SYMBOL         SECTOR                 TRND   MOM    RS   SRS   VOL  VLTY    DQ    N`);
+  console.log(`  ${'-'.repeat(90)}`);
   rows.forEach((r, i) => {
     console.log(
       `${String(i + 1).padStart(3)}  ${r.symbol.padEnd(13)} ${r.sector.slice(0, 20).padEnd(20)} ` +
-        `${cell(r.trend)} ${cell(r.momentum)} ${cell(r.rs)} ${cell(r.volume)} ${cell(r.volatility)}  ` +
+        `${cell(r.trend)} ${cell(r.momentum)} ${cell(r.rs)} ${cell(r.srs)} ${cell(r.volume)} ${cell(r.volatility)}  ` +
         `${r.dq.toFixed(2)} ${String(r.n).padStart(4)}`,
     );
   });

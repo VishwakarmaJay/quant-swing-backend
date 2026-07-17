@@ -44,7 +44,7 @@ Angel One (scrip master + historical candles + live LTP)
  DataQualityService  ──► StockContext (candles ≤ asOf, no lookahead, + Nifty benchmark)
         │
         ▼
- 5 Factors ──► FeatureBundle (immutable, deep-frozen)
+ 6 Factors ──► FeatureBundle (immutable, deep-frozen)   [5 in composite + SectorRelativeStrength, observational]
         │
         ▼
  MarketRegimeService (Nifty trend + breadth + VIX)
@@ -202,7 +202,7 @@ ATR[p] = mean(TR[1..p])
 ATR[i] = (ATR[i−1] × (p−1) + TR[i]) / p
 ```
 
-### 4.3 The 5 factors
+### 4.3 The factors (5 in the composite + SectorRelativeStrength, observational)
 
 Each factor is 0–100 (higher = more bullish) with `agreementContribution = (score−50)/50`
 unless noted. All parameters are config, not literals.
@@ -235,7 +235,25 @@ norm     = clamp(excess / excessCapPct, −1, +1)   // excessCapPct = 20
 score    = 50 + norm × 50
 ```
 Outperforming Nifty by ≥ 20% over 60 days → 100; underperforming by ≥ 20% → 0.
-(*Sector-relative RS is a planned extension — needs a cross-sectional pre-pass.*)
+
+#### SectorRelativeStrengthFactor — rank within sector (lookback 60) — *observational (weight 0)*
+```
+selfRet    = 60d return of this stock
+peerRets   = 60d returns of every equity in this stock's sector (cross-sectional pre-pass)
+percentile = (peers_below + 0.5 × peers_equal) / peerCount     // tie-safe mid-rank
+score      = percentile × 100
+```
+The cross-sectional half of relative strength: not "is it beating the market" (RS-vs-Nifty) but
+"does it lead or lag the stocks it trades alongside." Peer returns are injected via
+`ctx.sectorPeers` by a pre-pass in the runner (backtest loop / `loadSectorPeerReturns` for live),
+so `evaluate` stays pure. Neutral 50 when < 3 peers or history too short.
+
+> **Status: built but NOT yet in the composite** (`technicalFactorWeights` has no entry for it, so
+> it doesn't affect live signals). It is computed into every FeatureBundle for measurement. The
+> Step-1 attribution *selection test* shows adding it at weight ≈0.25 improves backtested expectancy
+> (−0.22 → −0.13) and PF (0.86 → 0.92) by dropping sector laggards — the first orthogonal signal
+> that measurably helps. The weight is **deferred to Phase 6** (joint learned weighting). See
+> `ATTRIBUTION.md`.
 
 #### VolumeFactor — volume-confirmed direction
 ```
@@ -526,6 +544,7 @@ independent of them.
 | Trend | EMA 20 / 50 / 200, 25 pts each |
 | Momentum | RSI 14, MACD 12/26/9, weights macd 0.5 / rsi 0.5 |
 | RelativeStrength | lookback 60, excessCapPct 20 |
+| SectorRelativeStrength | lookback 60, minPeers 3 — *observational, weight 0 (not in composite yet)* |
 | Volume | lookback 20, priceWindow 5, convictionCap 1.0 |
 | Volatility | ATR 14, idealAtrPct 1.5, rejectAtrPct 6.0, percentileLookback 100 |
 

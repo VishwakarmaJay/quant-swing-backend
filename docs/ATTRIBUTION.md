@@ -124,6 +124,32 @@ Step 4 instinct) is unlikely to fix a problem that is about entry *style*. The e
   weights won't help. This is the Phase-6 (learned weighting) argument, but only *after* an
   orthogonal signal exists for it to learn from.
 
+---
+
+## Addendum (Step 3) — SectorRelativeStrength: conditioning vs selection
+When the sector-relative factor was built (observational, weight 0), the harness measured it two ways
+— and they disagreed, which is the instructive part:
+
+- **Conditioning** (does it re-rank the existing 981 trades?): Spearman **−0.018**, terciles flat.
+  No — but this is range-restricted (those trades were already trend-selected; SRS didn't pick them).
+- **Selection** (`2c` — give it composite weight, regenerate, does it pick *better* stocks?):
+
+  | SRS weight | signals | win% | expectancy | PF | Δ exp |
+  |---|---|---|---|---|---|
+  | 0 (baseline) | 981 | 41.3 | −0.22 | 0.86 | — |
+  | 0.15 | 906 | 42.6 | −0.15 | 0.90 | +0.07 |
+  | **0.25** | 856 | **43.5** | **−0.13** | **0.92** | **+0.10** |
+  | 0.40 | 819 | 43.1 | −0.15 | 0.90 | +0.07 |
+
+  **Yes** — adding it improves every metric by dropping ~125 sector-laggard trades before they fire.
+  The concave response (peaks at ~0.25) is the signature of real signal, not noise. It's the **first
+  orthogonal signal that measurably helps** — validating the Step-1 "add orthogonal, not more trend"
+  call. Still net-negative (PF 0.92 < 1): an improvement to keep and build on, not a fix.
+
+**Lesson:** conditioning tests *re-ranking*; only the selection test (change what's picked) reveals a
+factor's value as an entry filter. Trusting conditioning alone would have wrongly discarded SRS.
+**The weight is deferred to Phase 6** (joint learned weighting) rather than hand-set now.
+
 ## Caveats (stamped on every run)
 Technicals-only; survivorship bias (today's constituents); signal-edge (no 2-position cap);
 conditioning is range-restricted (see Finding 1). Directional conclusions (ablation, regime) are

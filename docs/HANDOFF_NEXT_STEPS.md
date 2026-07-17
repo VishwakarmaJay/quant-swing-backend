@@ -132,11 +132,27 @@ doc, all pointing to `SYSTEM.md` as authoritative.
   `IMPLEMENTATION_ORDER`, `BACKLOG` checklists (they record what was planned per sprint, like ADRs
   of intent — not claims about current state).
 
-### Step 3 — Sector-relative RS (first real build)
+### Step 3 — Sector-relative RS (first real build) ✅ DONE
 **Why before Sentiment/Fundamental:** Smallest, self-contained improvement — the *deferred
 half* of a factor you already have (`RelativeStrengthFactor` is vs-Nifty only). Adds genuine
 cross-sectional info (which stocks lead their sector), needs only price data already stored,
 and is backtestable immediately. High information-per-unit-effort.
+
+**✅ RESULT — built, measured, shows promise; weight deferred. Findings: [`ATTRIBUTION.md`](./ATTRIBUTION.md) addendum.**
+- New `SectorRelativeStrengthFactor` (`src/factors/sectorRelativeStrengthFactor.ts`): tie-safe
+  percentile rank of the stock's 60d return within its sector. Cross-sectional peer data is injected
+  via a **pre-pass** (`ctx.sectorPeers`) so `evaluate` stays pure — wired into the backtest loop,
+  the live pipeline (`loadSectorPeerReturns`), and the eval scripts; golden consciously re-baselined;
+  **129/129 tests pass** (+8 new). Built as a **separate factor** (not blended into RS) so it stays
+  independently attributable.
+- **Integrated observationally (weight 0):** computed into every FeatureBundle but not in the
+  composite, so the 981-signal baseline is byte-identical — it perturbs nothing until we choose to.
+- **Selection test (attribution `2c`):** adding it at weight ≈0.25 improves backtested expectancy
+  **−0.22 → −0.13** and PF **0.86 → 0.92** by dropping ~125 sector-laggard trades. Concave in weight
+  (peaks ~0.25) → real signal. **First orthogonal factor that measurably helps.** Still net-negative
+  (not a fix). Note: plain *conditioning* showed ρ≈0 — only the *selection* test revealed the value.
+- **Decision (operator): weight deferred to Phase 6** (joint learned weighting) rather than hand-set
+  now — keep it observational until Fundamental exists and weights can be fit together.
 
 ### Step 4 — Sentiment (FinBERT) + Fundamental factors
 **Why here, not first:** The docs' thesis for the missing edge, but the *biggest* build

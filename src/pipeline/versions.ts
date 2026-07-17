@@ -4,6 +4,7 @@ import { env } from '@config/env';
 import {
   DEFAULT_MOMENTUM_CONFIG,
   DEFAULT_RS_CONFIG,
+  DEFAULT_SECTOR_RS_CONFIG,
   DEFAULT_TREND_CONFIG,
   DEFAULT_VOLATILITY_CONFIG,
   DEFAULT_VOLUME_CONFIG,
@@ -43,6 +44,7 @@ export const computeRunVersions = async (): Promise<RunVersions> => {
     trend: DEFAULT_TREND_CONFIG,
     momentum: DEFAULT_MOMENTUM_CONFIG,
     relativeStrength: DEFAULT_RS_CONFIG,
+    sectorRelativeStrength: DEFAULT_SECTOR_RS_CONFIG,
     volume: DEFAULT_VOLUME_CONFIG,
     volatility: DEFAULT_VOLATILITY_CONFIG,
   })}`;

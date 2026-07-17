@@ -13,7 +13,8 @@ Status: `active` | `testing` | `retired` | `not built`. Retired factors keep pos
 |---|---|---|---|
 | TrendFactor | TREND | EMA 20/50/200 stack alignment; price vs stack | ✅ active |
 | MomentumFactor | MOMENTUM | MACD state + RSI, combined score (the RSI 35–68 band is a *strategy gate*, not in this factor) | ✅ active |
-| RelativeStrengthFactor | RS | Return vs Nifty over 60d **[AS-BUILT: vs-Nifty only; the "vs sector index" half is not built]** | ✅ active (vs-Nifty only) |
+| RelativeStrengthFactor | RS | Return vs Nifty over 60d | ✅ active (vs-Nifty) |
+| SectorRelativeStrengthFactor | RS | Percentile rank of 60d return within the stock's sector (cross-sectional pre-pass) | ✅ built, **observational (weight 0)** — the sector-relative half; weight deferred to Phase 6 |
 | VolumeFactor | VOLUME | Recent (5D) vs 20D avg volume ratio, amplifies price direction | ✅ active |
 | VolatilityFactor | VOLATILITY | ATR14/close; feeds stop distance + the portfolio ATR-band size reduction (not a continuous "size multiplier") | ✅ active |
 | SentimentFactor | SENTIMENT | FinBERT aggregate, recency-weighted, dedup, chase-decay | ⛔ **not built** (planned) |

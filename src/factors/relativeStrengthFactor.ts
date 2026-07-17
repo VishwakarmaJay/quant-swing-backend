@@ -1,4 +1,4 @@
-import { round } from './indicators';
+import { lookbackReturnPct, round } from './indicators';
 import { FactorCategory, type Factor, type FactorOutput, type StockContext } from './types';
 
 /**
@@ -24,15 +24,6 @@ export const DEFAULT_RS_CONFIG: RelativeStrengthFactorConfig = {
   excessCapPct: 20,
 };
 
-/** Simple return (%) over `lookback` trading days, or null if too short. */
-const returnPct = (closes: readonly number[], lookback: number): number | null => {
-  if (closes.length < lookback + 1) return null;
-  const start = closes[closes.length - 1 - lookback]!;
-  const end = closes[closes.length - 1]!;
-  if (!(start > 0)) return null;
-  return ((end - start) / start) * 100;
-};
-
 export class RelativeStrengthFactor implements Factor {
   readonly name = 'relativeStrength';
   readonly category = FactorCategory.RELATIVE_STRENGTH;
@@ -45,8 +36,8 @@ export class RelativeStrengthFactor implements Factor {
     const benchCloses = ctx.benchmark?.candles.map((c) => c.close) ?? [];
     const benchSymbol = ctx.benchmark?.symbol ?? 'benchmark';
 
-    const stockRet = returnPct(closes, lookback);
-    const benchRet = returnPct(benchCloses, lookback);
+    const stockRet = lookbackReturnPct(closes, lookback);
+    const benchRet = lookbackReturnPct(benchCloses, lookback);
 
     if (stockRet === null || benchRet === null) {
       const reason =

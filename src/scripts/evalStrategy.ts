@@ -1,4 +1,10 @@
-import { buildFeatureBundle, buildStockContext, factors, loadBenchmarkCandles } from '@/factors';
+import {
+  buildFeatureBundle,
+  buildStockContext,
+  factors,
+  loadBenchmarkCandles,
+  loadSectorPeerReturns,
+} from '@/factors';
 import { PortfolioManager, portfolioConfigFromEnv, type PortfolioCandidate } from '@/portfolio';
 import { detectMarketRegime } from '@/regime';
 import { computeSignalLevels, DEFAULT_SIGNAL_MATH_CONFIG, type SignalLevels } from '@/signal';
@@ -23,6 +29,7 @@ const run = async () => {
 
   const regime = await detectMarketRegime(new Date(), { vix });
   const benchmarkCandles = await loadBenchmarkCandles();
+  const sectorPeerReturns = await loadSectorPeerReturns();
   const strategy = new WeightedStrategy();
 
   const instruments = await prisma.instrument.findMany({
@@ -33,7 +40,7 @@ const run = async () => {
   type Row = StrategyEvaluation & { sector: string | null; levels: SignalLevels | null; mathReason: string | null };
   const evals: Row[] = [];
   for (const inst of instruments) {
-    const ctx = await buildStockContext(inst.id, new Date(), { benchmarkCandles });
+    const ctx = await buildStockContext(inst.id, new Date(), { benchmarkCandles, sectorPeerReturns });
     if (!ctx) continue;
     const bundle = buildFeatureBundle(ctx, factors);
     const strat = strategy.evaluate(bundle, regime.regime);

@@ -1,6 +1,12 @@
 import dayjs from 'dayjs';
 
-import { buildFeatureBundle, buildStockContext, factors, loadBenchmarkCandles } from '@/factors';
+import {
+  buildFeatureBundle,
+  buildStockContext,
+  factors,
+  loadBenchmarkCandles,
+  loadSectorPeerReturns,
+} from '@/factors';
 import {
   PortfolioManager,
   portfolioConfigFromEnv,
@@ -50,6 +56,7 @@ export const runPipeline = async (
 
   const regime = await detectMarketRegime(asOf, { vix: opts?.vix ?? null });
   const benchmarkCandles = await loadBenchmarkCandles(asOf);
+  const sectorPeerReturns = await loadSectorPeerReturns(asOf);
   const strategy = new WeightedStrategy();
 
   const instruments = await prisma.instrument.findMany({
@@ -65,7 +72,7 @@ export const runPipeline = async (
     const symbol = inst.symbol.replace(/-EQ$/, '');
     instrumentIdBySymbol.set(symbol, inst.id);
 
-    const ctx = await buildStockContext(inst.id, asOf, { benchmarkCandles });
+    const ctx = await buildStockContext(inst.id, asOf, { benchmarkCandles, sectorPeerReturns });
     if (!ctx) continue;
 
     const bundle = buildFeatureBundle(ctx, factors);

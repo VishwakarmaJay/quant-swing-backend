@@ -116,6 +116,21 @@ const run = async () => {
     );
   }
 
+  // ── 2c. ADD sectorRelativeStrength to the composite (does selection improve?) ──
+  // Conditioning above is range-restricted (SRS didn't select these trades). This tests SRS
+  // as a *selection* signal: give it composite weight, regenerate, see if the new set is better.
+  console.log(`\n=== 2c. ADD sectorRelativeStrength to composite (Δ vs baseline) ===`);
+  console.log(`  Earns a weight if adding it RAISES expectancy / PF (picks better stocks).`);
+  console.log(`  ${padE('SRS weight', 20)} ${pad('signals', 8)} ${pad('win%', 7)} ${pad('exp%', 8)} ${pad('PF', 6)}  ${pad('Δexp', 8)} ${pad('Δsignals', 9)}`);
+  for (const w of [0.15, 0.25, 0.4]) {
+    const weights = { ...DEFAULT_STRATEGY_CONFIG.technicalFactorWeights, sectorRelativeStrength: w };
+    const v = runVariant(store, `w=${w}`, new WeightedStrategy({ ...DEFAULT_STRATEGY_CONFIG, technicalFactorWeights: weights }));
+    const dExp = v.metrics.expectancyPct - baseM.expectancyPct;
+    console.log(
+      `  ${padE(`w=${w}`, 20)} ${pad(v.signalCount, 8)} ${pad(v.metrics.winRatePct, 7)} ${pad(pct(v.metrics.expectancyPct), 8)} ${pad(v.metrics.profitFactor, 6)}  ${pad(pct(dExp), 8)} ${pad(v.signalCount - baseSignals.length >= 0 ? '+' + (v.signalCount - baseSignals.length) : v.signalCount - baseSignals.length, 9)}`,
+    );
+  }
+
   console.log(
     `\n  ⚠️ Technicals-only, survivorship bias (today's constituents), signal-edge (no 2-position cap).` +
       `\n     Conditioning is range-restricted (all trades already cleared the gates) — it measures` +

@@ -1,6 +1,14 @@
 import dayjs from 'dayjs';
 
-import { buildFeatureBundle, emaLatest, factors, round, type StockContext } from '@/factors';
+import {
+  buildFeatureBundle,
+  DEFAULT_SECTOR_RS_CONFIG,
+  emaLatest,
+  factors,
+  lookbackReturnPct,
+  round,
+  type StockContext,
+} from '@/factors';
 import { assessDataQuality, type Candle } from '@/ohlcv';
 import { detectRegime } from '@/regime';
 import { computeSignalLevels } from '@/signal';
@@ -70,16 +78,25 @@ export const generateRawSignals = (store: CandleStore, opts: BacktestOptions = {
     const niftySlice = store.benchmark.filter((c) => c.tradeDate <= asOf);
 
     const slices = new Map<string, Candle[]>();
+    const sectorReturns = new Map<string, number[]>();
     let counted = 0;
     let above = 0;
     for (const inst of store.instruments) {
       const slice = (store.seriesById.get(inst.id) ?? []).filter((c) => c.tradeDate <= asOf);
       if (!slice.length || slice[slice.length - 1]!.tradeDate !== asOf) continue;
       slices.set(inst.id, slice);
-      const ema50 = emaLatest(slice.map((c) => c.close), 50);
+      const closes = slice.map((c) => c.close);
+      const ema50 = emaLatest(closes, 50);
       if (ema50 !== null) {
         counted++;
         if (slice[slice.length - 1]!.close > ema50) above++;
+      }
+      // Cross-sectional pre-pass: this stock's lookback return into its sector bucket.
+      if (inst.sector) {
+        const ret = lookbackReturnPct(closes, DEFAULT_SECTOR_RS_CONFIG.lookback);
+        if (ret !== null) {
+          (sectorReturns.get(inst.sector) ?? sectorReturns.set(inst.sector, []).get(inst.sector)!).push(ret);
+        }
       }
     }
     const breadthPct = counted ? (above / counted) * 100 : 0;
@@ -103,6 +120,9 @@ export const generateRawSignals = (store: CandleStore, opts: BacktestOptions = {
         dataQualityScore: dq,
         sector: inst.sector,
         benchmark: niftySlice.length ? { symbol: 'NIFTY', candles: niftySlice } : null,
+        sectorPeers: inst.sector
+          ? { peerReturnsPct: sectorReturns.get(inst.sector) ?? [], lookback: DEFAULT_SECTOR_RS_CONFIG.lookback }
+          : null,
       };
 
       const bundle = buildFeatureBundle(ctx, factors);

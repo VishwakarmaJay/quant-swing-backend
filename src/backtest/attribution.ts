@@ -112,6 +112,7 @@ export const CONDITIONING_FEATURES: { feature: string; scoreOf: (p: SignalTrade)
   { feature: 'trend', scoreOf: (p) => p.signal.factorScores.trend ?? NaN },
   { feature: 'momentum', scoreOf: (p) => p.signal.factorScores.momentum ?? NaN },
   { feature: 'relativeStrength', scoreOf: (p) => p.signal.factorScores.relativeStrength ?? NaN },
+  { feature: 'sectorRelativeStrength', scoreOf: (p) => p.signal.factorScores.sectorRelativeStrength ?? NaN },
   { feature: 'volume', scoreOf: (p) => p.signal.factorScores.volume ?? NaN },
   { feature: 'volatility', scoreOf: (p) => p.signal.factorScores.volatility ?? NaN },
   { feature: 'composite', scoreOf: (p) => p.signal.evaluation.compositeScore },

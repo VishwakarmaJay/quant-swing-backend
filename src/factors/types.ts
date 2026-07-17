@@ -64,6 +64,15 @@ export type StockContext = {
   readonly sector?: string | null;
   /** Market benchmark candles (Nifty), aligned ≤ asOf; null if unavailable. */
   readonly benchmark?: { readonly symbol: string; readonly candles: readonly Candle[] } | null;
+  /**
+   * Cross-sectional sector context for SectorRelativeStrength, produced by a
+   * pre-pass over the universe (a single stock can't see its peers). Holds the
+   * lookback returns (%) of every equity in THIS stock's sector as of `asOf`
+   * (including this stock). Absent for single-stock evaluations / index rows →
+   * the factor returns a neutral 50. Kept as injected data so evaluate stays
+   * pure (no fetching, no cross-instrument reads inside the factor).
+   */
+  readonly sectorPeers?: { readonly peerReturnsPct: readonly number[]; readonly lookback: number } | null;
 };
 
 /** Deep-frozen bundle of every factor's result for one instrument as of a date. */

@@ -15,6 +15,7 @@ export {
   macdLatest,
   atr,
   round,
+  lookbackReturnPct,
   type Macd,
 } from './indicators';
 export { TrendFactor, DEFAULT_TREND_CONFIG, type TrendFactorConfig } from './trendFactor';
@@ -34,6 +35,18 @@ export {
   DEFAULT_RS_CONFIG,
   type RelativeStrengthFactorConfig,
 } from './relativeStrengthFactor';
+export {
+  SectorRelativeStrengthFactor,
+  DEFAULT_SECTOR_RS_CONFIG,
+  type SectorRelativeStrengthFactorConfig,
+} from './sectorRelativeStrengthFactor';
 export { buildFeatureBundle } from './featureBundle';
-export { buildStockContext, loadBenchmarkCandles, BENCHMARK_ID, BENCHMARK_SYMBOL } from './context';
+export {
+  buildStockContext,
+  loadBenchmarkCandles,
+  loadSectorPeerReturns,
+  BENCHMARK_ID,
+  BENCHMARK_SYMBOL,
+  type SectorPeerReturns,
+} from './context';
 export { factors } from './registry';

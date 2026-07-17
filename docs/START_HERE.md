@@ -27,6 +27,7 @@ OHLCV → DataQuality → 5 factors → regime → WeightedStrategy → signal m
 
 - **Phase 1** ✅ data foundation (historical OHLCV, universe of 166 equities + 3 indices, nightly update)
 - **Phase 2** ✅ 5 factors: Trend, Momentum, RelativeStrength, Volume, Volatility
+  (+ **SectorRelativeStrength** added later — built, observational/weight-0 pending Phase 6)
 - **Phase 2.5** ✅ golden determinism gate (byte-identical factor output in CI)
 - **CI/CD** ✅ GitHub Actions (typecheck + test) + Docker → ghcr.io
 - **Phase 3** ✅ decision layer: regime, strategy, signal math, portfolio, persistence, delivery
@@ -46,11 +47,17 @@ backtest already fails. See `SYSTEM.md` §7.5 and §13.
 
 ## What to do next (recommended order)
 
-1. **Sentiment factor** (FinBERT) + **Fundamental factor** (Screener/NSE) — the missing
-   edge the docs' thesis relies on.
-2. **Sector-relative RS** — the deferred half of RelativeStrength.
-3. **Phase 6** — factor pruning + ML weighting, using the Phase 4 backtest harness to
-   measure what actually has edge.
+1. ~~**Sector-relative RS**~~ ✅ **built** (observational, weight 0) — the deferred half of
+   RelativeStrength. Selection test shows it improves backtested expectancy (−0.22 → −0.13) as an
+   orthogonal filter; weight deferred to Phase 6. See `ATTRIBUTION.md`.
+2. **Fundamental factor** (Screener/NSE) — backtestable orthogonal signal (Step-1 attribution says
+   favour orthogonal over more trend factors).
+3. **Sentiment factor** (FinBERT) — start the news archive now (can't backtest until ~6mo of it).
+4. **Phase 6** — factor pruning + joint learned weighting (this is where the SRS weight gets set),
+   using the Phase 4 backtest + attribution harness to measure what actually has edge.
+
+> ⚠️ The backtest still shows **no net edge** (see below) — do these to *build* edge; Phase 5
+> (paper trading) stays gated until a backtest beats Nifty. Plan detail: `HANDOFF_NEXT_STEPS.md`.
 
 ## Where to look
 

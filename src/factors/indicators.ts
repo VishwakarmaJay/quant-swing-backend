@@ -144,3 +144,17 @@ export const atr = (
 
 /** Round to `dp` decimal places (keeps metrics/scores tidy and stable). */
 export const round = (n: number, dp = 2): number => Number(n.toFixed(dp));
+
+/**
+ * Simple price return (%) over `lookback` trading days: (last − lookback-ago) /
+ * lookback-ago × 100. Null if the series is too short or the base is ≤ 0.
+ * Shared by RelativeStrength (vs Nifty), SectorRelativeStrength (vs peers), and
+ * the cross-sectional pre-pass so all three measure return identically.
+ */
+export const lookbackReturnPct = (closes: readonly number[], lookback: number): number | null => {
+  if (closes.length < lookback + 1) return null;
+  const start = closes[closes.length - 1 - lookback]!;
+  const end = closes[closes.length - 1]!;
+  if (!(start > 0)) return null;
+  return ((end - start) / start) * 100;
+};

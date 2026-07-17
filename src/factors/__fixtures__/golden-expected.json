@@ -50,6 +50,17 @@
           "lookback": 60
         }
       },
+      "sectorRelativeStrength": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "only 1 peer(s) in sector (need 3) — sector RS neutral"
+        ],
+        "metrics": {
+          "peerCount": 1,
+          "stockReturnPct": -4.89
+        }
+      },
       "volume": {
         "score": 50,
         "agreementContribution": 0,
@@ -136,6 +147,17 @@
           "excessPct": -13.48,
           "benchmark": "NIFTY",
           "lookback": 60
+        }
+      },
+      "sectorRelativeStrength": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "only 1 peer(s) in sector (need 3) — sector RS neutral"
+        ],
+        "metrics": {
+          "peerCount": 1,
+          "stockReturnPct": -14.68
         }
       },
       "volume": {
@@ -226,6 +248,17 @@
           "lookback": 60
         }
       },
+      "sectorRelativeStrength": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "only 2 peer(s) in sector (need 3) — sector RS neutral"
+        ],
+        "metrics": {
+          "peerCount": 2,
+          "stockReturnPct": 1.62
+        }
+      },
       "volume": {
         "score": 50,
         "agreementContribution": 0,
@@ -312,6 +345,17 @@
           "excessPct": 5.77,
           "benchmark": "NIFTY",
           "lookback": 60
+        }
+      },
+      "sectorRelativeStrength": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "only 2 peer(s) in sector (need 3) — sector RS neutral"
+        ],
+        "metrics": {
+          "peerCount": 2,
+          "stockReturnPct": 4.57
         }
       },
       "volume": {
@@ -401,6 +445,17 @@
           "lookback": 60
         }
       },
+      "sectorRelativeStrength": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "only 2 peer(s) in sector (need 3) — sector RS neutral"
+        ],
+        "metrics": {
+          "peerCount": 2,
+          "stockReturnPct": 16.87
+        }
+      },
       "volume": {
         "score": 50,
         "agreementContribution": 0,
@@ -486,6 +541,17 @@
           "excessPct": 20.2,
           "benchmark": "NIFTY",
           "lookback": 60
+        }
+      },
+      "sectorRelativeStrength": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "only 2 peer(s) in sector (need 3) — sector RS neutral"
+        ],
+        "metrics": {
+          "peerCount": 2,
+          "stockReturnPct": 19
         }
       },
       "volume": {
@@ -576,6 +642,17 @@
           "lookback": 60
         }
       },
+      "sectorRelativeStrength": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "only 1 peer(s) in sector (need 3) — sector RS neutral"
+        ],
+        "metrics": {
+          "peerCount": 1,
+          "stockReturnPct": 2.48
+        }
+      },
       "volume": {
         "score": 50,
         "agreementContribution": 0,
@@ -662,6 +739,17 @@
           "excessPct": -5.6,
           "benchmark": "NIFTY",
           "lookback": 60
+        }
+      },
+      "sectorRelativeStrength": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "only 1 peer(s) in sector (need 3) — sector RS neutral"
+        ],
+        "metrics": {
+          "peerCount": 1,
+          "stockReturnPct": -6.8
         }
       },
       "volume": {
@@ -752,6 +840,17 @@
           "lookback": 60
         }
       },
+      "sectorRelativeStrength": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "only 1 peer(s) in sector (need 3) — sector RS neutral"
+        ],
+        "metrics": {
+          "peerCount": 1,
+          "stockReturnPct": -12.39
+        }
+      },
       "volume": {
         "score": 50,
         "agreementContribution": 0,
@@ -840,6 +939,17 @@
           "lookback": 60
         }
       },
+      "sectorRelativeStrength": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "only 1 peer(s) in sector (need 3) — sector RS neutral"
+        ],
+        "metrics": {
+          "peerCount": 1,
+          "stockReturnPct": 4.1
+        }
+      },
       "volume": {
         "score": 50,
         "agreementContribution": 0,
@@ -925,6 +1035,17 @@
           "excessPct": -7.21,
           "benchmark": "NIFTY",
           "lookback": 60
+        }
+      },
+      "sectorRelativeStrength": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "only 1 peer(s) in sector (need 3) — sector RS neutral"
+        ],
+        "metrics": {
+          "peerCount": 1,
+          "stockReturnPct": -8.41
         }
       },
       "volume": {
@@ -1016,6 +1137,17 @@
           "lookback": 60
         }
       },
+      "sectorRelativeStrength": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "only 1 peer(s) in sector (need 3) — sector RS neutral"
+        ],
+        "metrics": {
+          "peerCount": 1,
+          "stockReturnPct": 6.27
+        }
+      },
       "volume": {
         "score": 50,
         "agreementContribution": 0,
@@ -1101,6 +1233,17 @@
           "excessPct": 3.7,
           "benchmark": "NIFTY",
           "lookback": 60
+        }
+      },
+      "sectorRelativeStrength": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "only 1 peer(s) in sector (need 3) — sector RS neutral"
+        ],
+        "metrics": {
+          "peerCount": 1,
+          "stockReturnPct": 2.5
         }
       },
       "volume": {
@@ -1190,6 +1333,17 @@
           "lookback": 60
         }
       },
+      "sectorRelativeStrength": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "only 1 peer(s) in sector (need 3) — sector RS neutral"
+        ],
+        "metrics": {
+          "peerCount": 1,
+          "stockReturnPct": 41.34
+        }
+      },
       "volume": {
         "score": 50,
         "agreementContribution": 0,
@@ -1276,6 +1430,17 @@
           "excessPct": 14.26,
           "benchmark": "NIFTY",
           "lookback": 60
+        }
+      },
+      "sectorRelativeStrength": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "only 1 peer(s) in sector (need 3) — sector RS neutral"
+        ],
+        "metrics": {
+          "peerCount": 1,
+          "stockReturnPct": 13.06
         }
       },
       "volume": {

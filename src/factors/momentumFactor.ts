@@ -41,6 +41,12 @@ export class MomentumFactor implements Factor {
     const rsi = rsiLatest(closes, rsiPeriod);
     const macd = macdLatest(closes, macdFast, macdSlow, macdSignal);
 
+    // Previous-bar readings, so downstream logic can detect momentum turning up
+    // (e.g. a pullback resuming). Fall back to the current value when the series
+    // is one bar too short → slope reads flat (not rising), failing safe.
+    const rsiPrevRaw = rsiLatest(closes.slice(0, -1), rsiPeriod);
+    const macdPrevRaw = macdLatest(closes.slice(0, -1), macdFast, macdSlow, macdSignal);
+
     if (rsi === null || macd === null) {
       return {
         score: 0,
@@ -75,6 +81,8 @@ export class MomentumFactor implements Factor {
         macd: round(macd.macd),
         signal: round(macd.signal),
         histogram: round(macd.histogram),
+        rsiPrev: round(rsiPrevRaw ?? rsi),
+        histogramPrev: round(macdPrevRaw?.histogram ?? macd.histogram),
         rsiPeriod,
         macdFast,
         macdSlow,

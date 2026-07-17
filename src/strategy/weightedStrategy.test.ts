@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import type { FactorResult, FeatureBundle } from '@/factors';
 import { MarketRegime } from '@/regime';
+import { DEFAULT_STRATEGY_CONFIG } from './types';
 import { WeightedStrategy } from './weightedStrategy';
 
 const fr = (score: number, metrics: Record<string, number> = {}): FactorResult => ({
@@ -90,5 +91,46 @@ describe('WeightedStrategy', () => {
     expect(strategy.evaluate(bundle, MarketRegime.SIDEWAYS)).toEqual(
       strategy.evaluate(bundle, MarketRegime.SIDEWAYS),
     );
+  });
+});
+
+describe('WeightedStrategy — regimeGateOverrides (regime-conditioned entries)', () => {
+  /** Bundle including a sectorRelativeStrength score (for the leadership gate). */
+  const bundleWithSectorRs = (sectorRs: number, rsi = 55) => {
+    const b = makeBundle({ rsi });
+    return { ...b, results: { ...b.results, sectorRelativeStrength: fr(sectorRs) } };
+  };
+
+  test('a passing BULL setup is unaffected when no override is set (baseline preserved)', () => {
+    const plain = new WeightedStrategy();
+    expect(plain.evaluate(makeBundle({ rsi: 65 }), MarketRegime.BULL).passed).toBe(true);
+  });
+
+  test('BULL rsiMax override rejects an otherwise-passing overbought stock', () => {
+    const s = new WeightedStrategy({ ...DEFAULT_STRATEGY_CONFIG, regimeGateOverrides: { [MarketRegime.BULL]: { rsiMax: 60 } } });
+    const e = s.evaluate(makeBundle({ rsi: 65 }), MarketRegime.BULL); // 65 ≤ base 68 but > 60
+    expect(e.passed).toBe(false);
+    expect(e.rejectionReason).toBe('rsi-band');
+  });
+
+  test('the same override does NOT affect SIDEWAYS (regime-scoped)', () => {
+    const s = new WeightedStrategy({ ...DEFAULT_STRATEGY_CONFIG, regimeGateOverrides: { [MarketRegime.BULL]: { rsiMax: 60 } } });
+    expect(s.evaluate(makeBundle({ rsi: 65 }), MarketRegime.SIDEWAYS).passed).toBe(true);
+  });
+
+  test('BULL sector-leadership gate rejects a sector laggard and passes a leader', () => {
+    const s = new WeightedStrategy({ ...DEFAULT_STRATEGY_CONFIG, regimeGateOverrides: { [MarketRegime.BULL]: { minSectorRs: 55 } } });
+    const laggard = s.evaluate(bundleWithSectorRs(30), MarketRegime.BULL);
+    expect(laggard.passed).toBe(false);
+    expect(laggard.rejectionReason).toBe('sector-leadership');
+    expect(s.evaluate(bundleWithSectorRs(80), MarketRegime.BULL).passed).toBe(true);
+  });
+
+  test('BULL skip rejects every candidate in BULL only', () => {
+    const s = new WeightedStrategy({ ...DEFAULT_STRATEGY_CONFIG, regimeGateOverrides: { [MarketRegime.BULL]: { skip: true } } });
+    const bull = s.evaluate(makeBundle(), MarketRegime.BULL);
+    expect(bull.passed).toBe(false);
+    expect(bull.rejectionReason).toBe('regime');
+    expect(s.evaluate(makeBundle(), MarketRegime.SIDEWAYS).passed).toBe(true);
   });
 });

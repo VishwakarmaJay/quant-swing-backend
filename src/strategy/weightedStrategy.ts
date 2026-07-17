@@ -86,11 +86,20 @@ export class WeightedStrategy implements Strategy {
     const histogram = num(momentum, 'histogram');
     const rsi = num(momentum, 'rsi');
 
+    // Optional per-regime tightening (default: none → base gates unchanged).
+    const override = cfg.regimeGateOverrides?.[regime];
+    const rsiMin = override?.rsiMin ?? cfg.rsiMin;
+    const rsiMax = override?.rsiMax ?? cfg.rsiMax;
+
     const gates: GateResult[] = [
       {
         name: 'regime',
-        passed: regime !== MarketRegime.CRASH,
-        detail: regime === MarketRegime.CRASH ? 'CRASH — no new signals' : `regime ${regime}`,
+        passed: regime !== MarketRegime.CRASH && !override?.skip,
+        detail: regime === MarketRegime.CRASH
+          ? 'CRASH — no new signals'
+          : override?.skip
+            ? `regime ${regime} — skipped by override`
+            : `regime ${regime}`,
       },
       {
         name: 'composite',
@@ -114,10 +123,23 @@ export class WeightedStrategy implements Strategy {
       },
       {
         name: 'rsi-band',
-        passed: rsi != null && rsi >= cfg.rsiMin && rsi <= cfg.rsiMax,
-        detail: rsi == null ? 'RSI unavailable' : `RSI ${rsi} vs [${cfg.rsiMin}, ${cfg.rsiMax}]`,
+        passed: rsi != null && rsi >= rsiMin && rsi <= rsiMax,
+        detail: rsi == null ? 'RSI unavailable' : `RSI ${rsi} vs [${rsiMin}, ${rsiMax}]`,
       },
     ];
+
+    // Regime-conditioned sector-leadership gate (only when the regime overrides it).
+    if (override?.minSectorRs != null) {
+      const sectorRs = bundle.results.sectorRelativeStrength?.score ?? null;
+      gates.push({
+        name: 'sector-leadership',
+        passed: sectorRs != null && sectorRs >= override.minSectorRs,
+        detail:
+          sectorRs == null
+            ? 'sector RS unavailable'
+            : `sectorRS ${round(sectorRs, 2)} vs floor ${override.minSectorRs} (${regime})`,
+      });
+    }
 
     // Gate 7 (sentiment floor) only when a SentimentFactor is present.
     if (sentimentScore != null) {

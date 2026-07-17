@@ -33,6 +33,26 @@ export type StrategyConfig = {
    * unchanged.
    */
   disabledGates?: string[];
+  /**
+   * Per-regime entry tightening (default: none). Lets a regime demand stricter
+   * conditions than the base gates — the mechanism for testing regime-conditioned
+   * entries (Step-1 finding: BULL is the loss sink). Absent in production config
+   * until a variant is proven, so baseline behaviour and the weights hash are
+   * unchanged.
+   */
+  regimeGateOverrides?: Partial<Record<MarketRegime, RegimeGateOverride>>;
+};
+
+/** Optional per-regime overrides layered on top of the base gates. */
+export type RegimeGateOverride = {
+  /** Override the RSI band lower bound in this regime. */
+  rsiMin?: number;
+  /** Override the RSI band upper bound in this regime (e.g. avoid overbought in BULL). */
+  rsiMax?: number;
+  /** Require sectorRelativeStrength ≥ this in this regime (sector leadership). */
+  minSectorRs?: number;
+  /** Take no new signals in this regime at all (diagnostic: quantify a regime's drag). */
+  skip?: boolean;
 };
 
 export const DEFAULT_STRATEGY_CONFIG: StrategyConfig = {

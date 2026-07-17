@@ -154,12 +154,75 @@ and is backtestable immediately. High information-per-unit-effort.
 - **Decision (operator): weight deferred to Phase 6** (joint learned weighting) rather than hand-set
   now — keep it observational until Fundamental exists and weights can be fit together.
 
-### Step 4 — Sentiment (FinBERT) + Fundamental factors
+### Step 4 — Sentiment (FinBERT) + Fundamental factors — ⛔ **data-blocked; redirected**
 **Why here, not first:** The docs' thesis for the missing edge, but the *biggest* build
 (Python sidecar, news archive, Screener/NSE ingestion) — and Sentiment **can't be backtested**
 until ~6 months of news archive accumulates (per `BACKTESTING.md`/`ASSUMPTIONS.md`). So:
 **start the news-archive collection now** (a clock you can't rewind), but don't gate progress
 on it. Build **Fundamental first** since it *is* backtestable against history.
+
+**⛔ BLOCKER found:** the "Fundamental is backtestable" premise **fails** — there is no
+point-in-time historical fundamental data in the system (no schema, no ingestion), and scoring
+old signals with current PE/EPS is lookahead. A real Fundamental backtest needs dated as-of
+snapshots that must be sourced/ingested first (external data-engineering task; needs network + a
+historical source). Building a factor scored on nonexistent/lookahead data would violate the
+measure-before-you-trust discipline, so it was **not** built.
+
+**➡️ REDIRECTED to the biggest *measurable* lever (operator choice): regime-conditioned entries.**
+Full findings: [`REGIME_ENTRIES.md`](./REGIME_ENTRIES.md). Built a `regimeGateOverrides` mechanism
+(default-off; baseline byte-identical; +5 tests) and `bun run backtest:regime`. Result:
+- **BULL is the entire negative edge.** Skipping BULL entries moves the strategy from −0.22 (PF
+  0.86, losing) to **+0.06 (PF 1.04, ~breakeven)**; SIDEWAYS alone is breakeven.
+- **No filter *fixes* BULL — only avoidance helps.** RSI-ceiling and sector-leadership filters make
+  the *surviving* BULL trades **worse** (−0.70 to −0.92 vs −0.67); the overall gain is purely from
+  cutting BULL count. The technicals carry no info that separates good BULL entries from bad.
+- **⇒ The buy-trend-strength style is structurally unsuited to BULL.** Avoidance stops the bleed
+  (→ breakeven) but is **not edge** — still loses to Nifty, Phase 5 stays gated. BULL needs a
+  *different entry style* (mean-reversion / pullback), which is the next real hypothesis.
+- **Decision (operator): keep observational — do NOT change live signals — and build a proper BULL
+  mean-reversion / pullback entry next** (the actual fix the data points to). Blunt live suppression
+  was declined to preserve the option of a real BULL strategy. The `regimeGateOverrides` mechanism +
+  `backtest:regime` harness stay in place to measure that build.
+
+### Step 4b — BULL mean-reversion / pullback entry ✅ DONE (hypothesis validated)
+The data says the buy-trend-strength style can't win in BULL and filters don't fix it — so BULL needs
+a *different* entry: buy strength on a **pullback** within the uptrend (dip to ~EMA20, RSI cooled,
+stack intact), not at fresh highs.
+
+**✅ RESULT — the pullback entry FIXES BULL (improves it, doesn't just avoid it). Findings:
+[`REGIME_ENTRIES.md`](./REGIME_ENTRIES.md) Step-4b.** Built `BullPullbackStrategy` (experimental;
+delegates to WeightedStrategy off-BULL) + `bun run backtest:pullback`; +8 tests; **142/142 pass**.
+- Best variant (RSI 35–50, dip ≤2% above EMA20, stack intact): **BULL expectancy −0.67 → −0.21**,
+  BULL PF **0.61 → 0.77**, at the *same* trade count (391 vs 397) — a real entry improvement, not
+  avoidance. Overall strategy → near-breakeven (−0.04, PF 0.97); SIDEWAYS unchanged.
+- Coherent, monotonic response to tightening the pullback definition → real signal.
+- **Still net-negative** (BULL −0.21, PF 0.77 < 1): a big improvement, not yet an edge. Phase 5 stays
+  gated. v1 is a static dip snapshot with **no resumption confirmation** (RSI/MACD turning up) — the
+  clear next lever. **Not wired to production** (experimental).
+
+**Step 4b-v2 (resumption confirmation) ✅ done — with an out-of-sample reality check.** Added a
+"momentum turning up" gate (MACD histogram / RSI rising vs prior bar; new `rsiPrev`/`histogramPrev`
+momentum metrics; golden re-baselined; +3 tests; **145/145 pass**). Full-window it looked like a
+breakthrough (BULL +0.10 PF 1.09, overall PF 1.05) — **but a train/test split showed that was
+in-sample optimism:** on the unseen test half the same config is still net-negative (overall PF 0.93,
+BULL −0.32). What *generalizes* is the **relative** gain — v2 beats baseline on both halves and turns
+the BULL disaster from −1.47 to −0.32 on unseen data. So it's a **robustly better entry style, not a
+positive edge**. Phase 5 stays gated; the earlier full-window numbers are not the real edge (the OOS
+ones are). Method lesson: grid-picked configs must be OOS-validated before belief.
+
+**State of play:** two robust *relative* levers exist — sector-relative RS (Step 3) and the BULL
+pullback+resumption entry (Step 4b) — each an improvement, **neither a standalone edge**. Candidates:
+- **Phase 6 (recommended next):** combine + weight the measured levers (pullback entry + SRS + factor
+  weights) jointly, and validate with **walk-forward** (not a single split) — the honest way to turn
+  two partial levers into one evaluated strategy and to set the deferred SRS weight. This is also
+  where to build the reusable OOS/walk-forward harness the project now clearly needs.
+- **Fundamental factor:** still the orthogonal-data play, still blocked on point-in-time history.
+- **More pullback iteration** (e.g. combine SRS sector-leadership into the BULL entry) — but only
+  under proper OOS validation, given how much the single-window numbers flattered v2.
+
+**Still open (unchanged):** the Fundamental + Sentiment builds remain the orthogonal-signal work —
+gated on sourcing point-in-time fundamentals and starting the news-archive clock, both of which
+need a networked data-engineering environment this session can't provide.
 
 ### Step 5 — Phase 6: evaluation + ML weighting
 Only once attribution shows the factor set contains edge. Re-run sweep/attribution across the

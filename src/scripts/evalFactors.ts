@@ -1,4 +1,4 @@
-import { buildFeatureBundle, buildStockContext, factors } from '@/factors';
+import { buildFeatureBundle, buildStockContext, factors, loadBenchmarkCandles } from '@/factors';
 import { prisma } from '@services/prisma';
 
 /**
@@ -41,11 +41,15 @@ const run = async () => {
     return;
   }
 
+  // Load the Nifty benchmark once and reuse it for every stock's context.
+  const benchmarkCandles = await loadBenchmarkCandles();
+
   type Row = {
     symbol: string;
     sector: string;
     trend: number;
     momentum: number;
+    rs: number;
     volume: number;
     volatility: number;
     dq: number;
@@ -54,7 +58,7 @@ const run = async () => {
   const rows: Row[] = [];
 
   for (const inst of instruments) {
-    const ctx = await buildStockContext(inst.id);
+    const ctx = await buildStockContext(inst.id, new Date(), { benchmarkCandles });
     if (!ctx) continue;
     const bundle = buildFeatureBundle(ctx, factors);
     rows.push({
@@ -62,6 +66,7 @@ const run = async () => {
       sector: inst.sector ?? '—',
       trend: bundle.results.trend?.score ?? NaN,
       momentum: bundle.results.momentum?.score ?? NaN,
+      rs: bundle.results.relativeStrength?.score ?? NaN,
       volume: bundle.results.volume?.score ?? NaN,
       volatility: bundle.results.volatility?.score ?? NaN,
       dq: bundle.dataQualityScore,
@@ -69,16 +74,17 @@ const run = async () => {
     });
   }
 
-  // Rank by trend, then momentum — strongest setups surface first.
-  rows.sort((a, b) => b.trend - a.trend || b.momentum - a.momentum);
+  // Rank by trend, then relative strength — strongest setups surface first.
+  rows.sort((a, b) => b.trend - a.trend || b.rs - a.rs);
 
   console.log(`\nFactors: ${factors.map((f) => f.name).join(', ')}   (${rows.length} instruments)\n`);
-  console.log(`  #  SYMBOL         SECTOR                 TRND   MOM   VOL  VLTY    DQ    N`);
-  console.log(`  ${'-'.repeat(78)}`);
+  console.log(`  #  SYMBOL         SECTOR                 TRND   MOM    RS   VOL  VLTY    DQ    N`);
+  console.log(`  ${'-'.repeat(84)}`);
   rows.forEach((r, i) => {
     console.log(
       `${String(i + 1).padStart(3)}  ${r.symbol.padEnd(13)} ${r.sector.slice(0, 20).padEnd(20)} ` +
-        `${cell(r.trend)} ${cell(r.momentum)} ${cell(r.volume)} ${cell(r.volatility)}  ${r.dq.toFixed(2)} ${String(r.n).padStart(4)}`,
+        `${cell(r.trend)} ${cell(r.momentum)} ${cell(r.rs)} ${cell(r.volume)} ${cell(r.volatility)}  ` +
+        `${r.dq.toFixed(2)} ${String(r.n).padStart(4)}`,
     );
   });
 

@@ -49,7 +49,10 @@ export interface Factor {
 
 /**
  * The immutable input a factor sees: candles ascending by date, none newer
- * than `asOf` (no lookahead), plus the data-quality score from the gate.
+ * than `asOf` (no lookahead), plus the data-quality score from the gate. The
+ * market benchmark (Nifty) and sector are injected too, so cross-sectional
+ * factors (relative strength) stay pure — they read them from the context
+ * rather than fetching anything.
  */
 export type StockContext = {
   readonly symbol: string;
@@ -57,6 +60,10 @@ export type StockContext = {
   readonly asOf: string;
   readonly candles: readonly Candle[];
   readonly dataQualityScore: number;
+  /** Sector label (equities); null for index instruments. */
+  readonly sector?: string | null;
+  /** Market benchmark candles (Nifty), aligned ≤ asOf; null if unavailable. */
+  readonly benchmark?: { readonly symbol: string; readonly candles: readonly Candle[] } | null;
 };
 
 /** Deep-frozen bundle of every factor's result for one instrument as of a date. */

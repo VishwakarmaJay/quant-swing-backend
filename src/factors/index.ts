@@ -29,6 +29,11 @@ export {
   type VolatilityFactorConfig,
 } from './volatilityFactor';
 export { VolumeFactor, DEFAULT_VOLUME_CONFIG, type VolumeFactorConfig } from './volumeFactor';
+export {
+  RelativeStrengthFactor,
+  DEFAULT_RS_CONFIG,
+  type RelativeStrengthFactorConfig,
+} from './relativeStrengthFactor';
 export { buildFeatureBundle } from './featureBundle';
-export { buildStockContext } from './context';
+export { buildStockContext, loadBenchmarkCandles, BENCHMARK_ID, BENCHMARK_SYMBOL } from './context';
 export { factors } from './registry';

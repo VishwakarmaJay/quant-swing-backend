@@ -91,6 +91,13 @@ const getLiveOrderInstruments = async (): Promise<Instrument[]> => {
   return [...new Map(orders.map(({ instrument }) => [instrument.id, instrument])).values()];
 };
 
+/** The whole equity universe — subscribed so live LTP flows to Redis for every
+ *  scanned stock (not just the index rows). // SCALE LIMIT: mode-3 snap-quote
+ *  for ~170 tokens is fine; a much larger universe should move equities to
+ *  mode-1 (LTP-only) or a second connection. */
+const getEquityInstruments = (): Promise<Instrument[]> =>
+  prisma.instrument.findMany({ where: { instrumentType: 'EQ' } });
+
 const startFanOut = (): void => {
   const emitTimer = setInterval(emitToSockets, EMIT_INTERVAL_MS);
   const dbTimer = setInterval(() => void flushToDatabase(), DB_FLUSH_INTERVAL_MS);
@@ -108,21 +115,24 @@ export const startLtpStream = async (): Promise<void> => {
     return;
   }
 
-  const instruments = await getIndexInstruments();
-  if (!instruments.length) {
+  const indexInstruments = await getIndexInstruments();
+  if (!indexInstruments.length) {
     logger.warn('[LtpStream]: no index instruments in DB — run the instrument sync first');
     return;
   }
 
+  const equityInstruments = await getEquityInstruments();
   const liveOrderInstruments = await getLiveOrderInstruments();
 
   provider = new AngelOneStream(handleTick);
-  provider.addInstrumentsToStream(instruments);
+  provider.addInstrumentsToStream(indexInstruments);
+  provider.addInstrumentsToStream(equityInstruments);
   provider.addInstrumentsToStream(liveOrderInstruments);
   await provider.startStream();
 
   logger.info(
-    `[LtpStream]: started with ${instruments.length} index + ${liveOrderInstruments.length} live-order instruments`,
+    `[LtpStream]: started — ${indexInstruments.length} index + ${equityInstruments.length} equity + ` +
+      `${liveOrderInstruments.length} live-order instruments subscribed`,
   );
 };
 

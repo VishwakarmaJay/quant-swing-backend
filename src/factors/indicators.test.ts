@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { ema, emaLatest, macdLatest, rsiLatest, smaLatest } from './indicators';
+import { atr, ema, emaLatest, macdLatest, rsiLatest, smaLatest } from './indicators';
 
 describe('ema', () => {
   test('is SMA-seeded, NaN before the period fills', () => {
@@ -74,5 +74,30 @@ describe('macdLatest', () => {
   test('is deterministic', () => {
     const values = Array.from({ length: 60 }, (_, i) => 100 + Math.sin(i) * 5 + i);
     expect(macdLatest(values, 12, 26, 9)).toEqual(macdLatest(values, 12, 26, 9));
+  });
+});
+
+describe('atr', () => {
+  test('seeds from the first `period` true ranges (hand-computed)', () => {
+    // TR[1]=max(11-9,|11-9|,|9-9|)=2; TR[2]=max(12-10,|12-10|,|10-10|)=2.
+    // period 2 seed = (2+2)/2 = 2 at index 2.
+    const highs = [10, 11, 12];
+    const lows = [8, 9, 10];
+    const closes = [9, 10, 11];
+    const series = atr(highs, lows, closes, 2);
+    expect(series[2]).toBe(2);
+  });
+
+  test("applies Wilder's smoothing past the seed (hand-computed 3.5)", () => {
+    // Extra bar: TR[3]=max(15-10,|15-11|,|10-11|)=5; ATR=(2*1+5)/2=3.5.
+    const highs = [10, 11, 12, 15];
+    const lows = [8, 9, 10, 10];
+    const closes = [9, 10, 11, 14];
+    const series = atr(highs, lows, closes, 2);
+    expect(series[3]).toBe(3.5);
+  });
+
+  test('all-NaN when history is shorter than period + 1', () => {
+    expect(atr([1, 2], [1, 2], [1, 2], 5).every(Number.isNaN)).toBe(true);
   });
 });

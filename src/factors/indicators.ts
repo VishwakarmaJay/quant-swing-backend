@@ -104,5 +104,43 @@ export const macdLatest = (
   return { macd, signal, histogram: macd - signal };
 };
 
+/**
+ * Average True Range (Wilder's smoothing). Returns a series aligned to input;
+ * entries before index `period` are NaN. True range needs the prior close, so
+ * TR is defined from index 1 and ATR is seeded (SMA of the first `period` TRs)
+ * at index `period`. Needs `period + 1` candles.
+ */
+export const atr = (
+  highs: readonly number[],
+  lows: readonly number[],
+  closes: readonly number[],
+  period: number,
+): number[] => {
+  const n = closes.length;
+  const out = new Array<number>(n).fill(NaN);
+  if (period <= 0 || n < period + 1) return out;
+
+  const tr = new Array<number>(n).fill(NaN);
+  for (let i = 1; i < n; i++) {
+    const prevClose = closes[i - 1]!;
+    tr[i] = Math.max(
+      highs[i]! - lows[i]!,
+      Math.abs(highs[i]! - prevClose),
+      Math.abs(lows[i]! - prevClose),
+    );
+  }
+
+  let seed = 0;
+  for (let i = 1; i <= period; i++) seed += tr[i]!;
+  let prev = seed / period;
+  out[period] = prev;
+
+  for (let i = period + 1; i < n; i++) {
+    prev = (prev * (period - 1) + tr[i]!) / period;
+    out[i] = prev;
+  }
+  return out;
+};
+
 /** Round to `dp` decimal places (keeps metrics/scores tidy and stable). */
 export const round = (n: number, dp = 2): number => Number(n.toFixed(dp));

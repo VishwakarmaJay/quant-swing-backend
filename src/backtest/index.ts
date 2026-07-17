@@ -38,4 +38,15 @@ export {
   type FoldResult,
   type WalkForwardResult,
 } from './walkForward';
+export {
+  simulatePortfolio,
+  DEFAULT_PORTFOLIO_SIM_CONFIG,
+  type PortfolioSimConfig,
+  type PortfolioResult,
+  type PortfolioMetrics,
+  type PortfolioTrade,
+  type EquityPoint,
+  type SizingMode,
+  type SkipReason,
+} from './portfolioSimulator';
 export { runSweep, DEFAULT_SWEEP_GRID, type SweepCombo, type SweepResult } from './sweep';

@@ -47,19 +47,25 @@ The remaining gap needs orthogonal data + a fair portfolio-level test — Part B
 
 ## 🔜 PART B — The build sequence (in execution order)
 
-### B1. Portfolio-level backtest — *the fair "beat Nifty" gate* 🏗 no blockers
-Signal-edge replay takes every signal with no caps; cumulative % isn't comparable to B&H.
-Build a sequential simulator on top of the existing replay: one capital base, the real
-2-position / 1-per-sector caps, actual sizing, compounding equity curve.
-- [ ] Simulator: consume `RawSignal` stream in date order; apply caps/sizing/kill-switch;
-      track cash + open positions against one capital base
-- [ ] Portfolio metrics: CAGR, real max drawdown, exposure %, vs Nifty B&H (same units)
-- [ ] Sizing variants compared: composite-conviction vs **flat** vs **risk-based**
-      (fixed % risk off stop distance) — expect flat/risk-based ≥ conviction (ρ≈0 score)
-- [ ] Cost-sensitivity: rerun at 2× slippage/costs — flag any strategy-ranking flips
-- [ ] Wire into walk-forward (portfolio metrics per test fold)
-- **Done when:** `backtest:portfolio` reports OOS portfolio CAGR/DD vs Nifty for baseline
-  and combined configs, with sizing + cost-sensitivity tables.
+### ✅ B1. Portfolio-level backtest — *the fair "beat Nifty" gate* — DONE
+Results: [`PORTFOLIO_BACKTEST.md`](./PORTFOLIO_BACKTEST.md) · `bun run backtest:portfolio` ·
+157/157 tests.
+- [x] Simulator (`src/backtest/portfolioSimulator.ts`): one ₹2L base, calendar sweep over
+      precomputed trajectories; caps/sizing/kill-switch; entries-before-exits (no lookahead)
+- [x] Portfolio metrics: CAGR, true max drawdown, exposure, same-units Nifty comparison
+- [x] Sizing variants: flat / conviction / risk — risk-based gives the smallest drawdowns;
+      conviction's return win is variance (n≈114, ρ≈0 score), not vindication
+- [x] Cost-sensitivity 2×: both degrade ~7pp, **ranking stable** (combined still > baseline)
+- [x] OOS evaluation over the Phase-6 test stretch (selection was constant across folds,
+      so the continuous OOS run is faithful to the walk-forward pick)
+- **📉 VERDICT — the gate is real and currently FAILED by a wide margin:** OOS the
+  portfolio lost **−12.7% (combined/conviction) to −23.4% (baseline/flat)** vs Nifty
+  **−4.4%**; full window −2.1% vs Nifty +10.0%. Portfolio truth is *worse* than
+  signal-edge truth: the 2-slot cap takes only ~15% of signals, picked by an uninformative
+  ranking, and compounding turns per-trade drift into deep drawdown (−15…−29%).
+  **Combined beats baseline everywhere** (every sizing, both windows, 2× costs) — the
+  Phase-6 lever generalizes. New measurable lever surfaced: **slot-allocation ranking**.
+  → Reinforces B4→B5 (orthogonal signal) as the critical path; B10 stays hard-gated.
 
 ### B2. Wire the validated config into the nightly run — *operator decision* ⚙️ tiny
 Production still emits the known-worst baseline. `srs0.25 + pullback-v2` is the
@@ -137,6 +143,8 @@ is a week of sentiment backtest lost.
 - **Gate (unchanged):** B1's portfolio-level backtest shows the B9 strategy **beats Nifty
   risk-adjusted, net of costs, out-of-sample.** Not before — paper-trading a known-negative
   strategy burns calendar time.
+- **Current gate reading (B1, 2026-07):** ❌ failed by a wide margin — OOS portfolio
+  −12.7%…−23.4% vs Nifty −4.4% ([`PORTFOLIO_BACKTEST.md`](./PORTFOLIO_BACKTEST.md)).
 - [ ] Gate cleared (link the run + numbers here)
 - [ ] ≥2-week paper trade, metrics + factor attribution logged from day 1
 - [ ] Live fills vs simulated: measure real slippage, recalibrate the cost model

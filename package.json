@@ -27,6 +27,7 @@
     "backtest:regime": "bun src/scripts/runRegimeExperiment.ts",
     "backtest:pullback": "bun src/scripts/runPullbackExperiment.ts",
     "backtest:phase6": "bun src/scripts/runPhase6.ts",
+    "backtest:portfolio": "bun src/scripts/runPortfolioBacktest.ts",
     "golden:snapshot": "bun src/scripts/goldenSnapshot.ts",
     "golden:update": "bun src/scripts/goldenUpdate.ts",
     "listen:ltp": "bun src/scripts/ltpListener.ts",

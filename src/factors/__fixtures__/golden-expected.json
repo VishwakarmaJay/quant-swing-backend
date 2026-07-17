@@ -1,0 +1,1317 @@
+{
+  "RELIANCE": {
+    "dataQualityScore": 1,
+    "results": {
+      "trend": {
+        "score": 0,
+        "agreementContribution": -1,
+        "explanations": [
+          "Bearish EMA stack: price 1296.6 < EMA20 1302.31 < EMA50 1321.42 < EMA200 1407.39"
+        ],
+        "metrics": {
+          "close": 1296.6,
+          "emaFast": 1302.31,
+          "emaMid": 1321.42,
+          "emaSlow": 1407.39,
+          "fastPeriod": 20,
+          "midPeriod": 50,
+          "slowPeriod": 200
+        }
+      },
+      "momentum": {
+        "score": 48.34,
+        "agreementContribution": -0.0332,
+        "explanations": [
+          "MACD -7.1 above signal -7.73 (bullish)",
+          "RSI 46.69 (weak momentum)"
+        ],
+        "metrics": {
+          "rsi": 46.69,
+          "macd": -7.1,
+          "signal": -7.73,
+          "histogram": 0.63,
+          "rsiPeriod": 14,
+          "macdFast": 12,
+          "macdSlow": 26,
+          "macdSignal": 9
+        }
+      },
+      "relativeStrength": {
+        "score": 40.77,
+        "agreementContribution": -0.1847,
+        "explanations": [
+          "Underperformed NIFTY by 3.69% over 60d (stock -4.89% vs NIFTY -1.2%)"
+        ],
+        "metrics": {
+          "stockReturnPct": -4.89,
+          "benchmarkReturnPct": -1.2,
+          "excessPct": -3.69,
+          "benchmark": "NIFTY",
+          "lookback": 60
+        }
+      },
+      "volume": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "Last 5d volume 0.85× the 20D average",
+          "Price 1.31% but volume not elevated — move unconfirmed"
+        ],
+        "metrics": {
+          "relVol": 0.85,
+          "recentAvgVol": 11324236.8,
+          "avg20Vol": 13385371.55,
+          "recentReturnPct": 1.31,
+          "latestVolume": 15631046,
+          "lookback": 20,
+          "priceWindow": 5
+        }
+      },
+      "volatility": {
+        "score": 94.02,
+        "agreementContribution": 0,
+        "explanations": [
+          "ATR 22.94 = 1.77% of price 1296.6",
+          "ATR at 0.5th percentile of last 100 (compressed vs its own range)"
+        ],
+        "metrics": {
+          "atr": 22.94,
+          "atrPct": 1.77,
+          "atrPercentile": 0.5,
+          "atrPeriod": 14,
+          "idealAtrPct": 1.5,
+          "rejectAtrPct": 6,
+          "close": 1296.6
+        }
+      }
+    }
+  },
+  "TCS": {
+    "dataQualityScore": 1,
+    "results": {
+      "trend": {
+        "score": 25,
+        "agreementContribution": -0.5,
+        "explanations": [
+          "Price 2201 above EMA20 2134.66",
+          "EMA50 below EMA200 (downtrend base)"
+        ],
+        "metrics": {
+          "close": 2201,
+          "emaFast": 2134.66,
+          "emaMid": 2216.26,
+          "emaSlow": 2718.12,
+          "fastPeriod": 20,
+          "midPeriod": 50,
+          "slowPeriod": 200
+        }
+      },
+      "momentum": {
+        "score": 52.91,
+        "agreementContribution": 0.0582,
+        "explanations": [
+          "MACD -10.9 above signal -35.63 (bullish)",
+          "RSI 55.81 (bullish momentum)"
+        ],
+        "metrics": {
+          "rsi": 55.81,
+          "macd": -10.9,
+          "signal": -35.63,
+          "histogram": 24.73,
+          "rsiPeriod": 14,
+          "macdFast": 12,
+          "macdSlow": 26,
+          "macdSignal": 9
+        }
+      },
+      "relativeStrength": {
+        "score": 16.31,
+        "agreementContribution": -0.6739,
+        "explanations": [
+          "Underperformed NIFTY by 13.48% over 60d (stock -14.68% vs NIFTY -1.2%)"
+        ],
+        "metrics": {
+          "stockReturnPct": -14.68,
+          "benchmarkReturnPct": -1.2,
+          "excessPct": -13.48,
+          "benchmark": "NIFTY",
+          "lookback": 60
+        }
+      },
+      "volume": {
+        "score": 67.4,
+        "agreementContribution": 0.348,
+        "explanations": [
+          "Last 5d volume 1.35× the 20D average",
+          "Price +7.39% on above-average volume (accumulation)"
+        ],
+        "metrics": {
+          "relVol": 1.35,
+          "recentAvgVol": 7853509.4,
+          "avg20Vol": 5825889.35,
+          "recentReturnPct": 7.39,
+          "latestVolume": 5197595,
+          "lookback": 20,
+          "priceWindow": 5
+        }
+      },
+      "volatility": {
+        "score": 67.53,
+        "agreementContribution": 0,
+        "explanations": [
+          "ATR 65.17 = 2.96% of price 2201",
+          "ATR at 49.5th percentile of last 100 (normal vs its own range)"
+        ],
+        "metrics": {
+          "atr": 65.17,
+          "atrPct": 2.96,
+          "atrPercentile": 49.5,
+          "atrPeriod": 14,
+          "idealAtrPct": 1.5,
+          "rejectAtrPct": 6,
+          "close": 2201
+        }
+      }
+    }
+  },
+  "HDFCBANK": {
+    "dataQualityScore": 1,
+    "results": {
+      "trend": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "Price 808.3 above EMA20 803.45",
+          "EMA50 below EMA200 (downtrend base)"
+        ],
+        "metrics": {
+          "close": 808.3,
+          "emaFast": 803.45,
+          "emaMid": 794.6,
+          "emaSlow": 886.63,
+          "fastPeriod": 20,
+          "midPeriod": 50,
+          "slowPeriod": 200
+        }
+      },
+      "momentum": {
+        "score": 52.21,
+        "agreementContribution": 0.0442,
+        "explanations": [
+          "MACD 10.86 below signal 11.41 (bearish)",
+          "RSI 54.43 (bullish momentum)"
+        ],
+        "metrics": {
+          "rsi": 54.43,
+          "macd": 10.86,
+          "signal": 11.41,
+          "histogram": -0.55,
+          "rsiPeriod": 14,
+          "macdFast": 12,
+          "macdSlow": 26,
+          "macdSignal": 9
+        }
+      },
+      "relativeStrength": {
+        "score": 57.04,
+        "agreementContribution": 0.1407,
+        "explanations": [
+          "Outperformed NIFTY by 2.81% over 60d (stock 1.62% vs NIFTY -1.2%)"
+        ],
+        "metrics": {
+          "stockReturnPct": 1.62,
+          "benchmarkReturnPct": -1.2,
+          "excessPct": 2.81,
+          "benchmark": "NIFTY",
+          "lookback": 60
+        }
+      },
+      "volume": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "Last 5d volume 0.64× the 20D average",
+          "Price -1.13% but volume not elevated — move unconfirmed"
+        ],
+        "metrics": {
+          "relVol": 0.64,
+          "recentAvgVol": 22225968.2,
+          "avg20Vol": 34967986.8,
+          "recentReturnPct": -1.13,
+          "latestVolume": 18698186,
+          "lookback": 20,
+          "priceWindow": 5
+        }
+      },
+      "volatility": {
+        "score": 91.82,
+        "agreementContribution": 0,
+        "explanations": [
+          "ATR 15.1 = 1.87% of price 808.3",
+          "ATR at 0.5th percentile of last 100 (compressed vs its own range)"
+        ],
+        "metrics": {
+          "atr": 15.1,
+          "atrPct": 1.87,
+          "atrPercentile": 0.5,
+          "atrPeriod": 14,
+          "idealAtrPct": 1.5,
+          "rejectAtrPct": 6,
+          "close": 808.3
+        }
+      }
+    }
+  },
+  "ICICIBANK": {
+    "dataQualityScore": 1,
+    "results": {
+      "trend": {
+        "score": 75,
+        "agreementContribution": 0.5,
+        "explanations": [
+          "Price 1418.2 above EMA20 1383.58",
+          "EMA50 below EMA200 (downtrend base)"
+        ],
+        "metrics": {
+          "close": 1418.2,
+          "emaFast": 1383.58,
+          "emaMid": 1345.43,
+          "emaSlow": 1351.1,
+          "fastPeriod": 20,
+          "midPeriod": 50,
+          "slowPeriod": 200
+        }
+      },
+      "momentum": {
+        "score": 57.81,
+        "agreementContribution": 0.1562,
+        "explanations": [
+          "MACD 26.91 below signal 27.94 (bearish)",
+          "RSI 65.62 (bullish momentum)"
+        ],
+        "metrics": {
+          "rsi": 65.62,
+          "macd": 26.91,
+          "signal": 27.94,
+          "histogram": -1.03,
+          "rsiPeriod": 14,
+          "macdFast": 12,
+          "macdSlow": 26,
+          "macdSignal": 9
+        }
+      },
+      "relativeStrength": {
+        "score": 64.43,
+        "agreementContribution": 0.2885,
+        "explanations": [
+          "Outperformed NIFTY by 5.77% over 60d (stock 4.57% vs NIFTY -1.2%)"
+        ],
+        "metrics": {
+          "stockReturnPct": 4.57,
+          "benchmarkReturnPct": -1.2,
+          "excessPct": 5.77,
+          "benchmark": "NIFTY",
+          "lookback": 60
+        }
+      },
+      "volume": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "Last 5d volume 0.86× the 20D average",
+          "Price 2.72% but volume not elevated — move unconfirmed"
+        ],
+        "metrics": {
+          "relVol": 0.86,
+          "recentAvgVol": 10752202.2,
+          "avg20Vol": 12568488.8,
+          "recentReturnPct": 2.72,
+          "latestVolume": 10165264,
+          "lookback": 20,
+          "priceWindow": 5
+        }
+      },
+      "volatility": {
+        "score": 94.08,
+        "agreementContribution": 0,
+        "explanations": [
+          "ATR 25.05 = 1.77% of price 1418.2",
+          "ATR at 16.5th percentile of last 100 (compressed vs its own range)"
+        ],
+        "metrics": {
+          "atr": 25.05,
+          "atrPct": 1.77,
+          "atrPercentile": 16.5,
+          "atrPeriod": 14,
+          "idealAtrPct": 1.5,
+          "rejectAtrPct": 6,
+          "close": 1418.2
+        }
+      }
+    }
+  },
+  "SUNPHARMA": {
+    "dataQualityScore": 1,
+    "results": {
+      "trend": {
+        "score": 100,
+        "agreementContribution": 1,
+        "explanations": [
+          "Bullish EMA stack: price 1950.1 > EMA20 1897.64 > EMA50 1852.51 > EMA200 1756.83"
+        ],
+        "metrics": {
+          "close": 1950.1,
+          "emaFast": 1897.64,
+          "emaMid": 1852.51,
+          "emaSlow": 1756.83,
+          "fastPeriod": 20,
+          "midPeriod": 50,
+          "slowPeriod": 200
+        }
+      },
+      "momentum": {
+        "score": 84.49,
+        "agreementContribution": 0.6898,
+        "explanations": [
+          "MACD 32.05 above signal 27.06 (bullish), above zero",
+          "RSI 68.98 (bullish momentum)"
+        ],
+        "metrics": {
+          "rsi": 68.98,
+          "macd": 32.05,
+          "signal": 27.06,
+          "histogram": 5,
+          "rsiPeriod": 14,
+          "macdFast": 12,
+          "macdSlow": 26,
+          "macdSignal": 9
+        }
+      },
+      "relativeStrength": {
+        "score": 95.17,
+        "agreementContribution": 0.9035,
+        "explanations": [
+          "Outperformed NIFTY by 18.07% over 60d (stock 16.87% vs NIFTY -1.2%)"
+        ],
+        "metrics": {
+          "stockReturnPct": 16.87,
+          "benchmarkReturnPct": -1.2,
+          "excessPct": 18.07,
+          "benchmark": "NIFTY",
+          "lookback": 60
+        }
+      },
+      "volume": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "Last 5d volume 0.94× the 20D average",
+          "Price 0.59% but volume not elevated — move unconfirmed"
+        ],
+        "metrics": {
+          "relVol": 0.94,
+          "recentAvgVol": 1910631,
+          "avg20Vol": 2037871.2,
+          "recentReturnPct": 0.59,
+          "latestVolume": 1396189,
+          "lookback": 20,
+          "priceWindow": 5
+        }
+      },
+      "volatility": {
+        "score": 97.52,
+        "agreementContribution": 0,
+        "explanations": [
+          "ATR 31.43 = 1.61% of price 1950.1",
+          "ATR at 18.5th percentile of last 100 (compressed vs its own range)"
+        ],
+        "metrics": {
+          "atr": 31.43,
+          "atrPct": 1.61,
+          "atrPercentile": 18.5,
+          "atrPeriod": 14,
+          "idealAtrPct": 1.5,
+          "rejectAtrPct": 6,
+          "close": 1950.1
+        }
+      }
+    }
+  },
+  "TORNTPHARM": {
+    "dataQualityScore": 1,
+    "results": {
+      "trend": {
+        "score": 100,
+        "agreementContribution": 1,
+        "explanations": [
+          "Bullish EMA stack: price 4987.6 > EMA20 4776.63 > EMA50 4585.56 > EMA200 4107.57"
+        ],
+        "metrics": {
+          "close": 4987.6,
+          "emaFast": 4776.63,
+          "emaMid": 4585.56,
+          "emaSlow": 4107.57,
+          "fastPeriod": 20,
+          "midPeriod": 50,
+          "slowPeriod": 200
+        }
+      },
+      "momentum": {
+        "score": 88.11,
+        "agreementContribution": 0.7622,
+        "explanations": [
+          "MACD 141.03 above signal 117.73 (bullish), above zero",
+          "RSI 76.22 (overbought)"
+        ],
+        "metrics": {
+          "rsi": 76.22,
+          "macd": 141.03,
+          "signal": 117.73,
+          "histogram": 23.31,
+          "rsiPeriod": 14,
+          "macdFast": 12,
+          "macdSlow": 26,
+          "macdSignal": 9
+        }
+      },
+      "relativeStrength": {
+        "score": 100,
+        "agreementContribution": 1,
+        "explanations": [
+          "Outperformed NIFTY by 20.2% over 60d (stock 19% vs NIFTY -1.2%)"
+        ],
+        "metrics": {
+          "stockReturnPct": 19,
+          "benchmarkReturnPct": -1.2,
+          "excessPct": 20.2,
+          "benchmark": "NIFTY",
+          "lookback": 60
+        }
+      },
+      "volume": {
+        "score": 100,
+        "agreementContribution": 1,
+        "explanations": [
+          "Last 5d volume 2× the 20D average",
+          "Price +1.83% on above-average volume (accumulation)"
+        ],
+        "metrics": {
+          "relVol": 2,
+          "recentAvgVol": 1672292.6,
+          "avg20Vol": 835418.5,
+          "recentReturnPct": 1.83,
+          "latestVolume": 5061339,
+          "lookback": 20,
+          "priceWindow": 5
+        }
+      },
+      "volatility": {
+        "score": 80.25,
+        "agreementContribution": 0,
+        "explanations": [
+          "ATR 119.15 = 2.39% of price 4987.6",
+          "ATR at 81.5th percentile of last 100 (elevated vs its own range)"
+        ],
+        "metrics": {
+          "atr": 119.15,
+          "atrPct": 2.39,
+          "atrPercentile": 81.5,
+          "atrPeriod": 14,
+          "idealAtrPct": 1.5,
+          "rejectAtrPct": 6,
+          "close": 4987.6
+        }
+      }
+    }
+  },
+  "MARUTI": {
+    "dataQualityScore": 1,
+    "results": {
+      "trend": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "Price 13783 above EMA20 13769.63",
+          "EMA50 below EMA200 (downtrend base)"
+        ],
+        "metrics": {
+          "close": 13783,
+          "emaFast": 13769.63,
+          "emaMid": 13622.48,
+          "emaSlow": 14730.18,
+          "fastPeriod": 20,
+          "midPeriod": 50,
+          "slowPeriod": 200
+        }
+      },
+      "momentum": {
+        "score": 50.69,
+        "agreementContribution": 0.0138,
+        "explanations": [
+          "MACD 86.01 below signal 157.79 (bearish)",
+          "RSI 51.39 (bullish momentum)"
+        ],
+        "metrics": {
+          "rsi": 51.39,
+          "macd": 86.01,
+          "signal": 157.79,
+          "histogram": -71.78,
+          "rsiPeriod": 14,
+          "macdFast": 12,
+          "macdSlow": 26,
+          "macdSignal": 9
+        }
+      },
+      "relativeStrength": {
+        "score": 59.19,
+        "agreementContribution": 0.1837,
+        "explanations": [
+          "Outperformed NIFTY by 3.67% over 60d (stock 2.48% vs NIFTY -1.2%)"
+        ],
+        "metrics": {
+          "stockReturnPct": 2.48,
+          "benchmarkReturnPct": -1.2,
+          "excessPct": 3.67,
+          "benchmark": "NIFTY",
+          "lookback": 60
+        }
+      },
+      "volume": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "Last 5d volume 0.7× the 20D average",
+          "Price 0.4% but volume not elevated — move unconfirmed"
+        ],
+        "metrics": {
+          "relVol": 0.7,
+          "recentAvgVol": 414129.6,
+          "avg20Vol": 595105.15,
+          "recentReturnPct": 0.4,
+          "latestVolume": 356847,
+          "lookback": 20,
+          "priceWindow": 5
+        }
+      },
+      "volatility": {
+        "score": 82.9,
+        "agreementContribution": 0,
+        "explanations": [
+          "ATR 312.8 = 2.27% of price 13783",
+          "ATR at 20.5th percentile of last 100 (compressed vs its own range)"
+        ],
+        "metrics": {
+          "atr": 312.8,
+          "atrPct": 2.27,
+          "atrPercentile": 20.5,
+          "atrPeriod": 14,
+          "idealAtrPct": 1.5,
+          "rejectAtrPct": 6,
+          "close": 13783
+        }
+      }
+    }
+  },
+  "LT": {
+    "dataQualityScore": 1,
+    "results": {
+      "trend": {
+        "score": 25,
+        "agreementContribution": -0.5,
+        "explanations": [
+          "Price 3775.6 below EMA20 3967.44",
+          "EMA50 above EMA200 (uptrend base)"
+        ],
+        "metrics": {
+          "close": 3775.6,
+          "emaFast": 3967.44,
+          "emaMid": 3992.47,
+          "emaSlow": 3938.82,
+          "fastPeriod": 20,
+          "midPeriod": 50,
+          "slowPeriod": 200
+        }
+      },
+      "momentum": {
+        "score": 15.16,
+        "agreementContribution": -0.6968,
+        "explanations": [
+          "MACD -60.95 below signal -24.06 (bearish), below zero",
+          "RSI 30.31 (weak momentum)"
+        ],
+        "metrics": {
+          "rsi": 30.31,
+          "macd": -60.95,
+          "signal": -24.06,
+          "histogram": -36.89,
+          "rsiPeriod": 14,
+          "macdFast": 12,
+          "macdSlow": 26,
+          "macdSignal": 9
+        }
+      },
+      "relativeStrength": {
+        "score": 36,
+        "agreementContribution": -0.28,
+        "explanations": [
+          "Underperformed NIFTY by 5.6% over 60d (stock -6.8% vs NIFTY -1.2%)"
+        ],
+        "metrics": {
+          "stockReturnPct": -6.8,
+          "benchmarkReturnPct": -1.2,
+          "excessPct": -5.6,
+          "benchmark": "NIFTY",
+          "lookback": 60
+        }
+      },
+      "volume": {
+        "score": 44.85,
+        "agreementContribution": -0.103,
+        "explanations": [
+          "Last 5d volume 1.1× the 20D average",
+          "Price -2.84% on above-average volume (distribution)"
+        ],
+        "metrics": {
+          "relVol": 1.1,
+          "recentAvgVol": 2395316,
+          "avg20Vol": 2171688.6,
+          "recentReturnPct": -2.84,
+          "latestVolume": 2936753,
+          "lookback": 20,
+          "priceWindow": 5
+        }
+      },
+      "volatility": {
+        "score": 88.25,
+        "agreementContribution": 0,
+        "explanations": [
+          "ATR 76.6 = 2.03% of price 3775.6",
+          "ATR at 1.5th percentile of last 100 (compressed vs its own range)"
+        ],
+        "metrics": {
+          "atr": 76.6,
+          "atrPct": 2.03,
+          "atrPercentile": 1.5,
+          "atrPeriod": 14,
+          "idealAtrPct": 1.5,
+          "rejectAtrPct": 6,
+          "close": 3775.6
+        }
+      }
+    }
+  },
+  "TATASTEEL": {
+    "dataQualityScore": 1,
+    "results": {
+      "trend": {
+        "score": 25,
+        "agreementContribution": -0.5,
+        "explanations": [
+          "Price 185.49 below EMA20 190.8",
+          "EMA50 above EMA200 (uptrend base)"
+        ],
+        "metrics": {
+          "close": 185.49,
+          "emaFast": 190.8,
+          "emaMid": 196.73,
+          "emaSlow": 189.33,
+          "fastPeriod": 20,
+          "midPeriod": 50,
+          "slowPeriod": 200
+        }
+      },
+      "momentum": {
+        "score": 42.93,
+        "agreementContribution": -0.1414,
+        "explanations": [
+          "MACD -3.95 above signal -4.18 (bullish)",
+          "RSI 35.86 (weak momentum)"
+        ],
+        "metrics": {
+          "rsi": 35.86,
+          "macd": -3.95,
+          "signal": -4.18,
+          "histogram": 0.22,
+          "rsiPeriod": 14,
+          "macdFast": 12,
+          "macdSlow": 26,
+          "macdSignal": 9
+        }
+      },
+      "relativeStrength": {
+        "score": 22.02,
+        "agreementContribution": -0.5595,
+        "explanations": [
+          "Underperformed NIFTY by 11.19% over 60d (stock -12.39% vs NIFTY -1.2%)"
+        ],
+        "metrics": {
+          "stockReturnPct": -12.39,
+          "benchmarkReturnPct": -1.2,
+          "excessPct": -11.19,
+          "benchmark": "NIFTY",
+          "lookback": 60
+        }
+      },
+      "volume": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "Last 5d volume 0.92× the 20D average",
+          "Price -1.29% but volume not elevated — move unconfirmed"
+        ],
+        "metrics": {
+          "relVol": 0.92,
+          "recentAvgVol": 26586194.6,
+          "avg20Vol": 28835064.4,
+          "recentReturnPct": -1.29,
+          "latestVolume": 13166990,
+          "lookback": 20,
+          "priceWindow": 5
+        }
+      },
+      "volatility": {
+        "score": 86.14,
+        "agreementContribution": 0,
+        "explanations": [
+          "ATR 3.94 = 2.12% of price 185.49",
+          "ATR at 2.5th percentile of last 100 (compressed vs its own range)"
+        ],
+        "metrics": {
+          "atr": 3.94,
+          "atrPct": 2.12,
+          "atrPercentile": 2.5,
+          "atrPeriod": 14,
+          "idealAtrPct": 1.5,
+          "rejectAtrPct": 6,
+          "close": 185.49
+        }
+      }
+    }
+  },
+  "BHARTIARTL": {
+    "dataQualityScore": 1,
+    "results": {
+      "trend": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "Price 1921.8 above EMA20 1896.47",
+          "EMA50 below EMA200 (downtrend base)"
+        ],
+        "metrics": {
+          "close": 1921.8,
+          "emaFast": 1896.47,
+          "emaMid": 1876.3,
+          "emaSlow": 1948.1,
+          "fastPeriod": 20,
+          "midPeriod": 50,
+          "slowPeriod": 200
+        }
+      },
+      "momentum": {
+        "score": 78.38,
+        "agreementContribution": 0.5676,
+        "explanations": [
+          "MACD 19.38 above signal 17.4 (bullish), above zero",
+          "RSI 56.76 (bullish momentum)"
+        ],
+        "metrics": {
+          "rsi": 56.76,
+          "macd": 19.38,
+          "signal": 17.4,
+          "histogram": 1.98,
+          "rsiPeriod": 14,
+          "macdFast": 12,
+          "macdSlow": 26,
+          "macdSignal": 9
+        }
+      },
+      "relativeStrength": {
+        "score": 63.25,
+        "agreementContribution": 0.265,
+        "explanations": [
+          "Outperformed NIFTY by 5.3% over 60d (stock 4.1% vs NIFTY -1.2%)"
+        ],
+        "metrics": {
+          "stockReturnPct": 4.1,
+          "benchmarkReturnPct": -1.2,
+          "excessPct": 5.3,
+          "benchmark": "NIFTY",
+          "lookback": 60
+        }
+      },
+      "volume": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "Last 5d volume 0.92× the 20D average",
+          "Price -0.48% but volume not elevated — move unconfirmed"
+        ],
+        "metrics": {
+          "relVol": 0.92,
+          "recentAvgVol": 6331061.4,
+          "avg20Vol": 6848082.8,
+          "recentReturnPct": -0.48,
+          "latestVolume": 4644787,
+          "lookback": 20,
+          "priceWindow": 5
+        }
+      },
+      "volatility": {
+        "score": 90.77,
+        "agreementContribution": 0,
+        "explanations": [
+          "ATR 36.81 = 1.92% of price 1921.8",
+          "ATR at 16.5th percentile of last 100 (compressed vs its own range)"
+        ],
+        "metrics": {
+          "atr": 36.81,
+          "atrPct": 1.92,
+          "atrPercentile": 16.5,
+          "atrPeriod": 14,
+          "idealAtrPct": 1.5,
+          "rejectAtrPct": 6,
+          "close": 1921.8
+        }
+      }
+    }
+  },
+  "ITC": {
+    "dataQualityScore": 1,
+    "results": {
+      "trend": {
+        "score": 0,
+        "agreementContribution": -1,
+        "explanations": [
+          "Bearish EMA stack: price 279.35 < EMA20 284.34 < EMA50 290.83 < EMA200 340.27"
+        ],
+        "metrics": {
+          "close": 279.35,
+          "emaFast": 284.34,
+          "emaMid": 290.83,
+          "emaSlow": 340.27,
+          "fastPeriod": 20,
+          "midPeriod": 50,
+          "slowPeriod": 200
+        }
+      },
+      "momentum": {
+        "score": 19.24,
+        "agreementContribution": -0.6152,
+        "explanations": [
+          "MACD -3.57 below signal -2.73 (bearish), below zero",
+          "RSI 38.48 (weak momentum)"
+        ],
+        "metrics": {
+          "rsi": 38.48,
+          "macd": -3.57,
+          "signal": -2.73,
+          "histogram": -0.84,
+          "rsiPeriod": 14,
+          "macdFast": 12,
+          "macdSlow": 26,
+          "macdSignal": 9
+        }
+      },
+      "relativeStrength": {
+        "score": 31.97,
+        "agreementContribution": -0.3605,
+        "explanations": [
+          "Underperformed NIFTY by 7.21% over 60d (stock -8.41% vs NIFTY -1.2%)"
+        ],
+        "metrics": {
+          "stockReturnPct": -8.41,
+          "benchmarkReturnPct": -1.2,
+          "excessPct": -7.21,
+          "benchmark": "NIFTY",
+          "lookback": 60
+        }
+      },
+      "volume": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "Last 5d volume 0.93× the 20D average",
+          "Price -0.96% but volume not elevated — move unconfirmed"
+        ],
+        "metrics": {
+          "relVol": 0.93,
+          "recentAvgVol": 11819398.4,
+          "avg20Vol": 12699666.55,
+          "recentReturnPct": -0.96,
+          "latestVolume": 11220653,
+          "lookback": 20,
+          "priceWindow": 5
+        }
+      },
+      "volatility": {
+        "score": 100,
+        "agreementContribution": 0,
+        "explanations": [
+          "ATR 4.19 = 1.5% of price 279.35",
+          "ATR at 1.5th percentile of last 100 (compressed vs its own range)",
+          "calm — favorable for a controlled-risk entry"
+        ],
+        "metrics": {
+          "atr": 4.19,
+          "atrPct": 1.5,
+          "atrPercentile": 1.5,
+          "atrPeriod": 14,
+          "idealAtrPct": 1.5,
+          "rejectAtrPct": 6,
+          "close": 279.35
+        }
+      }
+    }
+  },
+  "ASIANPAINT": {
+    "dataQualityScore": 1,
+    "results": {
+      "trend": {
+        "score": 75,
+        "agreementContribution": 0.5,
+        "explanations": [
+          "Price 2674.7 below EMA20 2681.51",
+          "EMA50 above EMA200 (uptrend base)"
+        ],
+        "metrics": {
+          "close": 2674.7,
+          "emaFast": 2681.51,
+          "emaMid": 2640.14,
+          "emaSlow": 2571.08,
+          "fastPeriod": 20,
+          "midPeriod": 50,
+          "slowPeriod": 200
+        }
+      },
+      "momentum": {
+        "score": 49.88,
+        "agreementContribution": -0.0024,
+        "explanations": [
+          "MACD 2.16 below signal 10.92 (bearish)",
+          "RSI 49.76 (weak momentum)"
+        ],
+        "metrics": {
+          "rsi": 49.76,
+          "macd": 2.16,
+          "signal": 10.92,
+          "histogram": -8.76,
+          "rsiPeriod": 14,
+          "macdFast": 12,
+          "macdSlow": 26,
+          "macdSignal": 9
+        }
+      },
+      "relativeStrength": {
+        "score": 68.68,
+        "agreementContribution": 0.3736,
+        "explanations": [
+          "Outperformed NIFTY by 7.47% over 60d (stock 6.27% vs NIFTY -1.2%)"
+        ],
+        "metrics": {
+          "stockReturnPct": 6.27,
+          "benchmarkReturnPct": -1.2,
+          "excessPct": 7.47,
+          "benchmark": "NIFTY",
+          "lookback": 60
+        }
+      },
+      "volume": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "Last 5d volume 0.71× the 20D average",
+          "Price 0.03% but volume not elevated — move unconfirmed"
+        ],
+        "metrics": {
+          "relVol": 0.71,
+          "recentAvgVol": 865869.8,
+          "avg20Vol": 1223382.9,
+          "recentReturnPct": 0.03,
+          "latestVolume": 455037,
+          "lookback": 20,
+          "priceWindow": 5
+        }
+      },
+      "volatility": {
+        "score": 88.62,
+        "agreementContribution": 0,
+        "explanations": [
+          "ATR 53.81 = 2.01% of price 2674.7",
+          "ATR at 4.5th percentile of last 100 (compressed vs its own range)"
+        ],
+        "metrics": {
+          "atr": 53.81,
+          "atrPct": 2.01,
+          "atrPercentile": 4.5,
+          "atrPeriod": 14,
+          "idealAtrPct": 1.5,
+          "rejectAtrPct": 6,
+          "close": 2674.7
+        }
+      }
+    }
+  },
+  "TITAN": {
+    "dataQualityScore": 1,
+    "results": {
+      "trend": {
+        "score": 100,
+        "agreementContribution": 1,
+        "explanations": [
+          "Bullish EMA stack: price 4625.8 > EMA20 4476.52 > EMA50 4360.47 > EMA200 4073.93"
+        ],
+        "metrics": {
+          "close": 4625.8,
+          "emaFast": 4476.52,
+          "emaMid": 4360.47,
+          "emaSlow": 4073.93,
+          "fastPeriod": 20,
+          "midPeriod": 50,
+          "slowPeriod": 200
+        }
+      },
+      "momentum": {
+        "score": 83.46,
+        "agreementContribution": 0.6692,
+        "explanations": [
+          "MACD 94.78 above signal 85.16 (bullish), above zero",
+          "RSI 66.92 (bullish momentum)"
+        ],
+        "metrics": {
+          "rsi": 66.92,
+          "macd": 94.78,
+          "signal": 85.16,
+          "histogram": 9.62,
+          "rsiPeriod": 14,
+          "macdFast": 12,
+          "macdSlow": 26,
+          "macdSignal": 9
+        }
+      },
+      "relativeStrength": {
+        "score": 59.25,
+        "agreementContribution": 0.1849,
+        "explanations": [
+          "Outperformed NIFTY by 3.7% over 60d (stock 2.5% vs NIFTY -1.2%)"
+        ],
+        "metrics": {
+          "stockReturnPct": 2.5,
+          "benchmarkReturnPct": -1.2,
+          "excessPct": 3.7,
+          "benchmark": "NIFTY",
+          "lookback": 60
+        }
+      },
+      "volume": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "Last 5d volume 0.81× the 20D average",
+          "Price 1.54% but volume not elevated — move unconfirmed"
+        ],
+        "metrics": {
+          "relVol": 0.81,
+          "recentAvgVol": 761956.2,
+          "avg20Vol": 941977.95,
+          "recentReturnPct": 1.54,
+          "latestVolume": 1136159,
+          "lookback": 20,
+          "priceWindow": 5
+        }
+      },
+      "volatility": {
+        "score": 89.8,
+        "agreementContribution": 0,
+        "explanations": [
+          "ATR 90.61 = 1.96% of price 4625.8",
+          "ATR at 6.5th percentile of last 100 (compressed vs its own range)"
+        ],
+        "metrics": {
+          "atr": 90.61,
+          "atrPct": 1.96,
+          "atrPercentile": 6.5,
+          "atrPeriod": 14,
+          "idealAtrPct": 1.5,
+          "rejectAtrPct": 6,
+          "close": 4625.8
+        }
+      }
+    }
+  },
+  "ADANIENT": {
+    "dataQualityScore": 1,
+    "results": {
+      "trend": {
+        "score": 100,
+        "agreementContribution": 1,
+        "explanations": [
+          "Bullish EMA stack: price 3151.4 > EMA20 3091.21 > EMA50 2901.08 > EMA200 2437.18"
+        ],
+        "metrics": {
+          "close": 3151.4,
+          "emaFast": 3091.21,
+          "emaMid": 2901.08,
+          "emaSlow": 2437.18,
+          "fastPeriod": 20,
+          "midPeriod": 50,
+          "slowPeriod": 200
+        }
+      },
+      "momentum": {
+        "score": 54.5,
+        "agreementContribution": 0.09,
+        "explanations": [
+          "MACD 73.6 below signal 82.68 (bearish)",
+          "RSI 59 (bullish momentum)"
+        ],
+        "metrics": {
+          "rsi": 59,
+          "macd": 73.6,
+          "signal": 82.68,
+          "histogram": -9.08,
+          "rsiPeriod": 14,
+          "macdFast": 12,
+          "macdSlow": 26,
+          "macdSignal": 9
+        }
+      },
+      "relativeStrength": {
+        "score": 100,
+        "agreementContribution": 1,
+        "explanations": [
+          "Outperformed NIFTY by 42.54% over 60d (stock 41.34% vs NIFTY -1.2%)"
+        ],
+        "metrics": {
+          "stockReturnPct": 41.34,
+          "benchmarkReturnPct": -1.2,
+          "excessPct": 42.54,
+          "benchmark": "NIFTY",
+          "lookback": 60
+        }
+      },
+      "volume": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "Last 5d volume 0.73× the 20D average",
+          "Price 2.2% but volume not elevated — move unconfirmed"
+        ],
+        "metrics": {
+          "relVol": 0.73,
+          "recentAvgVol": 1572873.6,
+          "avg20Vol": 2165661.25,
+          "recentReturnPct": 2.2,
+          "latestVolume": 1151243,
+          "lookback": 20,
+          "priceWindow": 5
+        }
+      },
+      "volatility": {
+        "score": 73.18,
+        "agreementContribution": 0,
+        "explanations": [
+          "ATR 85.3 = 2.71% of price 3151.4",
+          "ATR at 62.5th percentile of last 100 (normal vs its own range)"
+        ],
+        "metrics": {
+          "atr": 85.3,
+          "atrPct": 2.71,
+          "atrPercentile": 62.5,
+          "atrPeriod": 14,
+          "idealAtrPct": 1.5,
+          "rejectAtrPct": 6,
+          "close": 3151.4
+        }
+      }
+    }
+  },
+  "BAJFINANCE": {
+    "dataQualityScore": 1,
+    "results": {
+      "trend": {
+        "score": 75,
+        "agreementContribution": 0.5,
+        "explanations": [
+          "Price 1037.6 above EMA20 1000.07",
+          "EMA50 below EMA200 (downtrend base)"
+        ],
+        "metrics": {
+          "close": 1037.6,
+          "emaFast": 1000.07,
+          "emaMid": 966.41,
+          "emaSlow": 973.21,
+          "fastPeriod": 20,
+          "midPeriod": 50,
+          "slowPeriod": 200
+        }
+      },
+      "momentum": {
+        "score": 57.33,
+        "agreementContribution": 0.1466,
+        "explanations": [
+          "MACD 23.75 below signal 24.63 (bearish)",
+          "RSI 64.67 (bullish momentum)"
+        ],
+        "metrics": {
+          "rsi": 64.67,
+          "macd": 23.75,
+          "signal": 24.63,
+          "histogram": -0.88,
+          "rsiPeriod": 14,
+          "macdFast": 12,
+          "macdSlow": 26,
+          "macdSignal": 9
+        }
+      },
+      "relativeStrength": {
+        "score": 85.64,
+        "agreementContribution": 0.7129,
+        "explanations": [
+          "Outperformed NIFTY by 14.26% over 60d (stock 13.06% vs NIFTY -1.2%)"
+        ],
+        "metrics": {
+          "stockReturnPct": 13.06,
+          "benchmarkReturnPct": -1.2,
+          "excessPct": 14.26,
+          "benchmark": "NIFTY",
+          "lookback": 60
+        }
+      },
+      "volume": {
+        "score": 50,
+        "agreementContribution": 0,
+        "explanations": [
+          "Last 5d volume 0.74× the 20D average",
+          "Price 3.37% but volume not elevated — move unconfirmed"
+        ],
+        "metrics": {
+          "relVol": 0.74,
+          "recentAvgVol": 6597840,
+          "avg20Vol": 8945808.5,
+          "recentReturnPct": 3.37,
+          "latestVolume": 9079076,
+          "lookback": 20,
+          "priceWindow": 5
+        }
+      },
+      "volatility": {
+        "score": 79.92,
+        "agreementContribution": 0,
+        "explanations": [
+          "ATR 24.94 = 2.4% of price 1037.6",
+          "ATR at 40.5th percentile of last 100 (normal vs its own range)"
+        ],
+        "metrics": {
+          "atr": 24.94,
+          "atrPct": 2.4,
+          "atrPercentile": 40.5,
+          "atrPeriod": 14,
+          "idealAtrPct": 1.5,
+          "rejectAtrPct": 6,
+          "close": 1037.6
+        }
+      }
+    }
+  }
+}

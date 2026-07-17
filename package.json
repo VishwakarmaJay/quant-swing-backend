@@ -17,6 +17,8 @@
     "backfill:ohlcv": "bun src/scripts/backfillOhlcv.ts",
     "ohlcv:update": "bun src/scripts/updateOhlcv.ts",
     "factors:eval": "bun src/scripts/evalFactors.ts",
+    "golden:snapshot": "bun src/scripts/goldenSnapshot.ts",
+    "golden:update": "bun src/scripts/goldenUpdate.ts",
     "listen:ltp": "bun src/scripts/ltpListener.ts",
     "postinstall": "prisma generate",
     "debug": "bun run src/server.ts",

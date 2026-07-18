@@ -83,6 +83,7 @@ pullback-v2` config (still not edge — orders remain manual, Phase 5 stays gate
       `signals:run` requires networked infra + backfill — not runnable in-repo.)
 
 ### ✅ B3. News scraper + archive — *clock #1* ⏰ — DONE (archive clock running since 2026-07-18)
+Full doc (how it works, sources, fetching, limitations): [`NEWS_SCRAPER.md`](./NEWS_SCRAPER.md)
 The archive is the asset; FinBERT can score it retroactively. Every week not collecting
 is a week of sentiment backtest lost. Module built under `src/news/` (+ `bun run news:ingest`);
 187/187 tests, typecheck clean. Live fetch/deploy needs networked infra this session can't run.
@@ -144,16 +145,29 @@ is a week of sentiment backtest lost. Module built under `src/news/` (+ `bun run
   correct on a manual sample. ✅ **Met (in-repo). Archive clock started 2026-07-18 —
   B7's ~6-month sentiment-backtest countdown runs from this date.**
 
-### B4. Fundamentals: snapshotter + point-in-time backfill — *clock #2 + the unblock* ⏰
-- [ ] Weekly snapshotter: current Screener/NSE fundamentals per stock with `fetchedAt`
-      (builds native point-in-time data going forward)
-- [ ] Historical backfill from **dated** NSE/BSE quarterly filings (announcement dates!):
-      quarterly EPS, promoter/pledge %, results calendar
-- [ ] Reconstruct as-of series: `TTM_EPS_knownBy(date)` → `PE_asOf = price / TTM_EPS`;
-      sector-relative PE from the same universe
-- [ ] Spot-verify a sample of reconstructed values against known filings
+### 🟡 B4. Fundamentals: snapshotter + point-in-time backfill — *clock #2 + the unblock* ⏰ — mostly done
+Module `src/fundamentals/` (+13 tests, 202/202 pass) · migration `b4_fundamentals`
+(`quarterly_fundamental`, `fundamental_snapshot`) · `bun run fundamentals:backfill|snapshot`.
+**Verified data recipe (all live-tested):** Screener quarterly table = EPS/profit/sales per
+quarter + the BSE scrip code (from the page's own bseindia link); BSE `AnnSubCategoryGetData`
+per-scrip with `strCat=Result` accepts WIDE date ranges (the single-day limit is universe-wide
+only) = real announcement dates; `availableAt = announcedAt ?? periodEnd + SEBI deadline (45d/60d)`.
+- [x] Weekly snapshotter: `snapshotFundamentals()` + `FUNDAMENTALS_SNAPSHOT` cron (7d,
+      fires on server boot) → `fundamental_snapshot` rows with `fetchedAt` as-of key
+- [x] Historical backfill built + run: **1,197 quarters across 101/167 symbols, 92%
+      announcement-dated** (rest SEBI-deadline fallback). ⏳ 66 symbols pending — Screener
+      connection-blocked the IP after ~200 requests at 1.1s pacing; default delay raised to
+      3s, idempotent retry of exactly those 66 queued at 4s pacing (runs when the block lifts).
+- [x] As-of reconstruction (`asOf.ts`, pure + tested): `ttmEpsKnownBy` / `peAsOf`.
+      **Boundary-verified on real data:** RELIANCE Apr-20 TTM 59.69 → Apr-27 55.22
+      (59.69 − 19.95 + 15.48 exactly — the Mar-26 quarter enters ONLY after its Apr-24
+      announcement); PE 22.8 → 24.7 from the information event, not price.
+- [x] Spot-verify vs known filings: RELIANCE all 8 quarters carry real dissemination dates
+      matching its actual results calendar (Jul-18-25, Oct-17, Jan-16, Apr-24…).
+- [ ] ⏳ Complete the 66-symbol retry (queued) → re-run summary; promoter/pledge % deferred
+      (soft-flag only; `Corp_ShpPromoters_ng` endpoint verified for when needed).
 - **Done when:** every universe stock has an honest as-of fundamental series covering the
-  backtest window (announcement-dated, no period-end lookahead).
+  backtest window (announcement-dated, no period-end lookahead). *(101/167 done, retry queued.)*
 
 ### B5. FundamentalFactor — *the most likely source of real edge* 📈 blocked on B4
 - [ ] Factor (pure, injected data like `sectorPeers`): PE-vs-sector percentile, EPS trend,

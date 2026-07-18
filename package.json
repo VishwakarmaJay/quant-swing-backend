@@ -22,6 +22,8 @@
     "strategy:eval": "bun src/scripts/evalStrategy.ts",
     "signals:run": "bun src/scripts/runNightly.ts",
     "news:ingest": "bun src/scripts/runNewsIngest.ts",
+    "fundamentals:backfill": "bun src/scripts/runFundamentalsBackfill.ts",
+    "fundamentals:snapshot": "bun src/scripts/runFundamentalsSnapshot.ts",
     "backtest:run": "bun src/scripts/runBacktest.ts",
     "backtest:sweep": "bun src/scripts/runSweep.ts",
     "backtest:attribution": "bun src/scripts/runAttribution.ts",

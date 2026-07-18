@@ -506,3 +506,57 @@ model NewsArticle {
   @@index([fetchedAt])
   @@map("news_article")
 }
+
+/// Point-in-time quarterly fundamentals (ROADMAP B4). One row per (symbol,
+/// periodEnd). The as-of key is `announcedAt` (BSE result-announcement
+/// dissemination time) — NEVER `periodEnd`: a June quarter's EPS did not exist
+/// publicly until its results were announced in July. When no BSE announcement
+/// could be matched, `fallbackAvailableAt` (periodEnd + SEBI deadline: 45d
+/// quarterly / 60d annual) is the conservative availability date.
+model QuarterlyFundamental {
+  id                  String    @id @default(uuid())
+  /// Canonical NSE universe symbol (e.g. RELIANCE).
+  symbol              String
+  /// Quarter end date (e.g. 2026-06-30).
+  periodEnd           DateTime  @db.Date
+  /// EPS in ₹ for the quarter (Screener "EPS in Rs", consolidated preferred).
+  epsBasic            Float
+  /// ₹ crore.
+  netProfit           Float?
+  /// ₹ crore.
+  sales               Float?
+  /// BSE result-announcement dissemination time — the honest as-of moment.
+  announcedAt         DateTime?
+  /// Conservative availability when announcedAt is unmatched (SEBI deadline).
+  fallbackAvailableAt DateTime  @db.Date
+  /// 'consolidated' | 'standalone' (Screener table used).
+  basis               String
+  /// BSE scrip code discovered for the symbol (from the Screener page link).
+  bseScripCode        String?
+  fetchedAt           DateTime
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([symbol, periodEnd])
+  @@index([symbol, announcedAt])
+  @@map("quarterly_fundamental")
+}
+
+/// Weekly snapshot of current headline ratios (ROADMAP B4 clock #2): builds a
+/// native point-in-time archive going forward. `fetchedAt` is the as-of key.
+model FundamentalSnapshot {
+  id        String   @id @default(uuid())
+  symbol    String
+  fetchedAt DateTime
+  pe        Float?
+  /// ₹ crore.
+  marketCap Float?
+  bookValue Float?
+  roePct    Float?
+  /// Full parsed ratio set (name → value) for future factors.
+  raw       Json
+  createdAt DateTime @default(now())
+
+  @@index([symbol, fetchedAt])
+  @@map("fundamental_snapshot")
+}

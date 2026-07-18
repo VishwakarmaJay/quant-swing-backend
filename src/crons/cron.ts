@@ -7,6 +7,7 @@ export enum CRONJOBS {
   OHLCV_INCREMENTAL = 'OHLCV_INCREMENTAL',
   SIGNAL_RUN = 'SIGNAL_RUN',
   NEWS_INGEST = 'NEWS_INGEST',
+  FUNDAMENTALS_SNAPSHOT = 'FUNDAMENTALS_SNAPSHOT',
 }
 
 /** Time of day (server-local) at which a daily cron fires. */

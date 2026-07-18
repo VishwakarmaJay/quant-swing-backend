@@ -56,6 +56,17 @@ const EnvSchema = z.object({
   /** Per-feed HTTP fetch timeout (ms). A slow/dead feed is skipped, not fatal. */
   NEWS_FETCH_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
 
+  // ---- Fundamentals (ROADMAP B4; point-in-time data + weekly snapshot clock) ----
+  /** How often the fundamentals snapshot cron runs (default 7 days). */
+  FUNDAMENTALS_SNAPSHOT_INTERVAL_MS: z.coerce.number().int().positive().default(604800000),
+  /**
+   * Polite delay between per-company fetches (ms). Screener connection-blocks
+   * an IP after ~200 requests at 1.1s pacing (observed 2026-07-18) — 3s+ keeps
+   * a full-universe pass under their radar; the backfill is idempotent, so an
+   * interrupted run just re-runs with the failed symbols.
+   */
+  FUNDAMENTALS_FETCH_DELAY_MS: z.coerce.number().int().nonnegative().default(3000),
+
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).optional(),
 
   /** git sha stamped onto signals for reproducibility (set in CI/deploy). */

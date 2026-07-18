@@ -1,4 +1,5 @@
 import { registerFailPostMarketPendingOrdersCron } from './failPostMarketPendingOrders';
+import { registerFundamentalsSnapshotCron } from './fundamentalsSnapshot';
 import { registerInstrumentSyncCron } from './instrumentSync';
 import { registerNewsIngestCron } from './newsIngest';
 import { registerOhlcvIncrementalCron } from './ohlcvIncremental';
@@ -11,6 +12,7 @@ export const startCrons = async (): Promise<void> => {
   await registerOhlcvIncrementalCron();
   await registerSignalRunCron();
   await registerNewsIngestCron();
+  await registerFundamentalsSnapshotCron();
 };
 
 export { stopCrons } from './cron';

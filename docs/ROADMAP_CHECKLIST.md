@@ -13,7 +13,8 @@
 - Determinism is sacred: factor changes fail the golden test until consciously re-baselined.
 - No config is believed off a single window — everything through `runWalkForward`.
 - Point-in-time discipline everywhere: as-of date = the date *we could have known it*
-  (filing date for fundamentals, `fetchedAt` for news) — never period-end / publishedAt.
+  (filing date for fundamentals, `availableAt` for news — `= fetchedAt` on live rows,
+  reconstructed for B3.5 GDELT imports) — never period-end / publishedAt.
 - **Phase 5 (paper trading) stays gated** until the portfolio-level backtest beats Nifty
   risk-adjusted, net of costs, **out-of-sample**.
 
@@ -145,6 +146,37 @@ is a week of sentiment backtest lost. Module built under `src/news/` (+ `bun run
 - **Done when:** articles/day flowing for all 4 sources, deduped, ≥90% of matched symbols
   correct on a manual sample. ✅ **Met (in-repo). Archive clock started 2026-07-18 —
   B7's ~6-month sentiment-backtest countdown runs from this date.**
+
+### ✅ B3.5. Historical News Backfill (GDELT) — *retro-extends the B3 archive, honestly labelled* — DONE (2026-07-18)
+Full doc (architecture, provenance, `availableAt` semantics, limitations, ops):
+[`GDELT_BACKFILL.md`](./GDELT_BACKFILL.md) · `bun run news:backfill --from … --to …
+[--symbols …] [--dry-run]`. Data acquisition ONLY — no SentimentFactor, no strategy/factor/
+backtest changes; the B7 gate below is *softened, not removed* (reconstructed availability
+is weaker evidence than live capture).
+- [x] `availableAt` on every `news_article` row — THE as-of field research reads. Live rows:
+      `= fetchedAt` (existing semantics untouched; migration stamped all pre-B3.5 rows).
+      Historical rows: `= publishedAt + GDELT_LATENCY_MINUTES` (default 30) — reconstructed,
+      deliberately conservative, never assumed instantaneous.
+- [x] Provenance enum `NewsOrigin` (`LIVE_RSS | LIVE_BSE | GDELT`), required on every row —
+      research can always split live-captured from retro-imported (and should validate any
+      sentiment conclusion on the live-only subset).
+- [x] `src/news/gdelt/` (client / download / parser / backfill, responsibilities separated;
+      networking carries no business logic). Reuses the existing pipeline — same Jaccard
+      dedup, same alias dictionary (drives BOTH the GDELT queries and the final tagging),
+      same symbol mapper, same FinBERT catch-up scoring. No second pipeline.
+- [x] Idempotent: stable `(source='GDELT', publisher-url)` identity + archive-time Jaccard
+      corpus + `createMany(skipDuplicates)` — re-running a range creates zero duplicates.
+- [x] Live-verified against the DOC 2.0 API (2026-07-18): artlist JSON shape, seendate
+      format, and the real throttle protocol (HTTP 429 + plain-text notice at >1 req/5s;
+      client backs off ≥5s, bounded retries, throttled ≠ empty). For long runs set
+      `GDELT_RATE_LIMIT_MS=5000`.
+- [x] Tests: parser, timestamp reconstruction, idempotency, duplicate handling, symbol-
+      mapping integration; full suite + typecheck green (B3 live behaviour unchanged —
+      same code paths, two new stamped fields).
+- **Done when:** a date range can be backfilled repeatably with honest availability +
+  provenance on every imported row, through the existing pipeline. ✅ **Met.** Note: the
+  archive's pre-2026-07-18 history is GDELT-origin only (headlines, no BSE announcements) —
+  see `GDELT_BACKFILL.md` §8 before trusting any research built on it.
 
 ### ✅ B4. Fundamentals: snapshotter + point-in-time backfill — *clock #2 + the unblock* ⏰ — DONE
 Module `src/fundamentals/` (+13 tests, 202/202 pass) · migration `b4_fundamentals`
@@ -296,9 +328,10 @@ scorer `src/news/scoreArticles.ts` + `bun run sentiment:score` · migration `b6_
 ```
 B1 portfolio backtest ──────────────┐
 B2 wire config (operator) ─┐        │
-B3 news archive ──► B6 FinBERT ──► B7 SentimentFactor ─┐
-B4 fundamentals data ──► B5 FundamentalFactor ─────────┼──► B9 Phase-6 rerun ──► B10 Phase 5
-B8 robustness (parallel) ──────────────────────────────┘         (gated by B1's fair test)
+B3 news archive ────────┬─► B6 FinBERT ──► B7 SentimentFactor ─┐
+B3.5 GDELT backfill ────┘ (retro-extends B3; origin-labelled)  │
+B4 fundamentals data ──► B5 FundamentalFactor ─────────────────┼──► B9 Phase-6 rerun ──► B10 Phase 5
+B8 robustness (parallel) ──────────────────────────────────────┘         (gated by B1's fair test)
 ```
 
 **Environment note:** B1 is fully buildable/verifiable in-repo. B3/B4/B6 need networked

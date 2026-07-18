@@ -56,6 +56,18 @@ const EnvSchema = z.object({
   /** Per-feed HTTP fetch timeout (ms). A slow/dead feed is skipped, not fatal. */
   NEWS_FETCH_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
 
+  // ---- GDELT historical news backfill (ROADMAP B3.5) ----
+  /** Days per GDELT DOC API query window when slicing a backfill date range. */
+  GDELT_BATCH_DAYS: z.coerce.number().int().positive().default(30),
+  /**
+   * Reconstructed availability latency (minutes): a historical article's
+   * `availableAt` = publishedAt + this margin. Conservative stand-in for the
+   * publish→poll delay the live collector would have had (see GDELT_BACKFILL.md).
+   */
+  GDELT_LATENCY_MINUTES: z.coerce.number().int().nonnegative().default(30),
+  /** Polite delay (ms) between consecutive GDELT DOC API requests. */
+  GDELT_RATE_LIMIT_MS: z.coerce.number().int().nonnegative().default(500),
+
   // ---- FinBERT sentiment sidecar (ROADMAP B6 / ADR-0006) ----
   /** Base URL of the Python scoring sidecar (localhost-only by design). */
   SENTIMENT_SIDECAR_URL: z.string().min(1).default('http://127.0.0.1:8001'),

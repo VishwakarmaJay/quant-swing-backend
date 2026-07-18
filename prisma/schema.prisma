@@ -496,8 +496,17 @@ model NewsArticle {
   symbols         String[]
   /// Feed-declared publish time. NOT the as-of date (see model note).
   publishedAt     DateTime
-  /// The as-of date: when we fetched / could have known it (lookahead discipline).
+  /// When OUR collector captured it. For live rows this is the honest as-of
+  /// moment; for historical (GDELT) rows it is merely the import time — always
+  /// read `availableAt` for point-in-time work.
   fetchedAt       DateTime @default(now())
+  /// THE as-of moment (B3.5): when the platform could have known this article.
+  /// Live rows: = fetchedAt. Historical rows: publishedAt + a configured
+  /// latency margin (GDELT_LATENCY_MINUTES). All research reads THIS field.
+  availableAt     DateTime
+  /// Provenance (B3.5): which collection path produced the row. Research must
+  /// always know live-captured from retro-imported.
+  origin          NewsOrigin
   createdAt       DateTime @default(now())
 
   // ── FinBERT sentiment (ROADMAP B6, scored by the sidecar) ──
@@ -517,8 +526,19 @@ model NewsArticle {
   @@index([titleNormalized])
   @@index([publishedAt])
   @@index([fetchedAt])
+  @@index([availableAt])
   @@index([sentimentScoredAt])
   @@map("news_article")
+}
+
+/// How a NewsArticle entered the archive (B3.5 provenance).
+enum NewsOrigin {
+  /// Captured live from an RSS/Atom feed poll (as-of = capture time).
+  LIVE_RSS
+  /// Captured live from the BSE announcements API (as-of = capture time).
+  LIVE_BSE
+  /// Retro-imported from the GDELT historical archive (as-of = publishedAt + latency).
+  GDELT
 }
 
 /// Point-in-time quarterly fundamentals (ROADMAP B4). One row per (symbol,

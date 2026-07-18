@@ -16,7 +16,9 @@ with an honest timestamp as time passes* — a clock that cannot be rewound. Eve
 (sentiment scoring, aggregation, the factor) is deferred work on top of this archive.
 The one discipline that makes the future backtest honest: an article's as-of date is
 **`fetchedAt`** (when *we* saw it), never the feed's own `publishedAt` — you can only trade
-on news after you received it.
+on news after you received it. **[B3.5]** The canonical as-of field is now **`availableAt`**
+(`= fetchedAt` for every live-captured row; reconstructed for GDELT historical imports) with
+`origin` provenance — see [`GDELT_BACKFILL.md`](./GDELT_BACKFILL.md).
 
 ## 2. Pipeline (one ingestion pass)
 
@@ -129,9 +131,12 @@ status`. Two purpose-built alarms:
    but full article text is not fetched. FinBERT will mostly score headlines — noisier
    than full-text sentiment. (Storing raw text now, scoring later, still preserves the
    option to upgrade.)
-2. **The archive only grows forward.** No historical news backfill exists (that's *why*
-   the clock matters) — sentiment cannot be backtested before ~Jan 2027, and early-window
-   results will rest on the thinnest slice of archive.
+2. **The archive only grows forward** — *for live capture.* **[B3.5 UPDATE]** A historical
+   backfill now exists ([`GDELT_BACKFILL.md`](./GDELT_BACKFILL.md)): GDELT-origin rows
+   retro-extend the archive with a *reconstructed* `availableAt` (publishedAt + a
+   conservative latency margin) and explicit `origin` provenance. Reconstructed
+   availability is weaker evidence than live `fetchedAt` — research using pre-2026-07-18
+   history must respect the caveats in that doc (and validate on the live-only subset).
 3. **Recall is deliberately sacrificed.** Bare tickers, group names, and ambiguous
    shorthand are unmatched; "HDFC" alone doesn't tag HDFCBANK, index-level stories tag
    nothing. Per-stock article counts are therefore an *undercount*, and thinly-covered

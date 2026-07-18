@@ -22,6 +22,7 @@
     "strategy:eval": "bun src/scripts/evalStrategy.ts",
     "signals:run": "bun src/scripts/runNightly.ts",
     "news:ingest": "bun src/scripts/runNewsIngest.ts",
+    "news:backfill": "bun src/scripts/runNewsBackfill.ts",
     "fundamentals:backfill": "bun src/scripts/runFundamentalsBackfill.ts",
     "fundamentals:snapshot": "bun src/scripts/runFundamentalsSnapshot.ts",
     "fundamentals:retry": "bun src/scripts/runFundamentalsRetry.ts",

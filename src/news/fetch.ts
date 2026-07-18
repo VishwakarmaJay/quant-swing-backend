@@ -13,7 +13,7 @@ import logger from '@services/logger';
  * bot-style UAs but 200 to a browser UA on the same public feed URLs. Per-source
  * extra headers (e.g. BSE's required Referer) are merged over the defaults.
  */
-const BROWSER_UA =
+export const BROWSER_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 
 export const fetchFeed = async (url: string, headers?: Record<string, string>): Promise<string | null> => {

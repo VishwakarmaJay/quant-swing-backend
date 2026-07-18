@@ -7,7 +7,7 @@ import { fetchFeed } from './fetch';
 import { parseFeed } from './rssParser';
 import { NEWS_SOURCES, resolveSourceUrls } from './sources';
 import { mapArticleSymbols } from './symbolMapper';
-import type { NewsSource, NewsSourceId, RawFeedItem } from './types';
+import { originForSource, type NewsSource, type NewsSourceId, type RawFeedItem } from './types';
 
 /** Per-source outcome of one ingestion run (for monitoring volume/dupe rate). */
 export type SourceResult = {
@@ -59,8 +59,11 @@ const loadRecentTitles = async (fetchedAt: Date): Promise<string[]> => {
  * feed does not stop the others. Idempotent — re-running only adds genuinely new
  * articles ((source,url) unique + Jaccard near-dup skip).
  *
- * `fetchedAt` is stamped once per run and is the article's as-of date (lookahead
- * discipline) — never the feed's own `publishedAt`.
+ * `fetchedAt` is stamped once per run and, for live capture, IS the article's
+ * as-of date (lookahead discipline) — never the feed's own `publishedAt`.
+ * B3.5: `availableAt` (the field all research reads) is set equal to
+ * `fetchedAt` here; only the historical GDELT backfill reconstructs it from
+ * `publishedAt` + latency. `origin` records the collection path.
  */
 export const ingestNews = async (sources: readonly NewsSource[] = NEWS_SOURCES): Promise<IngestSummary> => {
   const fetchedAt = new Date();
@@ -123,7 +126,19 @@ export const ingestNews = async (sources: readonly NewsSource[] = NEWS_SOURCES):
 
       try {
         await prisma.newsArticle.create({
-          data: { source: source.id, url, title, titleNormalized, body: item.body, symbols, publishedAt, fetchedAt },
+          data: {
+            source: source.id,
+            url,
+            title,
+            titleNormalized,
+            body: item.body,
+            symbols,
+            publishedAt,
+            fetchedAt,
+            // Live capture: the moment we fetched it is the moment we could act on it.
+            availableAt: fetchedAt,
+            origin: originForSource(source.id),
+          },
         });
         result.inserted++;
         corpus.add(titleNormalized);

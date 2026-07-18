@@ -18,4 +18,6 @@ export {
 } from './sentimentClient';
 export { scoreUnscoredArticles, type ScoreRunSummary, type ScoredArticle } from './scoreArticles';
 export { COMPANY_ALIASES } from './companyAliases';
+export { originForSource } from './types';
 export type { NewsSource, NewsSourceId, RawFeedItem, ProcessedArticle, FeedDialect } from './types';
+export { runGdeltBackfill, GDELT_SOURCE, type BackfillSummary, type BackfillStats } from './gdelt';

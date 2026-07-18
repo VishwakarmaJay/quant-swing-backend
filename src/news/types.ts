@@ -1,5 +1,7 @@
 /** News ingestion domain types (ROADMAP B3). */
 
+import { NewsOrigin } from '@generated/prisma/enums';
+
 /**
  * The four feeds the archive collects from. Stored verbatim in `NewsArticle.source`.
  * (LIVEMINT replaced MONEYCONTROL 2026-07: Moneycontrol's RSS feeds are frozen at
@@ -40,4 +42,16 @@ export type ProcessedArticle = {
   symbols: string[];
   publishedAt: Date;
   fetchedAt: Date;
+  /** The as-of moment (B3.5): when the platform could have known the article. */
+  availableAt: Date;
+  /** Provenance (B3.5): which collection path produced the row. */
+  origin: NewsOrigin;
 };
+
+/**
+ * Provenance for a LIVE-captured article (B3.5). BSE announcements arrive via
+ * the exchange API; every other live feed is an RSS/Atom poll. GDELT rows are
+ * minted only by the historical backfill (`src/news/gdelt/`), never here.
+ */
+export const originForSource = (source: NewsSourceId): NewsOrigin =>
+  source === 'BSE_ANNOUNCEMENTS' ? NewsOrigin.LIVE_BSE : NewsOrigin.LIVE_RSS;

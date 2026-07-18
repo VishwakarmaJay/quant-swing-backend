@@ -6,4 +6,4 @@ export {
   type RegimeResult,
 } from './types';
 export { detectRegime } from './detectRegime';
-export { detectMarketRegime } from './regimeService';
+export { detectMarketRegime, loadVixAsOf, VIX_ID } from './regimeService';

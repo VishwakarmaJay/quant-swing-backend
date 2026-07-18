@@ -30,6 +30,7 @@ const makeStore = (series: Record<string, { candles: Candle[]; sector: string | 
   benchmark: flatSeries(100),
   tradingDates: dates,
   fundamentalsBySymbol: new Map(),
+  vixByDate: new Map(),
 });
 
 const evaluation = (composite: number) =>

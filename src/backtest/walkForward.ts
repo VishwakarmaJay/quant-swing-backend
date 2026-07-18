@@ -23,8 +23,20 @@ export type Fold = { trainFrom: number; trainTo: number; testFrom: number; testT
  * first block as initial train; each subsequent block is a test window preceded
  * by all prior data as train. Test windows are contiguous and cover
  * [warmup + testSize, total), so their concatenation is a clean OOS stretch.
+ *
+ * `embargoDays` (B8.3, trading days) ends each TRAIN window that many days
+ * before its test window starts. Why: a signal fired near train-end produces a
+ * trade whose exits (time-stop 7 calendar days, thesis-break) resolve INSIDE
+ * the test window — selecting on train metrics that depend on test-window price
+ * action is leakage. An embargo ≥ the max trade horizon (~10 trading days)
+ * purges it. Test windows are unchanged, so OOS concatenation stays clean.
  */
-export const makeExpandingFolds = (warmup: number, total: number, nFolds: number): Fold[] => {
+export const makeExpandingFolds = (
+  warmup: number,
+  total: number,
+  nFolds: number,
+  embargoDays = 0,
+): Fold[] => {
   const span = total - warmup;
   const testSize = Math.floor(span / (nFolds + 1));
   if (testSize <= 0 || nFolds < 1) return [];
@@ -32,7 +44,8 @@ export const makeExpandingFolds = (warmup: number, total: number, nFolds: number
   for (let i = 0; i < nFolds; i++) {
     const testFrom = warmup + testSize * (i + 1);
     const testTo = i === nFolds - 1 ? total : warmup + testSize * (i + 2);
-    folds.push({ trainFrom: warmup, trainTo: testFrom, testFrom, testTo });
+    const trainTo = Math.max(warmup, testFrom - embargoDays);
+    folds.push({ trainFrom: warmup, trainTo, testFrom, testTo });
   }
   return folds;
 };

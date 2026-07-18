@@ -29,6 +29,9 @@ import { prisma } from '@services/prisma';
 
 const WARMUP = 205;
 const N_FOLDS = 3;
+/** B8.3: train ends this many trading days before each test window — purges
+ * trades whose exits (7-day time-stop etc.) would resolve inside the test. */
+const EMBARGO_DAYS = 10;
 
 // SRS weight into the composite (Step-3 lever). Pullback+resumption BULL entry (Step-4b lever).
 // Fundamental floor gate (B5 lever — the attribution-selected mechanism; the
@@ -69,8 +72,10 @@ const run = async () => {
     { label: 'pullback+srs0.25+ff50', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, 50)) },
   ];
 
-  const folds = makeExpandingFolds(WARMUP, total, N_FOLDS);
-  console.log(`Walk-forward: ${folds.length} expanding folds, ${candidates.length} candidates each.`);
+  const folds = makeExpandingFolds(WARMUP, total, N_FOLDS, EMBARGO_DAYS);
+  console.log(
+    `Walk-forward: ${folds.length} expanding folds (embargo ${EMBARGO_DAYS}d), ${candidates.length} candidates each.`,
+  );
   console.log('Replaying (this runs the pipeline many times)…\n');
 
   const wf = runWalkForward(store, candidates, folds, (m) => m.expectancyPct, (i, n) =>

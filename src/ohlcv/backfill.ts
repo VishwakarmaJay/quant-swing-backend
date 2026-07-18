@@ -31,9 +31,13 @@ export type BackfillResult = {
 };
 
 const persistCandles = async (instrumentId: string, candles: Candle[]): Promise<number> => {
+  // Plain concurrent upserts, NOT $transaction: a 2000-day backfill's 200-row
+  // batch exceeds Prisma's 5s interactive-transaction timeout (P2028), and the
+  // transaction buys nothing — upserts are idempotent and a partial write is
+  // simply completed by the next run (append-only store).
   for (let i = 0; i < candles.length; i += UPSERT_SLICE_SIZE) {
     const slice = candles.slice(i, i + UPSERT_SLICE_SIZE);
-    await prisma.$transaction(
+    await Promise.all(
       slice.map((c) => {
         const tradeDate = new Date(`${c.tradeDate}T00:00:00Z`);
         const data = {

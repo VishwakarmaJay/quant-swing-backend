@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import { BENCHMARK_ID } from '@/factors';
 import { loadFundamentalQuarters, type FundamentalQuartersBySymbol } from '@/fundamentals';
 import type { Candle } from '@/ohlcv';
+import { VIX_ID } from '@/regime';
 import { prisma } from '@services/prisma';
 
 /**
@@ -24,6 +25,12 @@ export type CandleStore = {
    * FundamentalFactor then stays neutral (baseline unchanged).
    */
   fundamentalsBySymbol: FundamentalQuartersBySymbol;
+  /**
+   * India VIX close per trading date (B8.4). The replay passes the as-of value
+   * into regime detection; a date with no VIX candle → null → the detector's
+   * Nifty-ATR proxy (identical to pre-feed behaviour).
+   */
+  vixByDate: Map<string, number>;
 };
 
 export const loadCandleStore = async (): Promise<CandleStore> => {
@@ -33,7 +40,7 @@ export const loadCandleStore = async (): Promise<CandleStore> => {
     orderBy: { name: 'asc' },
   });
 
-  const ids = [...instruments.map((i) => i.id), BENCHMARK_ID];
+  const ids = [...instruments.map((i) => i.id), BENCHMARK_ID, VIX_ID];
   const rows = await prisma.ohlcv.findMany({
     where: { instrumentId: { in: ids } },
     orderBy: { tradeDate: 'asc' },
@@ -56,12 +63,15 @@ export const loadCandleStore = async (): Promise<CandleStore> => {
 
   const benchmark = seriesById.get(BENCHMARK_ID) ?? [];
   const fundamentalsBySymbol = await loadFundamentalQuarters();
+  const vixByDate = new Map((seriesById.get(VIX_ID) ?? []).map((c) => [c.tradeDate, c.close]));
+  seriesById.delete(VIX_ID); // not a tradeable series — regime input only
   return {
     instruments,
     seriesById,
     benchmark,
     tradingDates: benchmark.map((c) => c.tradeDate),
     fundamentalsBySymbol,
+    vixByDate,
   };
 };
 

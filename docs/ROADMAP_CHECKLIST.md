@@ -240,11 +240,36 @@ scorer `src/news/scoreArticles.ts` + `bun run sentiment:score` · migration `b6_
 - [ ] Walk-forward once the archive window is long enough to split honestly
 - **Done when:** sentiment's marginal OOS contribution measured over ≥6mo of archive.
 
-### B8. Robustness upgrades — *parallel, whenever* 🧰
-- [ ] Backfill OHLCV to Angel One's ~2000-day limit → more folds, more cycles
-- [ ] Historical index-constituent data (NSE change records) → kill survivorship bias
-- [ ] Purged/embargoed walk-forward boundaries if longer-lookback signals arrive
-- [ ] VIX feed (replace Nifty-ATR proxy)
+### ✅ B8. Robustness upgrades — DONE (2026-07-18; one honest residual) 🧰
+- [x] **B8.1 Deep backfill:** `backfill:ohlcv all 2000` → **1,356 candles/instrument
+      (2021-01 → 2026-07, ~5.5yr), 227k candles**, quality ≥0.99 everywhere except the
+      natural TMCV short history. (Fixed en route: `persistCandles` dropped its
+      `$transaction` wrapper — 200 sequential upserts blew Prisma's 5s interactive-tx
+      timeout at 2000-day depth; upserts are idempotent so the tx bought nothing.)
+      **New deep-window signal-edge baseline** (`backtest:run`, production config, real
+      VIX): 2021-11→2026-07, **4,394 trades, win 43.1%, exp −0.097%/trade, PF 0.94** vs
+      Nifty B&H +42.9%. Less bad than the 2yr window (−0.22/0.86) but still no edge —
+      and now measured across cycles. All research numbers re-baseline from here (B9
+      re-runs attribution/phase6/portfolio on this window with more folds).
+- [x] **B8.3 Embargoed walk-forward:** `makeExpandingFolds(..., embargoDays)` — train
+      ends N trading days before each test window (a train-end signal's 7-day time-stop
+      resolves inside the test = selection leakage). Test windows unchanged → OOS
+      concatenation clean. `backtest:phase6` now runs embargo 10d. +2 tests.
+- [x] **B8.4 India VIX feed:** INDIA VIX (token 99926017) added to the synced index
+      universe (default + stored AppConfig) → `NSE:India VIX` with **1,354 candles
+      2021→now**. Live: `loadVixAsOf` (staleness-guarded, 5d) feeds `detectMarketRegime`
+      — verified `regime:detect` reports `vix: 13.15` from the store. Backtest:
+      `CandleStore.vixByDate` feeds per-day regime detection. Precedence: explicit
+      operator value → stored VIX → Nifty-ATR proxy (unchanged fallback).
+- [x] **B8.2 Survivorship — mechanism built, historical data still open:**
+      `src/universe/membership.ts` (`UNIVERSE_MEMBERSHIP` windows + `isMemberOn`,
+      enforced in `generateRawSignals`). **The rule going forward: never delete a
+      symbol from the universe — set its `to` date here instead**, so history stays and
+      the bias stops compounding. ⚠️ Residual (honest): the pre-curation past can't be
+      repaired without historical NSE index change records — niftyindices.com serves
+      them only behind a JS/WAF-guarded page (fetch attempted 2026-07-18, endpoint not
+      statically discoverable). Open data task; revisit before B9's conclusions are
+      treated as final.
 
 ### B9. Phase 6 rerun — joint weighting over the enriched set 🎯 after B5 (and B7)
 - [ ] Re-run attribution across all factors (technical + fundamental [+ sentiment])

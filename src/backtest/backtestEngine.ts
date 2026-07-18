@@ -11,6 +11,7 @@ import {
 } from '@/factors';
 import { fundamentalsAsOf, type FundamentalSnapshotAsOf } from '@/fundamentals';
 import { assessDataQuality, type Candle } from '@/ohlcv';
+import { isMemberOn } from '@/universe/membership';
 import { detectRegime } from '@/regime';
 import { computeSignalLevels } from '@/signal';
 import { WeightedStrategy, type Strategy, type StrategyEvaluation } from '@/strategy';
@@ -113,12 +114,22 @@ export const generateRawSignals = (store: CandleStore, opts: BacktestOptions = {
       }
     }
     const breadthPct = counted ? (above / counted) * 100 : 0;
-    const regime = detectRegime({ asOf, niftyCandles: niftySlice, breadthPct, vix: null });
+    // B8.4: real India VIX close for this date when stored; else the ATR proxy.
+    const regime = detectRegime({
+      asOf,
+      niftyCandles: niftySlice,
+      breadthPct,
+      vix: store.vixByDate.get(asOf) ?? null,
+    });
 
     for (const inst of store.instruments) {
       const slice = slices.get(inst.id);
       if (!slice) continue;
       const symbol = inst.symbol.replace(/-EQ$/, '');
+
+      // B8.2: honour as-of universe membership — a stock that left the
+      // universe stops signalling from its exit date (survivorship stopper).
+      if (!isMemberOn(symbol, asOf)) continue;
 
       const last = lastSignalDate.get(symbol);
       if (last && dayjs(asOf).diff(dayjs(last), 'day') < RESIGNAL_COOLDOWN_DAYS) continue;

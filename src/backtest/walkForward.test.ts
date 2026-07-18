@@ -25,6 +25,25 @@ describe('makeExpandingFolds', () => {
     expect(makeExpandingFolds(205, 207, 3)).toEqual([]); // span 2 < nFolds+1 → testSize 0
     expect(makeExpandingFolds(205, 544, 0)).toEqual([]);
   });
+
+  test('embargo (B8.3) ends train before the test window; test windows unchanged', () => {
+    const plain = makeExpandingFolds(205, 544, 3);
+    const embargoed = makeExpandingFolds(205, 544, 3, 10);
+    expect(embargoed).toHaveLength(3);
+    for (let i = 0; i < 3; i++) {
+      // Train ends 10 trading days before the test starts (the leakage gap).
+      expect(embargoed[i]!.trainTo).toBe(embargoed[i]!.testFrom - 10);
+      // Test windows are byte-identical to the un-embargoed scheme — the OOS
+      // concatenation is unaffected.
+      expect(embargoed[i]!.testFrom).toBe(plain[i]!.testFrom);
+      expect(embargoed[i]!.testTo).toBe(plain[i]!.testTo);
+    }
+  });
+
+  test('embargo never pushes train below the warmup start', () => {
+    const folds = makeExpandingFolds(205, 220, 1, 50); // testFrom 212, embargo > span
+    expect(folds[0]!.trainTo).toBe(205); // clamped to trainFrom
+  });
 });
 
 describe('pickBest', () => {

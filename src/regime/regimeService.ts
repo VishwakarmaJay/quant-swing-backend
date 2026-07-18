@@ -8,11 +8,33 @@ import { prisma } from '@services/prisma';
 import { detectRegime } from './detectRegime';
 import { DEFAULT_REGIME_CONFIG, type RegimeConfig, type RegimeResult } from './types';
 
+/** India VIX index instrument (synced by B8.4; absent on older DBs → proxy). */
+export const VIX_ID = 'NSE:India VIX';
+/** A stored VIX close older than this many calendar days is stale → proxy. */
+const VIX_MAX_STALE_DAYS = 5;
+
+/**
+ * Latest India VIX close ≤ asOf from the OHLCV store (B8.4 — the real feed).
+ * Null when absent or stale (feed stopped) — the detector then falls back to
+ * its Nifty-ATR proxy, exactly as before the feed existed.
+ */
+export const loadVixAsOf = async (asOfIso: string): Promise<number | null> => {
+  const row = await prisma.ohlcv.findFirst({
+    where: { instrumentId: VIX_ID, tradeDate: { lte: new Date(`${asOfIso}T00:00:00.000Z`) } },
+    orderBy: { tradeDate: 'desc' },
+    select: { tradeDate: true, close: true },
+  });
+  if (!row || row.close <= 0) return null;
+  const ageDays = dayjs(asOfIso).diff(dayjs(row.tradeDate), 'day');
+  return ageDays <= VIX_MAX_STALE_DAYS ? row.close : null;
+};
+
 /**
  * MarketRegimeService — the I/O bridge that assembles the regime detector's
  * inputs: loads Nifty candles, computes market breadth (% of the equity
  * universe trading above its fast EMA) as of `asOf`, and classifies the regime.
- * VIX is injected when available; otherwise the detector uses a Nifty-ATR proxy.
+ * VIX precedence: an explicitly passed value wins (operator override) → the
+ * stored India VIX close (B8.4) → the detector's Nifty-ATR proxy.
  */
 export const detectMarketRegime = async (
   asOf: Date = new Date(),
@@ -66,8 +88,7 @@ export const detectMarketRegime = async (
   }
   const breadthPct = counted > 0 ? (above / counted) * 100 : 0;
 
-  return detectRegime(
-    { asOf: asOfIso, niftyCandles, breadthPct, vix: opts?.vix ?? null },
-    config,
-  );
+  const vix = opts?.vix ?? (await loadVixAsOf(asOfIso));
+
+  return detectRegime({ asOf: asOfIso, niftyCandles, breadthPct, vix }, config);
 };

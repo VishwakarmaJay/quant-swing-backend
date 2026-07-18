@@ -12,7 +12,9 @@ const UNIVERSE_CONFIG_KEY = 'instrument.universe';
 const UPSERT_SLICE_SIZE = 500;
 
 const DEFAULT_UNIVERSE: InstrumentUniverse = {
-  names: ['NIFTY', 'BANKNIFTY', 'SENSEX'],
+  // INDIA VIX (B8.4): synced for the regime service's real VIX feed — it has
+  // no tradeable options, so only its AMXIDX index row matches.
+  names: ['NIFTY', 'BANKNIFTY', 'SENSEX', 'INDIA VIX'],
   optionSegments: ['NFO', 'BFO'],
   atmBand: 3,
 };

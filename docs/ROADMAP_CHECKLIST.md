@@ -146,7 +146,7 @@ is a week of sentiment backtest lost. Module built under `src/news/` (+ `bun run
   correct on a manual sample. ✅ **Met (in-repo). Archive clock started 2026-07-18 —
   B7's ~6-month sentiment-backtest countdown runs from this date.**
 
-### 🟡 B4. Fundamentals: snapshotter + point-in-time backfill — *clock #2 + the unblock* ⏰ — mostly done
+### ✅ B4. Fundamentals: snapshotter + point-in-time backfill — *clock #2 + the unblock* ⏰ — DONE
 Module `src/fundamentals/` (+13 tests, 202/202 pass) · migration `b4_fundamentals`
 (`quarterly_fundamental`, `fundamental_snapshot`) · `bun run fundamentals:backfill|snapshot`.
 **Verified data recipe (all live-tested):** Screener quarterly table = EPS/profit/sales per
@@ -155,10 +155,15 @@ per-scrip with `strCat=Result` accepts WIDE date ranges (the single-day limit is
 only) = real announcement dates; `availableAt = announcedAt ?? periodEnd + SEBI deadline (45d/60d)`.
 - [x] Weekly snapshotter: `snapshotFundamentals()` + `FUNDAMENTALS_SNAPSHOT` cron (7d,
       fires on server boot) → `fundamental_snapshot` rows with `fetchedAt` as-of key
-- [x] Historical backfill built + run: **1,197 quarters across 101/167 symbols, 92%
-      announcement-dated** (rest SEBI-deadline fallback). ⏳ 66 symbols pending — Screener
-      connection-blocked the IP after ~200 requests at 1.1s pacing; default delay raised to
-      3s, idempotent retry of exactly those 66 queued at 4s pacing (runs when the block lifts).
+- [x] Historical backfill built + run: **1,984 quarters across 167/167 symbols** (~93%
+      announcement-dated, rest SEBI-deadline fallback). Completed via `bun run
+      fundamentals:retry` (`runFundamentalsRetry.ts`): self-derives the missing set from the
+      DB, gates on a live Screener 200 probe, idempotent. History: Screener
+      connection-blocked the IP after ~200 requests at 1.1s pacing (delay raised to 3s);
+      the retry recovered 65/66; the last symbol (ZOMATO) 404'd because of the 2025
+      ETERNAL rename → added `SCREENER_SYMBOL_ALIASES` in `src/fundamentals/ingest.ts`
+      (URL uses the renamed symbol, rows stay keyed on canonical ZOMATO) → 12 quarters,
+      all announcement-dated.
 - [x] As-of reconstruction (`asOf.ts`, pure + tested): `ttmEpsKnownBy` / `peAsOf`.
       **Boundary-verified on real data:** RELIANCE Apr-20 TTM 59.69 → Apr-27 55.22
       (59.69 − 19.95 + 15.48 exactly — the Mar-26 quarter enters ONLY after its Apr-24
@@ -173,12 +178,14 @@ only) = real announcement dates; `availableAt = announcedAt ?? periodEnd + SEBI 
       (JSWSTEEL/ABB = results-timing: our TTM already includes the Jul-17 Q1, Screener's P/E
       lagged; SIEMENS/DALBHARAT = demerger/exceptional-item distortions) → B5 must use
       **rank-based (percentile) PE with null/winsor handling**, which it was designed to anyway.
-- [ ] ⏳ Complete the 66-symbol retry (queued) → re-run summary; promoter/pledge % deferred
-      (soft-flag only; `Corp_ShpPromoters_ng` endpoint verified for when needed).
+- [x] 66-symbol retry completed (2026-07-18): 65 recovered on first unblocked attempt +
+      ZOMATO via the Screener alias fix. Promoter/pledge % deferred (soft-flag only;
+      `Corp_ShpPromoters_ng` endpoint verified for when needed).
 - **Done when:** every universe stock has an honest as-of fundamental series covering the
-  backtest window (announcement-dated, no period-end lookahead). *(101/167 done, retry queued.)*
+  backtest window (announcement-dated, no period-end lookahead). ✅ **Met — 167/167 symbols,
+  1,984 quarters. B5 (FundamentalFactor) is unblocked.**
 
-### B5. FundamentalFactor — *the most likely source of real edge* 📈 blocked on B4
+### B5. FundamentalFactor — *the most likely source of real edge* 📈 UNBLOCKED (B4 done 2026-07-18)
 - [ ] Factor (pure, injected data like `sectorPeers`): PE-vs-sector percentile, EPS trend,
       pledge %, results-proximity flag → 0–100 score
 - [ ] Integrate **observationally (weight 0)** — baseline byte-identical, golden re-baselined

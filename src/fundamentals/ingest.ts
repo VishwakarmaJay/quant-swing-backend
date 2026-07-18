@@ -40,18 +40,30 @@ const BSE_HEADERS = {
 };
 
 /**
+ * Canonical symbol → the symbol Screener serves the page under, when a
+ * corporate rename moved it. Rows are still stored under the canonical symbol
+ * (factor lookups + sector peer groups key on it). Screener happens to track
+ * the Angel rename here, but the namespaces aren't guaranteed to stay in
+ * lockstep — hence a separate map from ANGEL_NAME_ALIASES.
+ */
+export const SCREENER_SYMBOL_ALIASES: Record<string, string> = {
+  ZOMATO: 'ETERNAL', // renamed 2025; screener.in/company/ZOMATO/ now 404s
+};
+
+/**
  * Fetches + parses one company's Screener page. Standalone is tried only when
  * the consolidated page FETCHED but had no quarters (a genuinely
  * standalone-only company) — a failed fetch (429/block) must NOT trigger a
  * second request, or a rate-limit storm doubles its own request volume.
  */
 export const fetchScreenerPage = async (symbol: string): Promise<ScreenerPage | null> => {
-  const cons = await fetchFeed(`https://www.screener.in/company/${symbol}/consolidated/`);
+  const urlSymbol = SCREENER_SYMBOL_ALIASES[symbol] ?? symbol;
+  const cons = await fetchFeed(`https://www.screener.in/company/${urlSymbol}/consolidated/`);
   if (cons === null) return null;
   const consolidated = parseScreenerPage(cons, 'consolidated');
   if (consolidated.quarters.length) return consolidated;
 
-  const standalone = await fetchFeed(`https://www.screener.in/company/${symbol}/`);
+  const standalone = await fetchFeed(`https://www.screener.in/company/${urlSymbol}/`);
   if (standalone) {
     const page = parseScreenerPage(standalone, 'standalone');
     if (page.quarters.length || Object.keys(page.ratios).length) return page;

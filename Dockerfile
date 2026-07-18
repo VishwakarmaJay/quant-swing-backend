@@ -4,7 +4,10 @@ WORKDIR /app
 # ---- Install dependencies ----
 FROM base AS deps
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+# --ignore-scripts: the postinstall hook runs `prisma generate`, which needs
+# prisma/schema.prisma — not copied into this stage. The build stage runs the
+# generate explicitly once the schema is present.
+RUN bun install --frozen-lockfile --ignore-scripts
 
 # ---- Build (generate Prisma client) ----
 FROM base AS build

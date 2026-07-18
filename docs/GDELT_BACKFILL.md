@@ -135,13 +135,30 @@ empty result.
 ## 7. Operational usage
 
 ```bash
-# Whole universe, first half of 2025 (long run — see rate-limit note above):
-bun run news:backfill --from 2025-01-01 --to 2025-06-30
-
 # A few symbols, checking what would happen first:
 bun run news:backfill --from 2025-01-01 --to 2025-06-30 --symbols RELIANCE,TCS,INFY --dry-run
 bun run news:backfill --from 2025-01-01 --to 2025-06-30 --symbols RELIANCE,TCS,INFY
+
+# THE WHOLE UNIVERSE (the intended bulk path) — resumable, checkpointed:
+bun run news:backfill:universe --from 2025-01-01 --to 2025-06-30
 ```
+
+**For every-universe-symbol runs use `news:backfill:universe`**
+(`src/scripts/runNewsBackfillUniverse.ts`), not one giant `news:backfill` call.
+It drives the same idempotent backfill one symbol at a time and adds what a
+167-symbol run against GDELT's sticky rate limiting needs:
+
+- **Checkpointing** — progress is saved per symbol to a state file (default
+  `.cache/gdelt-universe-backfill.json`, keyed to the exact `--from/--to`
+  range). Kill it, reboot, re-run the same command: it resumes where it
+  stopped. Completed symbols are never re-fetched.
+- **Retry passes** — a symbol with any failed window is swept again in later
+  passes (`--passes`, default 5), with an escalating wait between passes.
+- **Penalty-aware pacing** — ≥5s between symbols regardless of
+  `GDELT_RATE_LIMIT_MS`, plus a `--cooldown` (default 300s) pause after any
+  throttled symbol so the penalty window drains instead of compounding.
+- Exit code 1 + an explicit symbol list if anything is left incomplete —
+  re-running the same command finishes the job.
 
 Progress prints one line per window (days processed · downloaded · dupes · already
 stored · stored · mapped · unmatched) plus a final summary, an unmatched-headline sample
@@ -203,7 +220,8 @@ ingest cron pass, or run `bun run sentiment:score` manually.
 | Payload parsing + timestamp reconstruction | `src/news/gdelt/parser.ts` |
 | Range slicing, query building, pacing | `src/news/gdelt/download.ts` |
 | Processing core + batch persistence | `src/news/gdelt/backfill.ts` |
-| CLI | `src/scripts/runNewsBackfill.ts` (`bun run news:backfill`) |
+| CLI (range/symbols) | `src/scripts/runNewsBackfill.ts` (`bun run news:backfill`) |
+| CLI (full universe, resumable) | `src/scripts/runNewsBackfillUniverse.ts` (`bun run news:backfill:universe`) |
 | Schema (`availableAt`, `origin`) + migration | `prisma/schema.prisma` · `prisma/migrations/…_b3_5_news_backfill/` |
 | Env knobs | `GDELT_BATCH_DAYS` · `GDELT_LATENCY_MINUTES` · `GDELT_RATE_LIMIT_MS` |
 | Tests | `src/news/gdelt/*.test.ts` |

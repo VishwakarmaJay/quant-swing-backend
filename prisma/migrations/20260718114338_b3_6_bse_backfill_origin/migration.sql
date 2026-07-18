@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "NewsOrigin" ADD VALUE 'BSE_BACKFILL';

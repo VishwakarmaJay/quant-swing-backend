@@ -150,7 +150,8 @@ is a week of sentiment backtest lost. Module built under `src/news/` (+ `bun run
 ### ✅ B3.5. Historical News Backfill (GDELT) — *retro-extends the B3 archive, honestly labelled* — DONE (2026-07-18)
 Full doc (architecture, provenance, `availableAt` semantics, limitations, ops):
 [`GDELT_BACKFILL.md`](./GDELT_BACKFILL.md) · `bun run news:backfill --from … --to …
-[--symbols …] [--dry-run]`. Data acquisition ONLY — no SentimentFactor, no strategy/factor/
+[--symbols …] [--dry-run]` · full universe (checkpointed/resumable):
+`bun run news:backfill:universe --from … --to …`. Data acquisition ONLY — no SentimentFactor, no strategy/factor/
 backtest changes; the B7 gate below is *softened, not removed* (reconstructed availability
 is weaker evidence than live capture).
 - [x] `availableAt` on every `news_article` row — THE as-of field research reads. Live rows:
@@ -177,6 +178,16 @@ is weaker evidence than live capture).
   provenance on every imported row, through the existing pipeline. ✅ **Met.** Note: the
   archive's pre-2026-07-18 history is GDELT-origin only (headlines, no BSE announcements) —
   see `GDELT_BACKFILL.md` §8 before trusting any research built on it.
+
+### ✅ B3.6. Historical BSE announcements backfill — *exchange-timestamped history* — DONE (2026-07-18)
+Full doc: [`BSE_BACKFILL.md`](./BSE_BACKFILL.md) · `bun run news:backfill:bse --from … --to …`.
+The exchange-filings counterpart to B3.5: per-scrip wide-range queries (the single-day
+API limit is universe-wide only — live-verified for all categories) give every
+announcement with the exchange's own `DissemDT`; `availableAt = DissemDT + 30min`
+(anchored to exchange truth, not a crawl proxy); `origin = BSE_BACKFILL`; scrip codes
+from the B4 archive (167/167). Same pipeline, checkpointed, idempotent. ~1,800 requests
+per 2.5 years at WAF-polite pacing. Together with B3.5 this softens B7's archive gate:
+backtestable history exists now — validate on the live-only subset as it accrues.
 
 ### ✅ B4. Fundamentals: snapshotter + point-in-time backfill — *clock #2 + the unblock* ⏰ — DONE
 Module `src/fundamentals/` (+13 tests, 202/202 pass) · migration `b4_fundamentals`

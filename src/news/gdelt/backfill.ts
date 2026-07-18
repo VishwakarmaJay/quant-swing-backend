@@ -241,7 +241,14 @@ export const runGdeltBackfill = async (options: BackfillOptions): Promise<Backfi
       (dryRun ? ' · DRY RUN (nothing will be stored)' : ''),
   );
 
+  const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+  let firstWindow = true;
   for (const window of windows) {
+    // Pace between windows too — downloadWindowBatch only paces between the
+    // queries INSIDE a window, so single-query symbols would otherwise fire
+    // consecutive window requests back-to-back.
+    if (!firstWindow && env.GDELT_RATE_LIMIT_MS > 0) await sleep(env.GDELT_RATE_LIMIT_MS);
+    firstWindow = false;
     const batch = await downloadWindowBatch(queries, window);
     stats.truncatedQueries += batch.truncatedQueries;
     stats.failedQueries += batch.failedQueries;

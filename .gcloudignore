@@ -1,0 +1,16 @@
+# Cloud Build upload exclusions for the BACKEND image build (gcloud builds
+# submit from quant-backend/). Mirrors .dockerignore plus local-only bulk.
+node_modules
+src/generated
+.git
+.env
+.env.*
+!.env.example
+*.log
+dist
+out
+coverage
+.DS_Store
+.cache
+sidecar/.venv
+sidecar/__pycache__

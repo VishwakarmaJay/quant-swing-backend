@@ -1,0 +1,91 @@
+# QuantSwing production stack — one always-on VM, five containers.
+# See docs/DEPLOYMENT_GCP.md for the full deploy/update/backup procedure.
+#
+# Design notes:
+# - TZ=Asia/Kolkata on the backend is REQUIRED, not cosmetic: BSE announcement
+#   day-windows and fundamentals date logic use server-local dates (documented
+#   HIGH finding in ARCHITECTURE_REVIEW_B3_B4 §1.1). A UTC clock silently
+#   misaligns the news archive's exchange-calendar windows.
+# - The FinBERT sidecar publishes NO host port: it is reachable only on the
+#   private compose network (ADR-0006's localhost-only posture, containerized).
+# - Postgres/Redis/RabbitMQ likewise stay on the private network; only the
+#   backend's API port (3000) is exposed on the host.
+# - Images: `docker compose build` builds both on the box (default tags);
+#   set IMAGE_BACKEND / IMAGE_SIDECAR in .env only when pulling from a registry.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: quant
+      POSTGRES_USER: quant
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      TZ: Asia/Kolkata
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U quant -d quant']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  rabbitmq:
+    image: rabbitmq:4-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 15s
+      timeout: 10s
+      retries: 12
+
+  sidecar:
+    image: ${IMAGE_SIDECAR:-quantswing-sidecar:local}
+    build: ./sidecar
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Kolkata
+    # No `ports:` on purpose — private network only (ADR-0006).
+    healthcheck:
+      test: ['CMD-SHELL', "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=5)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  backend:
+    image: ${IMAGE_BACKEND:-quantswing-backend:local}
+    build: .
+    restart: unless-stopped
+    command: ['sh', '-c', 'bunx prisma migrate deploy && bun src/server.ts']
+    env_file: .env
+    environment:
+      TZ: Asia/Kolkata
+      DATABASE_URL: postgresql://quant:${POSTGRES_PASSWORD}@postgres:5432/quant?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: '6379'
+      RABBITMQ_URL: amqp://rabbitmq
+      SENTIMENT_SIDECAR_URL: http://sidecar:8001
+    ports:
+      - '3000:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      sidecar:
+        condition: service_healthy
+
+volumes:
+  pgdata:

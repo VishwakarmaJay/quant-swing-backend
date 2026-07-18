@@ -1,0 +1,6 @@
+# Keep the Cloud Build upload tiny — only the app + Dockerfile matter.
+.venv
+__pycache__
+.pytest_cache
+test_normalizer.py
+README.md

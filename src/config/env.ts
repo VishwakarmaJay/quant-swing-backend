@@ -68,6 +68,20 @@ const EnvSchema = z.object({
   /** Polite delay (ms) between consecutive GDELT DOC API requests. */
   GDELT_RATE_LIMIT_MS: z.coerce.number().int().nonnegative().default(500),
 
+  // ---- BSE announcements historical backfill (ROADMAP B3.6) ----
+  /**
+   * Reconstructed availability latency (minutes) for backfilled announcements:
+   * `availableAt` = exchange dissemination time (DissemDT) + this margin —
+   * the delay the live 15-min poll would have had.
+   */
+  BSE_BACKFILL_LATENCY_MINUTES: z.coerce.number().int().nonnegative().default(30),
+  /**
+   * Polite delay (ms) between BSE API requests. BSE's WAF blocks IPs on
+   * sustained fast scraping (observed live with Screener on the fundamentals
+   * side); 3s keeps a full pass under the radar.
+   */
+  BSE_BACKFILL_RATE_LIMIT_MS: z.coerce.number().int().nonnegative().default(3000),
+
   // ---- FinBERT sentiment sidecar (ROADMAP B6 / ADR-0006) ----
   /** Base URL of the Python scoring sidecar (localhost-only by design). */
   SENTIMENT_SIDECAR_URL: z.string().min(1).default('http://127.0.0.1:8001'),

@@ -539,6 +539,9 @@ enum NewsOrigin {
   LIVE_BSE
   /// Retro-imported from the GDELT historical archive (as-of = publishedAt + latency).
   GDELT
+  /// Retro-imported from the BSE announcements API (B3.6; as-of = exchange
+  /// dissemination time + latency — the most honest historical availability).
+  BSE_BACKFILL
 }
 
 /// Point-in-time quarterly fundamentals (ROADMAP B4). One row per (symbol,

@@ -5,9 +5,9 @@ import { prisma } from '@services/prisma';
 import { isDuplicateTitle, normalizeTitle } from './dedupe';
 import { fetchFeed } from './fetch';
 import { parseFeed } from './rssParser';
-import { NEWS_SOURCES, resolveSourceUrl } from './sources';
+import { NEWS_SOURCES, resolveSourceUrls } from './sources';
 import { mapArticleSymbols } from './symbolMapper';
-import type { NewsSource, NewsSourceId } from './types';
+import type { NewsSource, NewsSourceId, RawFeedItem } from './types';
 
 /** Per-source outcome of one ingestion run (for monitoring volume/dupe rate). */
 export type SourceResult = {
@@ -83,14 +83,25 @@ export const ingestNews = async (sources: readonly NewsSource[] = NEWS_SOURCES):
       error: null,
     };
 
-    const xml = await fetchFeed(resolveSourceUrl(source, fetchedAt), source.headers);
-    if (xml === null) {
+    // A source may resolve to several URLs (BSE: yesterday + today single-day
+    // windows). Failed only when every URL fails; partial results still count.
+    const urls = resolveSourceUrls(source, fetchedAt);
+    const items: RawFeedItem[] = [];
+    let failedUrls = 0;
+    for (const url of urls) {
+      const payload = await fetchFeed(url, source.headers);
+      if (payload === null) {
+        failedUrls++;
+        continue;
+      }
+      items.push(...parseFeed(payload, source.dialect));
+    }
+    if (failedUrls === urls.length) {
       result.error = 'fetch failed';
       perSource.push(result);
       continue;
     }
 
-    const items = parseFeed(xml, source.dialect);
     result.parsed = items.length;
     result.newestItem =
       items.reduce<string | null>((max, i) => (i.publishedAt && (!max || i.publishedAt > max) ? i.publishedAt : max), null);

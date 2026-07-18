@@ -1,6 +1,6 @@
 import { EQUITY_UNIVERSE } from '@/universe/equityUniverse';
 
-import { COMPANY_ALIASES } from './companyAliases';
+import { ALIAS_EXCLUSIONS, COMPANY_ALIASES } from './companyAliases';
 
 /**
  * Symbol mapper (ROADMAP B3, "the hard part"): map a headline (+ optional body)
@@ -21,9 +21,17 @@ const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\
 
 /** Builds a boundary-anchored, whitespace-flexible matcher for one alias phrase. */
 const aliasRegex = (alias: string): RegExp => {
-  const body = escapeRegExp(alias.trim().toLowerCase()).replace(/\\?\s+/g, '\\s+');
-  // (^|non-alnum) phrase (non-alnum|$) — '&' is treated as a boundary char too.
-  return new RegExp(`(^|[^a-z0-9])${body}([^a-z0-9]|$)`, 'i');
+  const key = alias.trim().toLowerCase();
+  const body = escapeRegExp(key).replace(/\\?\s+/g, '\\s+');
+  // ALIAS_EXCLUSIONS: block the match when the alias is immediately followed by
+  // one of the listed words (e.g. "sbi life" must not match SBIN — SBI Life is a
+  // different universe stock; "sbi funds/capital" are unlisted subsidiaries).
+  const excluded = ALIAS_EXCLUSIONS[key];
+  const lookahead = excluded?.length
+    ? `(?!\\s+(?:${excluded.map(escapeRegExp).join('|')})([^a-z0-9]|$))`
+    : '';
+  // (^|non-alnum) phrase [not followed by an excluded word] (non-alnum|$).
+  return new RegExp(`(^|[^a-z0-9])${body}${lookahead}([^a-z0-9]|$)`, 'i');
 };
 
 type CompiledAlias = { symbol: string; regex: RegExp };

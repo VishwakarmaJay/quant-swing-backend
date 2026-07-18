@@ -116,7 +116,12 @@ const bseRowToItem = (get: (...keys: string[]) => string | null): RawFeedItem | 
   const attach = cleanText(get('ATTACHMENTNAME'));
   const url = attach ? `https://www.bseindia.com/xml-data/corpfiling/AttachLive/${attach}` : '';
   const publishedAt = toIso(get('NEWS_DT', 'DissemDT', 'News_submission_dt', 'DT_TM'));
-  const body = cleanText(get('MORE', 'NEWSSUB')) || null;
+  // Prepend the company's full name (SLONGNAME) so the symbol mapper always sees
+  // it, even when the headline is boilerplate ("Intimation under Regulation 30…")
+  // and MORE is empty.
+  const company = cleanText(get('SLONGNAME'));
+  const detail = cleanText(get('MORE', 'NEWSSUB'));
+  const body = [company, detail].filter(Boolean).join(' — ') || null;
   return { title, url, publishedAt, body };
 };
 

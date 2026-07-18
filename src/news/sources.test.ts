@@ -1,24 +1,29 @@
 import { describe, expect, test } from 'bun:test';
 
-import { NEWS_SOURCES, resolveSourceUrl } from './sources';
+import { NEWS_SOURCES, resolveSourceUrls } from './sources';
 
-describe('resolveSourceUrl', () => {
-  test('substitutes {from}/{to} as YYYYMMDD (yesterday → fetch day)', () => {
+describe('resolveSourceUrls', () => {
+  test('BSE {date} expands into TWO single-day windows (yesterday + today)', () => {
     const src = NEWS_SOURCES.find((s) => s.id === 'BSE_ANNOUNCEMENTS')!;
-    const url = resolveSourceUrl(src, new Date(2026, 6, 18)); // 18 Jul 2026 local
-    expect(url).toContain('strPrevDate=20260717');
-    expect(url).toContain('strToDate=20260718');
-    expect(url).not.toContain('{from}');
-    expect(url).not.toContain('{to}');
+    const urls = resolveSourceUrls(src, new Date(2026, 6, 18)); // 18 Jul 2026 local
+    expect(urls).toHaveLength(2);
+    // The API rejects multi-day ranges, so each URL must have strPrevDate === strToDate.
+    expect(urls[0]).toContain('strPrevDate=20260717');
+    expect(urls[0]).toContain('strToDate=20260717');
+    expect(urls[1]).toContain('strPrevDate=20260718');
+    expect(urls[1]).toContain('strToDate=20260718');
+    for (const u of urls) expect(u).not.toContain('{date}');
   });
 
-  test('returns placeholder-free URLs untouched', () => {
+  test('placeholder-free URLs pass through as a single entry', () => {
     const src = NEWS_SOURCES.find((s) => s.id === 'LIVEMINT')!;
-    expect(resolveSourceUrl(src, new Date())).toBe(src.url);
+    expect(resolveSourceUrls(src, new Date())).toEqual([src.url]);
   });
 
-  test('BSE source carries the Referer header its WAF requires', () => {
+  test('BSE source targets AnnSubCategoryGetData and carries the required Referer', () => {
     const src = NEWS_SOURCES.find((s) => s.id === 'BSE_ANNOUNCEMENTS')!;
+    expect(src.url).toContain('AnnSubCategoryGetData');
+    expect(src.url).toContain('subcategory=-1');
     expect(src.headers?.Referer).toContain('bseindia.com');
   });
 });

@@ -82,7 +82,7 @@ pullback-v2` config (still not edge — orders remain manual, Phase 5 stays gate
       `pullback+srs0.25` config `backtest:phase6`/`backtest:portfolio` evaluated. (First live
       `signals:run` requires networked infra + backfill — not runnable in-repo.)
 
-### 🟡 B3. News scraper + archive — *clock #1* ⏰ — CODE COMPLETE, live-deploy pending infra
+### ✅ B3. News scraper + archive — *clock #1* ⏰ — DONE (archive clock running since 2026-07-18)
 The archive is the asset; FinBERT can score it retroactively. Every week not collecting
 is a week of sentiment backtest lost. Module built under `src/news/` (+ `bun run news:ingest`);
 187/187 tests, typecheck clean. Live fetch/deploy needs networked infra this session can't run.
@@ -117,13 +117,32 @@ is a week of sentiment backtest lost. Module built under `src/news/` (+ `bun run
          instantly).
       Live smoke test: ET 50 · LiveMint 35 · Google 100 items, all fresh; BSE fetch passes,
       parses empty. 188/188 tests, typecheck clean.
-- [ ] ⏳ **BSE params**: confirm the AnnGetData query params on infra (open
-      bseindia.com/corporates/ann.html → devtools network tab → copy the request the page
-      makes; probes here consistently return "No Record Found!"). Then monitor daily
-      volume/dupe rate on the 15-min cron.
+- [x] **BSE params confirmed** (operator devtools capture, 2026-07-18): endpoint is
+      `AnnSubCategoryGetData/w` with `subcategory=-1`. Key API quirk discovered:
+      **only single-day windows are accepted** (`strPrevDate` must equal `strToDate`;
+      any range returns `{}` — why every earlier probe "found no records"). The source
+      now expands `{date}` into **two same-day fetches (yesterday + today)** so filings
+      disseminated past midnight (00:49 in the capture) are never missed; the
+      (source,url) unique key makes the overlap idempotent. `SLONGNAME` (company name)
+      is prepended to the body so the symbol mapper always sees it through boilerplate
+      headlines. **Live smoke test, all 4 sources fresh:** ET 50 · LiveMint 35 ·
+      **BSE 56** · Google 100 items (49 symbol-mapped in-run). 188/188 tests.
+- [x] **Cron wiring verified**: `registerNewsIngestCron` is in `startCrons()` → `server.ts`
+      — ingestion polls every 15 min (`NEWS_INGEST_INTERVAL_MS`) whenever the server runs.
+- [x] **First real archive ingest (2026-07-18T03:02Z)**: 124 new articles stored, all 4
+      sources ok (ET 5 · LiveMint 32 · BSE 51 · Google 36 new after 116 cross-source
+      dupes), newest-item column live. **Archive total 263 articles.**
+- [x] **≥90% precision sample — PASSED, then perfected**: manual review of all 54 mapped
+      articles (75 symbol-assignments, bodies verified for every multi-symbol map) →
+      **92.0%** (69/75). All 6 misses were ONE failure mode: bare `sbi` firing on SBI-group
+      subsidiaries (SBI Life — itself SBILIFE! — SBI Funds, SBI Capital). Fixed with a
+      general **`ALIAS_EXCLUSIONS`** negative-lookahead mechanism (+7 tests, 189/189 pass);
+      stored archive remapped (exactly those 6 rows) → **sample now 100%**.
+- [ ] ⏳ Ops residual: keep the server (cron) running; glance at volume/dupe rates over the
+      next few days; grow the alias dictionary from the unmatched-headline log.
 - **Done when:** articles/day flowing for all 4 sources, deduped, ≥90% of matched symbols
-  correct on a manual sample. **Archive start date = sentiment backtest clock start.**
-  *(3 of 4 sources verified live + fresh; BSE pending the param confirmation above.)*
+  correct on a manual sample. ✅ **Met (in-repo). Archive clock started 2026-07-18 —
+  B7's ~6-month sentiment-backtest countdown runs from this date.**
 
 ### B4. Fundamentals: snapshotter + point-in-time backfill — *clock #2 + the unblock* ⏰
 - [ ] Weekly snapshotter: current Screener/NSE fundamentals per stock with `fetchedAt`
@@ -154,7 +173,7 @@ is a week of sentiment backtest lost. Module built under `src/news/` (+ `bun run
 - [ ] Degraded-neutral fallback when sidecar is down (delivery-style no-throw)
 - **Done when:** archive scored end-to-end; spot-check of Indian headlines acceptable.
 
-### B7. SentimentFactor — ⏳ gated on ~6 months of B3 archive
+### B7. SentimentFactor — ⏳ gated on ~6 months of B3 archive (clock started 2026-07-18 → ready ≈ Jan 2027)
 - [ ] Aggregation: recency-weighted, deduped, chase-decay → per-stock 0–100
 - [ ] Observational first; sentiment bucket + gate 7 activate automatically
 - [ ] Walk-forward once the archive window is long enough to split honestly

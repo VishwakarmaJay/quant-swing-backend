@@ -15,6 +15,9 @@
  * Aliases are matched case-insensitively with word boundaries; internal spaces
  * match any whitespace run. Keep them lowercase here for readability (matching
  * is case-insensitive regardless).
+ *
+ * ALIAS_EXCLUSIONS (below) blocks an alias when it is immediately followed by a
+ * listed word — for group prefixes whose subsidiaries share the name.
  */
 export const COMPANY_ALIASES: Record<string, string[]> = {
   // ---- Banks ----
@@ -229,4 +232,15 @@ export const COMPANY_ALIASES: Record<string, string[]> = {
   JSWINFRA: ['jsw infrastructure'],
   TATACOMM: ['tata communications'],
   TATAELXSI: ['tata elxsi'],
+};
+
+/**
+ * Alias → following-words that BLOCK the match (negative lookahead). For group
+ * prefixes whose subsidiaries carry the same name: the first live precision
+ * sample (2026-07-18, 92%) showed every miss was bare "sbi" firing inside
+ * "SBI Life" (a different universe stock!), "SBI Funds Management", and
+ * "SBI Capital Markets". "SBI raises rates" / "SBI's Q1" still match SBIN.
+ */
+export const ALIAS_EXCLUSIONS: Record<string, string[]> = {
+  sbi: ['life', 'card', 'cards', 'funds', 'fund', 'capital', 'mutual', 'general', 'amc', 'caps'],
 };

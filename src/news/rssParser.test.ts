@@ -85,19 +85,31 @@ describe('parseBse', () => {
     expect(parseFeed(RSS, 'bse')).toHaveLength(2);
   });
 
-  test('parses the AnnGetData JSON shape ({ Table: [...] })', () => {
+  test('parses the announcements-API JSON shape ({ Table: [...] })', () => {
+    // Field set from a live AnnSubCategoryGetData capture (2026-07-18).
     const json = JSON.stringify({
       Table: [
-        { NEWSSUB: 'Reliance Industries - Outcome of Board Meeting', NEWS_DT: '2026-07-17T14:05:00', ATTACHMENTNAME: 'ril.pdf', SCRIP_CD: 500325 },
+        {
+          HEADLINE: 'Intimation under Regulation 30 - Postal Ballot Notice',
+          NEWSSUB: 'Sedemac Mechatronics Ltd - 544723 - Shareholder Meeting',
+          SLONGNAME: 'Sedemac Mechatronics Ltd',
+          NEWS_DT: '2026-07-18T00:49:02.333',
+          ATTACHMENTNAME: 'a81e90e7.pdf',
+          MORE: '',
+          SCRIP_CD: 544723,
+        },
         { HEADLINE: 'TCS - Investor Presentation', DT_TM: '2026-07-17T09:30:00' },
         { SCRIP_CD: 500001 }, // no title → skipped
       ],
+      Table1: [{ ROWCNT: 3 }],
     });
     const items = parseBse(json);
     expect(items).toHaveLength(2);
-    expect(items[0]!.title).toContain('Outcome of Board Meeting');
-    expect(items[0]!.url).toContain('ril.pdf');
-    expect(items[0]!.publishedAt).toContain('2026-07-17');
+    expect(items[0]!.title).toContain('Postal Ballot');
+    expect(items[0]!.url).toContain('a81e90e7.pdf');
+    expect(items[0]!.publishedAt).toContain('2026-07-1'); // TZ-shift tolerant
+    // SLONGNAME is prepended so the symbol mapper always sees the company name.
+    expect(items[0]!.body).toContain('Sedemac Mechatronics Ltd');
     expect(items[1]!.title).toContain('Investor Presentation');
   });
 

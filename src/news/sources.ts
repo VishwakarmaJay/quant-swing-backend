@@ -8,13 +8,16 @@ import type { NewsSource } from './types';
  *   ⚠️ Replaces MONEYCONTROL — Moneycontrol's public RSS (latestnews.xml,
  *   buzzingstocks.xml) is FROZEN at 23 Apr 2024 (every item; verified with a
  *   browser UA), so it can never feed the archive.
- * - BSE_ANNOUNCEMENTS : the corp-announcements JSON API (the notices.xml this
- *   pointed at before is standard RSS of exchange-circular PDFs — wrong dialect
- *   AND near-useless for per-stock news). The API passes the WAF with a browser
- *   UA + Referer (verified), but returned "No Record Found!" for date-window
- *   probes here — ⚠️ confirm the exact query params on infra by copying the
- *   request the ann.html page makes (browser devtools → network tab). The
- *   `{from}`/`{to}` placeholders are substituted per run (YYYYMMDD).
+ * - BSE_ANNOUNCEMENTS : the corp-announcements JSON API, endpoint + params
+ *   confirmed from the live ann.html page (devtools capture, operator-provided):
+ *   `AnnSubCategoryGetData/w` with `subcategory=-1`. ⚠️ The API only accepts
+ *   SINGLE-DAY windows — `strPrevDate` must equal `strToDate`; any multi-day
+ *   range returns `{}` (live-verified; this is why earlier yesterday→today
+ *   probes "found no records"). The `{date}` placeholder is therefore expanded
+ *   into TWO same-day URLs per run (yesterday + today) so filings disseminated
+ *   around midnight (e.g. 00:49 in the capture) are never missed; the
+ *   (source,url) unique key makes the overlap idempotent. Requires the Referer
+ *   header (WAF) and a browser UA (fetch.ts).
  * - GOOGLE_NEWS  : standard RSS, no UA filtering — worked from day one.
  *
  * All fetches send a browser User-Agent (see fetch.ts) — Moneycontrol and BSE
@@ -33,9 +36,8 @@ export const NEWS_SOURCES: readonly NewsSource[] = [
   },
   {
     id: 'BSE_ANNOUNCEMENTS',
-    // Corp-announcements JSON API; {from}/{to} become YYYYMMDD at fetch time.
-    // Query params to be confirmed live on infra (see header comment).
-    url: 'https://api.bseindia.com/BseIndiaAPI/api/AnnGetData/w?pageno=1&strCat=-1&strPrevDate={from}&strScrip=&strSearch=P&strToDate={to}&strType=C',
+    // {date} → YYYYMMDD; expanded to yesterday + today (single-day windows only).
+    url: 'https://api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w?pageno=1&strCat=-1&strPrevDate={date}&strScrip=&strSearch=P&strToDate={date}&strType=C&subcategory=-1',
     dialect: 'bse',
     headers: {
       Referer: 'https://www.bseindia.com/corporates/ann.html',
@@ -49,11 +51,19 @@ export const NEWS_SOURCES: readonly NewsSource[] = [
   },
 ];
 
-/** Substitutes the {from}/{to} date placeholders (YYYYMMDD) in a source URL. */
-export const resolveSourceUrl = (source: NewsSource, fetchedAt: Date): string => {
-  if (!source.url.includes('{from}') && !source.url.includes('{to}')) return source.url;
-  const fmt = (d: Date) =>
-    `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-  const from = new Date(fetchedAt.getTime() - 86_400_000); // yesterday→today window
-  return source.url.replace('{from}', fmt(from)).replace('{to}', fmt(fetchedAt));
+const yyyymmdd = (d: Date): string =>
+  `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+
+/**
+ * Resolves a source into the URL(s) to fetch this run. Placeholder-free URLs
+ * pass through as a single entry; a `{date}` URL expands to two same-day
+ * windows (yesterday + today) — see the BSE note above.
+ */
+export const resolveSourceUrls = (source: NewsSource, fetchedAt: Date): string[] => {
+  if (!source.url.includes('{date}')) return [source.url];
+  const yesterday = new Date(fetchedAt.getTime() - 86_400_000);
+  return [
+    source.url.replaceAll('{date}', yyyymmdd(yesterday)),
+    source.url.replaceAll('{date}', yyyymmdd(fetchedAt)),
+  ];
 };

@@ -40,6 +40,18 @@ describe('mapArticleSymbols — precision guards (conservative)', () => {
     // "cipla" must not match inside an unrelated longer token.
     expect(mapArticleSymbols('principal amount discussed').symbols).toEqual([]);
   });
+
+  test('ALIAS_EXCLUSIONS: bare "sbi" does not fire on SBI-group subsidiaries', () => {
+    // The exact failure cases from the first live precision sample (2026-07-18).
+    expect(mapArticleSymbols('SBI Life Insurance 26th Annual General Meeting').symbols).toEqual(['SBILIFE']);
+    expect(mapArticleSymbols('SBI Funds Management IPO allotment today').symbols).toEqual([]);
+    expect(mapArticleSymbols('SBI Capital Markets among book runners for NLC IPO').symbols).toEqual([]);
+    expect(mapArticleSymbols('SBI Cards Q1 net profit rises').symbols).toEqual(['SBICARD']);
+    // …while genuine State Bank of India mentions still match.
+    expect(mapArticleSymbols('SBI raises lending rates by 25 bps').symbols).toEqual(['SBIN']);
+    expect(mapArticleSymbols("SBI's Q1 profit beats estimates").symbols).toEqual(['SBIN']);
+    expect(mapArticleSymbols('State Bank of India board approves fundraise').symbols).toEqual(['SBIN']);
+  });
 });
 
 describe('aliasCoverage', () => {

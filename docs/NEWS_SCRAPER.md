@@ -116,7 +116,15 @@ would double-weight one event in a future sentiment aggregate. Titles are normal
 already accepted in the current run. Exact re-fetches are separately absorbed by the
 `(source,url)` unique constraint (`alreadyStored`).
 
-## 8. Monitoring (`news:ingest` report)
+## 8. Monitoring (`news:ingest` report + `ingest_run` + Telegram)
+
+**Persisted observability (2026-07-18):** every ingest pass writes an `ingest_run` row
+(`module=NEWS`, per-source results, totals, `status: ok|degraded|failed`, alert lines)
+and pages the operator on Telegram via the existing `deliverAlert` path when something
+needs a human. Alert policy (`src/news/ingestRun.ts`, unit-tested): FROZEN feed →
+immediate; source failed / zero-parse / FinBERT sidecar down → on the **second
+consecutive** run (flap-resistant; a real outage pages within ~30 min at the 15-min
+cadence). Query history: `select * from ingest_run order by "startedAt" desc`.
 
 Per-source table each run: `parsed / new / dupes / stored / unmatched / newest item /
 status`. Two purpose-built alarms:

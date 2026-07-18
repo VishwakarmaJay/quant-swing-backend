@@ -531,6 +531,30 @@ model NewsArticle {
   @@map("news_article")
 }
 
+/// One ingestion-cron pass (news for now; module-keyed for future reuse).
+/// The observability layer the architecture review flagged as missing: a dead
+/// cron, frozen feed, or parse collapse must be visible in the DB and alerted,
+/// not only in stdout nobody reads on an unattended VM.
+model IngestRun {
+  id         String   @id @default(uuid())
+  /// Which pipeline ran: NEWS (future: FUNDAMENTALS, …).
+  module     String
+  startedAt  DateTime
+  finishedAt DateTime
+  /// Per-source results, verbatim (SourceResult[] for NEWS).
+  perSource  Json
+  /// Run totals (parsed/inserted/duplicates/alreadyStored/unmatched for NEWS).
+  totals     Json
+  /// ok | degraded (some source failed/frozen/zero-parse or sidecar down) | failed (all sources failed).
+  status     String
+  /// Human-readable alert lines emitted for this run ([] when healthy).
+  alerts     String[]
+  createdAt  DateTime @default(now())
+
+  @@index([module, startedAt])
+  @@map("ingest_run")
+}
+
 /// How a NewsArticle entered the archive (B3.5 provenance).
 enum NewsOrigin {
   /// Captured live from an RSS/Atom feed poll (as-of = capture time).

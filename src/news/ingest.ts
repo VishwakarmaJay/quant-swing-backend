@@ -38,6 +38,8 @@ export type IngestSummary = {
   totals: { parsed: number; inserted: number; duplicates: number; alreadyStored: number; unmatched: number };
   /** A capped sample of unmatched headlines to review for new aliases. */
   unmatchedSample: string[];
+  /** Outcome of the post-ingest FinBERT pass (null when the pass itself threw). */
+  sentiment: { degraded: boolean; scored: number; modelVersion: string | null } | null;
 };
 
 const isUniqueViolation = (err: unknown): boolean =>
@@ -178,9 +180,11 @@ export const ingestNews = async (sources: readonly NewsSource[] = NEWS_SOURCES):
   // B6: keep the archive scored as it grows. No-throw degraded-neutral — a
   // down sidecar leaves rows unscored; the next ingest (or `sentiment:score`)
   // catches up. Import is lazy so ingest tests never touch the scoring path.
+  let sentiment: IngestSummary['sentiment'] = null;
   try {
     const { scoreUnscoredArticles } = await import('./scoreArticles');
     const s = await scoreUnscoredArticles();
+    sentiment = { degraded: s.degraded, scored: s.scored.length, modelVersion: s.modelVersion };
     if (s.degraded && s.modelVersion === null) {
       logger.warn('[News]: sentiment sidecar down — new articles left unscored (will catch up)');
     } else if (s.scored.length > 0) {
@@ -190,5 +194,17 @@ export const ingestNews = async (sources: readonly NewsSource[] = NEWS_SOURCES):
     logger.warn(`[News]: sentiment scoring skipped: ${err instanceof Error ? err.message : err}`);
   }
 
-  return { fetchedAt, perSource, totals, unmatchedSample };
+  const summary: IngestSummary = { fetchedAt, perSource, totals, unmatchedSample, sentiment };
+
+  // Observability (no-throw): persist the run + alert the operator when a
+  // source is failing/frozen or the sidecar stays down. Lazy import keeps
+  // ingest unit tests free of the DB/Telegram path.
+  try {
+    const { recordIngestRun } = await import('./ingestRun');
+    await recordIngestRun(summary, fetchedAt);
+  } catch (err) {
+    logger.warn(`[News]: ingest-run recording skipped: ${err instanceof Error ? err.message : err}`);
+  }
+
+  return summary;
 };

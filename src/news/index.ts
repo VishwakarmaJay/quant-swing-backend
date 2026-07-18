@@ -21,3 +21,12 @@ export { COMPANY_ALIASES } from './companyAliases';
 export { originForSource } from './types';
 export type { NewsSource, NewsSourceId, RawFeedItem, ProcessedArticle, FeedDialect } from './types';
 export { runGdeltBackfill, GDELT_SOURCE, type BackfillSummary, type BackfillStats } from './gdelt';
+export {
+  deriveIngestAlerts,
+  formatIngestAlert,
+  recordIngestRun,
+  INGEST_MODULE_NEWS,
+  FROZEN_AFTER_DAYS,
+  type DerivedAlerts,
+  type PreviousRunView,
+} from './ingestRun';

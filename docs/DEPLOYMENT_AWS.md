@@ -18,9 +18,10 @@
 | Cost | ~$15/mo instance + ~$3/mo IPv4/EBS — covered by account credits ($100) |
 | Deployed | 2026-07-18 · archive restored at 6,062 articles / 227k candles / 1,984 quarters |
 
-**Tuning applied at deploy:** `SENTIMENT_TIMEOUT_MS=30000` in the VM `.env` — the
-default 5s sidecar timeout is too tight for cold FinBERT inference on 2 shared
-vCPUs (boot-time scoring timed out; 30s scored the 683-article backlog cleanly).
+**Tuning applied at deploy:** `SENTIMENT_TIMEOUT_MS=60000` in the VM `.env` — the
+default 5s sidecar timeout is far too tight for FinBERT inference on 2 shared vCPUs
+(boot-time scoring timed out at 5s; 30s cleared the 683-article backlog but still
+timed out under backfill load; 60s keeps scoring progressing while heavy jobs run).
 
 Why one VM: the stack wants an always-on process (in-process crons — the 15-min
 news archive clock), RabbitMQ (no managed AWS equivalent in budget), and a

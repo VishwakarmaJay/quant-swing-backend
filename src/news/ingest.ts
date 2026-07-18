@@ -160,5 +160,20 @@ export const ingestNews = async (sources: readonly NewsSource[] = NEWS_SOURCES):
       `${totals.duplicates} dupes, ${totals.alreadyStored} already stored, ${totals.unmatched} unmatched`,
   );
 
+  // B6: keep the archive scored as it grows. No-throw degraded-neutral — a
+  // down sidecar leaves rows unscored; the next ingest (or `sentiment:score`)
+  // catches up. Import is lazy so ingest tests never touch the scoring path.
+  try {
+    const { scoreUnscoredArticles } = await import('./scoreArticles');
+    const s = await scoreUnscoredArticles();
+    if (s.degraded && s.modelVersion === null) {
+      logger.warn('[News]: sentiment sidecar down — new articles left unscored (will catch up)');
+    } else if (s.scored.length > 0) {
+      logger.info(`[News]: sentiment — scored ${s.scored.length} article(s) with ${s.modelVersion}`);
+    }
+  } catch (err) {
+    logger.warn(`[News]: sentiment scoring skipped: ${err instanceof Error ? err.message : err}`);
+  }
+
   return { fetchedAt, perSource, totals, unmatchedSample };
 };

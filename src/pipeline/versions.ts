@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { env } from '@config/env';
 import {
+  DEFAULT_FUNDAMENTAL_CONFIG,
   DEFAULT_MOMENTUM_CONFIG,
   DEFAULT_RS_CONFIG,
   DEFAULT_SECTOR_RS_CONFIG,
@@ -47,6 +48,7 @@ export const computeRunVersions = async (): Promise<RunVersions> => {
     sectorRelativeStrength: DEFAULT_SECTOR_RS_CONFIG,
     volume: DEFAULT_VOLUME_CONFIG,
     volatility: DEFAULT_VOLATILITY_CONFIG,
+    fundamental: DEFAULT_FUNDAMENTAL_CONFIG,
   })}`;
 
   // Stamps the *production* config that actually ships (ROADMAP B2), including the

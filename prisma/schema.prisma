@@ -500,10 +500,24 @@ model NewsArticle {
   fetchedAt       DateTime @default(now())
   createdAt       DateTime @default(now())
 
+  // ── FinBERT sentiment (ROADMAP B6, scored by the sidecar) ──
+  /// positive − negative ∈ [−1, 1] — the aggregation-friendly scalar.
+  sentimentScore    Float?
+  /// argmax label: positive | negative | neutral.
+  sentimentLabel    String?
+  sentimentPositive Float?
+  sentimentNegative Float?
+  sentimentNeutral  Float?
+  /// "<model>@<revision-prefix>" that produced the score — a model bump never
+  /// silently mixes scoring regimes (re-score detects the mismatch).
+  sentimentModel    String?
+  sentimentScoredAt DateTime?
+
   @@unique([source, url])
   @@index([titleNormalized])
   @@index([publishedAt])
   @@index([fetchedAt])
+  @@index([sentimentScoredAt])
   @@map("news_article")
 }
 

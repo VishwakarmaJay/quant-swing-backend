@@ -56,6 +56,12 @@ const EnvSchema = z.object({
   /** Per-feed HTTP fetch timeout (ms). A slow/dead feed is skipped, not fatal. */
   NEWS_FETCH_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
 
+  // ---- FinBERT sentiment sidecar (ROADMAP B6 / ADR-0006) ----
+  /** Base URL of the Python scoring sidecar (localhost-only by design). */
+  SENTIMENT_SIDECAR_URL: z.string().min(1).default('http://127.0.0.1:8001'),
+  /** Per-request timeout (ms) for sidecar calls (ADR-0006: 5s). */
+  SENTIMENT_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
+
   // ---- Fundamentals (ROADMAP B4; point-in-time data + weekly snapshot clock) ----
   /** How often the fundamentals snapshot cron runs (default 7 days). */
   FUNDAMENTALS_SNAPSHOT_INTERVAL_MS: z.coerce.number().int().positive().default(604800000),

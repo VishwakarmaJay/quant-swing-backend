@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   fallbackAvailableAt,
+  fundamentalsAsOf,
   matchAnnouncementToQuarter,
   peAsOf,
   ttmEpsKnownBy,
@@ -117,5 +118,78 @@ describe('ttmEpsKnownBy / peAsOf', () => {
     expect(peAsOf(500, 25)).toBe(20);
     expect(peAsOf(500, -5)).toBeNull();
     expect(peAsOf(500, null)).toBeNull();
+  });
+});
+
+describe('fundamentalsAsOf (the FundamentalFactor pre-pass reconstruction)', () => {
+  // 9 quarters, EPS 10 each, announced ~45 days after each period end.
+  const q = (periodEnd: string, availableAt: string, eps = 10): AvailableQuarter => ({
+    periodEnd,
+    epsBasic: eps,
+    availableAt,
+  });
+  const quarters: AvailableQuarter[] = [
+    q('2024-03-31', '2024-04-25T14:00:00.000Z'),
+    q('2024-06-30', '2024-07-20T14:00:00.000Z'),
+    q('2024-09-30', '2024-10-18T14:00:00.000Z'),
+    q('2024-12-31', '2025-01-17T14:00:00.000Z'),
+    q('2025-03-31', '2025-04-24T14:00:00.000Z', 15),
+    q('2025-06-30', '2025-07-19T14:00:00.000Z', 15),
+    q('2025-09-30', '2025-10-17T14:00:00.000Z', 15),
+    q('2025-12-31', '2026-01-16T14:00:00.000Z', 15),
+    q('2026-03-31', '2026-04-23T14:00:00.000Z', 20),
+  ];
+
+  test('a quarter announced ON day D is usable only AFTER D (conservative, matches ttmEpsKnownBy)', () => {
+    const onDay = fundamentalsAsOf(quarters, 500, '2026-04-23');
+    expect(onDay.ttmEps).toBe(60); // Mar-26 (eps 20) not yet in
+    const nextDay = fundamentalsAsOf(quarters, 500, '2026-04-24');
+    expect(nextDay.ttmEps).toBe(65); // 15+15+15+20 — Mar-26 replaced Mar-25
+  });
+
+  test('TTM needs 4 known quarters; YoY base needs 8', () => {
+    const early = fundamentalsAsOf(quarters, 500, '2024-11-01'); // 3 known
+    expect(early.quartersKnown).toBe(3);
+    expect(early.ttmEps).toBeNull();
+    expect(early.ttmEpsPrevYear).toBeNull();
+
+    const mid = fundamentalsAsOf(quarters, 500, '2025-08-01'); // 6 known → TTM yes, base no
+    expect(mid.ttmEps).toBe(50); // 10+10+15+15
+    expect(mid.ttmEpsPrevYear).toBeNull();
+
+    const late = fundamentalsAsOf(quarters, 500, '2026-02-01'); // 8 known
+    expect(late.ttmEps).toBe(60); // four 15s
+    expect(late.ttmEpsPrevYear).toBe(40); // four 10s
+  });
+
+  test('PE derives from as-of TTM; null without price or with ≤0 earnings', () => {
+    const s = fundamentalsAsOf(quarters, 600, '2026-02-01');
+    expect(s.pe).toBe(10); // 600 / 60
+    expect(fundamentalsAsOf(quarters, null, '2026-02-01').pe).toBeNull();
+    const lossy = quarters.map((x) => ({ ...x, epsBasic: -1 }));
+    expect(fundamentalsAsOf(lossy, 600, '2026-02-01').pe).toBeNull();
+  });
+
+  test('resultsPending toggles across the announcement window', () => {
+    // After Mar-31 quarter end, before its Apr-23 announcement → pending.
+    expect(fundamentalsAsOf(quarters, 500, '2026-04-10').resultsPending).toBe(true);
+    // After the announcement becomes usable → not pending.
+    expect(fundamentalsAsOf(quarters, 500, '2026-04-24').resultsPending).toBe(false);
+    // Mid-quarter with everything announced → not pending.
+    expect(fundamentalsAsOf(quarters, 500, '2026-03-15').resultsPending).toBe(false);
+  });
+
+  test('daysSinceLastResult counts from the newest known availableAt', () => {
+    const s = fundamentalsAsOf(quarters, 500, '2026-02-01');
+    expect(s.daysSinceLastResult).toBe(16); // 2026-01-16 → 2026-02-01
+  });
+
+  test('no quarters → dataless snapshot', () => {
+    const s = fundamentalsAsOf([], 500, '2026-02-01');
+    expect(s.quartersKnown).toBe(0);
+    expect(s.ttmEps).toBeNull();
+    expect(s.pe).toBeNull();
+    expect(s.resultsPending).toBe(false);
+    expect(s.daysSinceLastResult).toBeNull();
   });
 });

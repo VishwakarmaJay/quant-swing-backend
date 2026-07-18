@@ -4,8 +4,11 @@ export {
   matchAnnouncementToQuarter,
   ttmEpsKnownBy,
   peAsOf,
+  fundamentalsAsOf,
   type AvailableQuarter,
+  type FundamentalSnapshotAsOf,
 } from './asOf';
+export { loadFundamentalQuarters, type FundamentalQuartersBySymbol } from './store';
 export {
   backfillFundamentals,
   snapshotFundamentals,

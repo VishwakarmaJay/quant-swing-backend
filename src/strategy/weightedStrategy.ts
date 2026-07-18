@@ -141,6 +141,20 @@ export class WeightedStrategy implements Strategy {
       });
     }
 
+    // Fundamental floor (B5) only when the config sets one. Reads the factor
+    // result straight off the bundle — works while the bucket stays inactive.
+    if (cfg.fundamentalFloor != null) {
+      const fund = bundle.results.fundamental?.score ?? null;
+      gates.push({
+        name: 'fundamental-floor',
+        passed: fund != null && fund >= cfg.fundamentalFloor,
+        detail:
+          fund == null
+            ? 'fundamental unavailable'
+            : `fundamental ${round(fund, 2)} vs floor ${cfg.fundamentalFloor}`,
+      });
+    }
+
     // Gate 7 (sentiment floor) only when a SentimentFactor is present.
     if (sentimentScore != null) {
       gates.push({

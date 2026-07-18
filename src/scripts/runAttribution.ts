@@ -8,7 +8,7 @@ import {
   type BacktestMetrics,
   type CandleStore,
 } from '@/backtest';
-import { DEFAULT_STRATEGY_CONFIG, WeightedStrategy } from '@/strategy';
+import { DEFAULT_STRATEGY_CONFIG, WeightedStrategy, type StrategyConfig } from '@/strategy';
 import { prisma } from '@services/prisma';
 
 /**
@@ -39,6 +39,27 @@ const runVariant = (store: CandleStore, label: string, strategy: WeightedStrateg
   const signals = generateRawSignals(store, { strategy });
   const pairs = simulateSignalsPaired(store, signals);
   return { label, signalCount: signals.length, trades: pairs.length, metrics: computeMetrics(pairs.map((p) => p.trade)) };
+};
+
+/**
+ * Activates the fundamental bucket at λ × the spec's regime weights (B5
+ * selection test). λ=1 is the docs' full weight matrix; smaller λ probes the
+ * dose–response. With sentiment absent the weights renormalize over
+ * {technical, fundamental}, so e.g. SIDEWAYS λ=1 gives fundamental a hefty
+ * 0.4/0.75 ≈ 53% of the composite.
+ */
+const withFundamentalBucket = (lambda: number): WeightedStrategy => {
+  const regimeWeights = Object.fromEntries(
+    Object.entries(DEFAULT_STRATEGY_CONFIG.regimeWeights).map(([regime, w]) => [
+      regime,
+      { ...w, fundamental: Number((w.fundamental * lambda).toFixed(4)) },
+    ]),
+  ) as StrategyConfig['regimeWeights'];
+  return new WeightedStrategy({
+    ...DEFAULT_STRATEGY_CONFIG,
+    regimeWeights,
+    buckets: { ...DEFAULT_STRATEGY_CONFIG.buckets, fundamental: ['fundamental'] },
+  });
 };
 
 const dropFactorWeights = (drop: string): Record<string, number> => {
@@ -128,6 +149,35 @@ const run = async () => {
     const dExp = v.metrics.expectancyPct - baseM.expectancyPct;
     console.log(
       `  ${padE(`w=${w}`, 20)} ${pad(v.signalCount, 8)} ${pad(v.metrics.winRatePct, 7)} ${pad(pct(v.metrics.expectancyPct), 8)} ${pad(v.metrics.profitFactor, 6)}  ${pad(pct(dExp), 8)} ${pad(v.signalCount - baseSignals.length >= 0 ? '+' + (v.signalCount - baseSignals.length) : v.signalCount - baseSignals.length, 9)}`,
+    );
+  }
+
+  // ── 2d. ACTIVATE the fundamental bucket (B5 selection test) ──
+  // Same logic as 2c (the SRS lesson): conditioning on the baseline set is
+  // range-restricted; the honest question is whether fundamentally-informed
+  // SELECTION picks a better trade set. λ scales the spec's regime weight matrix.
+  console.log(`\n=== 2d. ACTIVATE fundamental bucket at λ × spec regime weights (Δ vs baseline) ===`);
+  console.log(`  Earns its bucket if activating RAISES expectancy / PF (picks better stocks).`);
+  console.log(`  ${padE('fund λ', 20)} ${pad('signals', 8)} ${pad('win%', 7)} ${pad('exp%', 8)} ${pad('PF', 6)}  ${pad('Δexp', 8)} ${pad('Δsignals', 9)}`);
+  for (const lambda of [0.1, 0.25, 0.5, 1.0]) {
+    const v = runVariant(store, `λ=${lambda}`, withFundamentalBucket(lambda));
+    const dExp = v.metrics.expectancyPct - baseM.expectancyPct;
+    console.log(
+      `  ${padE(`λ=${lambda}`, 20)} ${pad(v.signalCount, 8)} ${pad(v.metrics.winRatePct, 7)} ${pad(pct(v.metrics.expectancyPct), 8)} ${pad(v.metrics.profitFactor, 6)}  ${pad(pct(dExp), 8)} ${pad(v.signalCount - baseSignals.length >= 0 ? '+' + (v.signalCount - baseSignals.length) : v.signalCount - baseSignals.length, 9)}`,
+    );
+  }
+
+  // ── 2e. Fundamental FLOOR gate (B5) — the mechanism the terciles point to ──
+  // 2d blends the score into the composite (re-ranks everything); this instead
+  // just refuses the low-fundamental tail, leaving selection otherwise intact.
+  console.log(`\n=== 2e. FUNDAMENTAL FLOOR gate (reject fundamental < floor; Δ vs baseline) ===`);
+  console.log(`  Earns a floor if trimming the low-fundamental tail RAISES expectancy / PF.`);
+  console.log(`  ${padE('floor', 20)} ${pad('signals', 8)} ${pad('win%', 7)} ${pad('exp%', 8)} ${pad('PF', 6)}  ${pad('Δexp', 8)} ${pad('Δsignals', 9)}`);
+  for (const floor of [40, 45, 50, 55]) {
+    const v = runVariant(store, `floor=${floor}`, new WeightedStrategy({ ...DEFAULT_STRATEGY_CONFIG, fundamentalFloor: floor }));
+    const dExp = v.metrics.expectancyPct - baseM.expectancyPct;
+    console.log(
+      `  ${padE(`floor=${floor}`, 20)} ${pad(v.signalCount, 8)} ${pad(v.metrics.winRatePct, 7)} ${pad(pct(v.metrics.expectancyPct), 8)} ${pad(v.metrics.profitFactor, 6)}  ${pad(pct(dExp), 8)} ${pad(v.signalCount - baseSignals.length >= 0 ? '+' + (v.signalCount - baseSignals.length) : v.signalCount - baseSignals.length, 9)}`,
     );
   }
 

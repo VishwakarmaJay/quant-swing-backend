@@ -25,6 +25,7 @@
     "fundamentals:backfill": "bun src/scripts/runFundamentalsBackfill.ts",
     "fundamentals:snapshot": "bun src/scripts/runFundamentalsSnapshot.ts",
     "fundamentals:retry": "bun src/scripts/runFundamentalsRetry.ts",
+    "sentiment:score": "bun src/scripts/runSentimentScore.ts",
     "backtest:run": "bun src/scripts/runBacktest.ts",
     "backtest:sweep": "bun src/scripts/runSweep.ts",
     "backtest:attribution": "bun src/scripts/runAttribution.ts",

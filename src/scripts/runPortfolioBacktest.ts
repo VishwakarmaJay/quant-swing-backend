@@ -30,10 +30,11 @@ import { prisma } from '@services/prisma';
 
 const WARMUP = 205;
 
-const withSrs = (w: number): WeightedStrategy =>
+const withSrs = (w: number, fundamentalFloor?: number): WeightedStrategy =>
   new WeightedStrategy({
     ...DEFAULT_STRATEGY_CONFIG,
     technicalFactorWeights: { ...DEFAULT_STRATEGY_CONFIG.technicalFactorWeights, sectorRelativeStrength: w },
+    ...(fundamentalFloor != null ? { fundamentalFloor } : {}),
   });
 const pullbackV2 = {
   rsiMin: 40,
@@ -64,6 +65,8 @@ const run = async () => {
   const strategies: { key: string; label: string; strategy: Strategy }[] = [
     { key: 'baseline', label: 'baseline (production)', strategy: new WeightedStrategy() },
     { key: 'combined', label: 'combined (pullback+srs)', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25)) },
+    // B5: the walk-forward-favoured fundamental floor on top of the combined config.
+    { key: 'combinedFf', label: 'combined+ff50', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, 50)) },
   ];
   const windows = [
     { key: 'FULL', fromIndex: WARMUP },
@@ -148,6 +151,13 @@ const run = async () => {
     flip
       ? `  ⚠️ RANKING FLIP at 2× costs — the baseline/combined ordering is cost-fragile.`
       : `  Ranking stable at 2× costs (combined ${ranks[2].combined! > ranks[2].baseline! ? 'still beats' : 'still trails'} baseline).`,
+  );
+  const ffFlip =
+    Math.sign(ranks[1].combinedFf! - ranks[1].combined!) !== Math.sign(ranks[2].combinedFf! - ranks[2].combined!);
+  console.log(
+    ffFlip
+      ? `  ⚠️ RANKING FLIP at 2× costs — the combined/combined+ff50 ordering is cost-fragile.`
+      : `  Ranking stable at 2× costs (combined+ff50 ${ranks[2].combinedFf! > ranks[2].combined! ? 'still beats' : 'still trails'} combined).`,
   );
 
   console.log(

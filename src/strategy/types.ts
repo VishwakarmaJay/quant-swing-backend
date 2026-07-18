@@ -34,6 +34,15 @@ export type StrategyConfig = {
    */
   disabledGates?: string[];
   /**
+   * Optional floor on the FundamentalFactor's score (B5). When set, adds a
+   * `fundamental-floor` gate that reads the factor result directly from the
+   * bundle (independent of bucket activation, like the sector-leadership
+   * gate) — the mechanism the B5 attribution terciles point to: trim the
+   * low-fundamental loss tail rather than blend the score into the composite.
+   * Absent in the default/production config → baseline byte-identical.
+   */
+  fundamentalFloor?: number;
+  /**
    * Per-regime entry tightening (default: none). Lets a regime demand stricter
    * conditions than the base gates — the mechanism for testing regime-conditioned
    * entries (Step-1 finding: BULL is the loss sink). Absent in production config
@@ -74,7 +83,12 @@ export const DEFAULT_STRATEGY_CONFIG: StrategyConfig = {
     // the directional technical composite.
     technical: ['trend', 'momentum', 'relativeStrength', 'volume'],
     sentiment: ['sentiment'],
-    fundamental: ['fundamental'],
+    // The FundamentalFactor exists (B5) but is OBSERVATIONAL: an empty bucket
+    // here keeps this frozen research baseline byte-identical (a listed factor
+    // would auto-activate the regime-weighted blend). Activating it is an
+    // explicit config lever — buckets.fundamental: ['fundamental'] — set only
+    // on walk-forward evidence (B5/B9), mirroring how the SRS weight graduated.
+    fundamental: [],
   },
   technicalFactorWeights: { trend: 0.35, momentum: 0.3, relativeStrength: 0.25, volume: 0.1 },
 };

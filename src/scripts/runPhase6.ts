@@ -31,10 +31,13 @@ const WARMUP = 205;
 const N_FOLDS = 3;
 
 // SRS weight into the composite (Step-3 lever). Pullback+resumption BULL entry (Step-4b lever).
-const withSrs = (w: number) =>
+// Fundamental floor gate (B5 lever — the attribution-selected mechanism; the
+// bucket-blend path was measured harmful at every λ and is not a candidate).
+const withSrs = (w: number, fundamentalFloor?: number) =>
   new WeightedStrategy({
     ...DEFAULT_STRATEGY_CONFIG,
     technicalFactorWeights: { ...DEFAULT_STRATEGY_CONFIG.technicalFactorWeights, sectorRelativeStrength: w },
+    ...(fundamentalFloor != null ? { fundamentalFloor } : {}),
   });
 const pullbackV2 = {
   rsiMin: 40,
@@ -56,12 +59,14 @@ const run = async () => {
   const total = store.tradingDates.length;
   console.log(`Universe ${store.instruments.length} stocks, ${total} trading days.\n`);
 
-  // Candidate grid: {SRS weight 0 / 0.25} × {BULL entry strength / pullback-v2}.
+  // Candidate grid: the two incumbent levers × the B5 fundamental floor.
   const candidates: WFCandidate[] = [
     { label: 'baseline', strategy: withSrs(0) },
     { label: 'srs0.25', strategy: withSrs(0.25) },
-    { label: 'pullback', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0)) },
     { label: 'pullback+srs0.25', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25)) },
+    { label: 'ff50', strategy: withSrs(0, 50) },
+    { label: 'pullback+srs0.25+ff45', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, 45)) },
+    { label: 'pullback+srs0.25+ff50', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, 50)) },
   ];
 
   const folds = makeExpandingFolds(WARMUP, total, N_FOLDS);

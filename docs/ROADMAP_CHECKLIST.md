@@ -185,23 +185,54 @@ only) = real announcement dates; `availableAt = announcedAt ?? periodEnd + SEBI 
   backtest window (announcement-dated, no period-end lookahead). ✅ **Met — 167/167 symbols,
   1,984 quarters. B5 (FundamentalFactor) is unblocked.**
 
-### B5. FundamentalFactor — *the most likely source of real edge* 📈 UNBLOCKED (B4 done 2026-07-18)
-- [ ] Factor (pure, injected data like `sectorPeers`): PE-vs-sector percentile, EPS trend,
-      pledge %, results-proximity flag → 0–100 score
-- [ ] Integrate **observationally (weight 0)** — baseline byte-identical, golden re-baselined
-- [ ] Measure via attribution **selection test** (not just conditioning — the SRS lesson)
-- [ ] Walk-forward with the fundamental bucket active (regime weight matrix activates
-      automatically) — candidates {fund weight} × {existing levers}
+### ✅ B5. FundamentalFactor — *built + measured; floor-mechanism favoured, no weight set* — DONE (2026-07-18)
+Full findings: [`FUNDAMENTAL_FACTOR.md`](./FUNDAMENTAL_FACTOR.md) · 221/221 tests, typecheck clean.
+- [x] Factor (pure, injected via `ctx.fundamentals` like `sectorPeers`): rank-based
+      PE-vs-sector percentile (0.6) + TTM EPS YoY growth (0.4), components renormalize;
+      results-proximity exposed as metrics only; pledge % still deferred (B4 note).
+      Point-in-time via `fundamentalsAsOf` (announcement-dated, boundary-tested).
+- [x] Integrated **observationally** — `buckets.fundamental` explicitly `[]` in the frozen
+      baseline (a listed factor would auto-activate the regime blend); golden re-baselined;
+      regression tests pin byte-identity; post-integration `backtest:run` reproduces the
+      exact documented baseline (981 trades, PF 0.86, −0.224).
+- [x] Attribution selection test (`backtest:attribution` §2d/§2e): **bucket blend REJECTED**
+      (harmful at every λ, monotone with dose); **floor gate is the working mechanism**
+      (concave, peaks at floor=50: +0.07 exp, PF 0.86→0.90) — the terciles show the
+      information lives in the low-fundamental tail (−0.38%/trade), not the ranking.
+- [x] Walk-forward (`backtest:phase6`, grid = incumbents × floor {none,45,50}): floor
+      selected on 2/3 folds; OOS −0.09/PF 0.93 vs incumbent −0.12/0.91 (caveat: per-fold
+      pick churns → treat +0.03 as the honest size). Portfolio (`backtest:portfolio`,
+      `combined+ff50`): OOS ties-to-beats combined (risk sizing −10.45% vs −13.66%, best
+      maxDD −12.2%, stable at 2× costs) but FULL-window worse (thin early coverage).
 - **Done when:** fundamental's marginal OOS contribution is measured; weight set (or factor
-  rejected) on walk-forward evidence.
+  rejected) on walk-forward evidence. ✅ **Met: bucket weight rejected on evidence; the
+  `fundamentalFloor: 50` lever is validated-but-held-observational — production adoption is
+  an operator decision; B9 (joint rerun, with more accrued history) sets the final config.
+  Phase 5 stays gated (OOS PF 0.93 < 1, portfolio trails Nifty).**
 
-### B6. FinBERT sidecar — *decoupled; any time after B3 starts* 🐍
-- [ ] FastAPI + ProsusAI/finbert (pinned revision + tokenizer = deterministic), batch
-      endpoint on :8001 (ADR-0006)
-- [ ] India-term normalizer (crore/lakh/PAT/YoY etc.) pre-pass
-- [ ] Retro-score the accumulated archive; store scores per article
-- [ ] Degraded-neutral fallback when sidecar is down (delivery-style no-throw)
-- **Done when:** archive scored end-to-end; spot-check of Indian headlines acceptable.
+### ✅ B6. FinBERT sidecar — DONE (2026-07-18; archive scored end-to-end) 🐍
+Sidecar: [`sidecar/`](../sidecar/README.md) · client `src/news/sentimentClient.ts` ·
+scorer `src/news/scoreArticles.ts` + `bun run sentiment:score` · migration `b6_sentiment`.
+- [x] FastAPI + ProsusAI/finbert at **pinned revision `4556d13015211d…`** (model+tokenizer,
+      CPU, eval mode → deterministic), batch `/score` + `/health` on 127.0.0.1:8001
+      (ADR-0006: localhost-only, no auth). Python 3.11 venv, pinned requirements.
+- [x] India-term normalizer pre-pass (`sidecar/normalizer.py`, 7 pytest): numeric
+      crore/lakh → converted magnitudes ("Rs 1,200 crore" → "INR 12.00 billion"),
+      ₹/Rs → INR, PAT/PBT/YoY/QoQ/bps/NPA/FII/topline → FinBERT vocabulary, Q1FY26 →
+      "Q1 fiscal year 26". Case/word-boundary safe ("Pat", "across" untouched).
+- [x] Retro-score + ongoing scoring: `sentiment:score` (idempotent, resumable,
+      `--rescore` for model bumps) AND a no-throw hook at the end of every news ingest —
+      the archive stays scored as it grows. Each row stamps score (pos−neg ∈ [−1,1]),
+      label, 3 probs, **`model@revision`**, scoredAt. **All 383 archived articles scored**
+      (59% neutral / 27% positive / 14% negative, mean +0.11) — the ingest-cron hook
+      scored them live on its first tick after deploy.
+- [x] Degraded-neutral verified: dead sidecar → client retries (5s timeout, 2 retries),
+      returns null, articles stay unscored, nothing throws; next run catches up.
+- **Done when:** archive scored end-to-end; spot-check of Indian headlines acceptable. ✅
+      **Met.** Spot-check: profit-beat/stake-increase headlines strongly positive,
+      profit-drop/loss headlines strongly negative, SEBI/BSE regulatory boilerplate
+      correctly neutral. Known miss: "shares tank as SEBI opens probe" scored weakly
+      positive — headline-level FinBERT limitation, noted for B7's aggregation design.
 
 ### B7. SentimentFactor — ⏳ gated on ~6 months of B3 archive (clock started 2026-07-18 → ready ≈ Jan 2027)
 - [ ] Aggregation: recency-weighted, deduped, chase-decay → per-stock 0–100

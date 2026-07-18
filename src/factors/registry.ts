@@ -1,3 +1,4 @@
+import { FundamentalFactor } from './fundamentalFactor';
 import { MomentumFactor } from './momentumFactor';
 import { RelativeStrengthFactor } from './relativeStrengthFactor';
 import { SectorRelativeStrengthFactor } from './sectorRelativeStrengthFactor';
@@ -18,4 +19,5 @@ export const factors: readonly Factor[] = [
   new SectorRelativeStrengthFactor(),
   new VolumeFactor(),
   new VolatilityFactor(),
+  new FundamentalFactor(),
 ];

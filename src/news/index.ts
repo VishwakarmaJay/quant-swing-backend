@@ -10,5 +10,12 @@ export {
   DEFAULT_JACCARD_THRESHOLD,
 } from './dedupe';
 export { mapArticleSymbols, aliasCoverage, type MappedSymbols } from './symbolMapper';
+export {
+  scoreSentiment,
+  sentimentHealth,
+  type SentimentBatch,
+  type SentimentResult,
+} from './sentimentClient';
+export { scoreUnscoredArticles, type ScoreRunSummary, type ScoredArticle } from './scoreArticles';
 export { COMPANY_ALIASES } from './companyAliases';
 export type { NewsSource, NewsSourceId, RawFeedItem, ProcessedArticle, FeedDialect } from './types';

@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 
 import { BENCHMARK_ID } from '@/factors';
+import { loadFundamentalQuarters, type FundamentalQuartersBySymbol } from '@/fundamentals';
 import type { Candle } from '@/ohlcv';
 import { prisma } from '@services/prisma';
 
@@ -17,6 +18,12 @@ export type CandleStore = {
   benchmark: Candle[];
   /** Trading dates (ISO), ascending — driven by the benchmark calendar. */
   tradingDates: string[];
+  /**
+   * Announcement-dated quarters per canonical symbol (B4), for the per-day
+   * fundamental pre-pass. Empty map when the table isn't backfilled — the
+   * FundamentalFactor then stays neutral (baseline unchanged).
+   */
+  fundamentalsBySymbol: FundamentalQuartersBySymbol;
 };
 
 export const loadCandleStore = async (): Promise<CandleStore> => {
@@ -48,7 +55,14 @@ export const loadCandleStore = async (): Promise<CandleStore> => {
   }
 
   const benchmark = seriesById.get(BENCHMARK_ID) ?? [];
-  return { instruments, seriesById, benchmark, tradingDates: benchmark.map((c) => c.tradeDate) };
+  const fundamentalsBySymbol = await loadFundamentalQuarters();
+  return {
+    instruments,
+    seriesById,
+    benchmark,
+    tradingDates: benchmark.map((c) => c.tradeDate),
+    fundamentalsBySymbol,
+  };
 };
 
 /** Nifty Buy & Hold return (%) over [fromDate, toDate]. */

@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 
+import { fundamentalsAsOf, loadFundamentalQuarters, type FundamentalSnapshotAsOf } from '@/fundamentals';
 import { assessDataQuality, type Candle } from '@/ohlcv';
 import { prisma } from '@services/prisma';
 
@@ -76,6 +77,53 @@ export const loadSectorPeerReturns = async (
 };
 
 /**
+ * Cross-sectional pre-pass for the FundamentalFactor (mirrors
+ * loadSectorPeerReturns): reconstructs every equity's point-in-time
+ * fundamentals as of `asOf` from announcement-dated quarters (B4), plus the
+ * sector→valid-PE grouping the value component ranks against. Load once per
+ * run and pass to `buildStockContext`; an empty fundamentals table simply
+ * leaves every snapshot dataless → the factor stays neutral.
+ */
+export type FundamentalInputs = {
+  /** Canonical symbol (no -EQ suffix) → as-of snapshot. */
+  bySymbol: Map<string, FundamentalSnapshotAsOf>;
+  /** Sector label → as-of PEs of its members with valid (positive-earnings) P/E. */
+  pesBySector: Map<string, number[]>;
+};
+
+export const loadFundamentalInputs = async (asOf: Date = new Date()): Promise<FundamentalInputs> => {
+  const asOfIso = dayjs(asOf).format('YYYY-MM-DD');
+  const asOfDate = new Date(`${asOfIso}T00:00:00.000Z`);
+
+  const quarters = await loadFundamentalQuarters();
+  const instruments = await prisma.instrument.findMany({
+    where: { instrumentType: 'EQ' },
+    select: { id: true, symbol: true, sector: true },
+  });
+  // Latest close ≤ asOf per instrument (distinct picks the first row per id
+  // under the tradeDate-desc ordering).
+  const lastCloses = await prisma.ohlcv.findMany({
+    where: { instrumentId: { in: instruments.map((i) => i.id) }, tradeDate: { lte: asOfDate } },
+    orderBy: [{ instrumentId: 'asc' }, { tradeDate: 'desc' }],
+    distinct: ['instrumentId'],
+    select: { instrumentId: true, close: true },
+  });
+  const closeById = new Map(lastCloses.map((r) => [r.instrumentId, r.close]));
+
+  const bySymbol = new Map<string, FundamentalSnapshotAsOf>();
+  const pesBySector = new Map<string, number[]>();
+  for (const inst of instruments) {
+    const symbol = inst.symbol.replace(/-EQ$/, '');
+    const snap = fundamentalsAsOf(quarters.get(symbol) ?? [], closeById.get(inst.id) ?? null, asOfIso);
+    bySymbol.set(symbol, snap);
+    if (inst.sector && snap.pe !== null) {
+      (pesBySector.get(inst.sector) ?? pesBySector.set(inst.sector, []).get(inst.sector)!).push(snap.pe);
+    }
+  }
+  return { bySymbol, pesBySector };
+};
+
+/**
  * Builds the StockContext a factor evaluates: the instrument's candles + data
  * quality, its sector, and the market benchmark (Nifty). Pass
  * `opts.benchmarkCandles` to reuse a single benchmark load across a universe
@@ -85,7 +133,11 @@ export const loadSectorPeerReturns = async (
 export const buildStockContext = async (
   instrumentId: string,
   asOf: Date = new Date(),
-  opts?: { benchmarkCandles?: readonly Candle[]; sectorPeerReturns?: SectorPeerReturns },
+  opts?: {
+    benchmarkCandles?: readonly Candle[];
+    sectorPeerReturns?: SectorPeerReturns;
+    fundamentalInputs?: FundamentalInputs;
+  },
 ): Promise<StockContext | null> => {
   const instrument = await prisma.instrument.findUnique({
     where: { id: instrumentId },
@@ -111,6 +163,17 @@ export const buildStockContext = async (
         }
       : null;
 
+  const canonical = instrument.symbol.replace(/-EQ$/, '');
+  const snap = opts?.fundamentalInputs?.bySymbol.get(canonical);
+  const fundamentals = snap
+    ? {
+        ...snap,
+        sectorPeerPes: instrument.sector
+          ? (opts!.fundamentalInputs!.pesBySector.get(instrument.sector) ?? [])
+          : [],
+      }
+    : null;
+
   return {
     symbol: instrument.symbol,
     asOf: asOfIso,
@@ -121,5 +184,6 @@ export const buildStockContext = async (
       ? { symbol: BENCHMARK_SYMBOL, candles: benchmarkCandles }
       : null,
     sectorPeers,
+    fundamentals,
   };
 };

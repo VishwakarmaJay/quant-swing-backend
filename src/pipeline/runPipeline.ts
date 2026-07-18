@@ -5,6 +5,7 @@ import {
   buildStockContext,
   factors,
   loadBenchmarkCandles,
+  loadFundamentalInputs,
   loadSectorPeerReturns,
 } from '@/factors';
 import {
@@ -57,6 +58,7 @@ export const runPipeline = async (
   const regime = await detectMarketRegime(asOf, { vix: opts?.vix ?? null });
   const benchmarkCandles = await loadBenchmarkCandles(asOf);
   const sectorPeerReturns = await loadSectorPeerReturns(asOf);
+  const fundamentalInputs = await loadFundamentalInputs(asOf);
   // ROADMAP B2: the graduated production strategy — OOS-validated combined config
   // (SRS composite weight 0.25 + BULL pullback+resumption entry), not the baseline.
   const strategy = createProductionStrategy();
@@ -74,7 +76,7 @@ export const runPipeline = async (
     const symbol = inst.symbol.replace(/-EQ$/, '');
     instrumentIdBySymbol.set(symbol, inst.id);
 
-    const ctx = await buildStockContext(inst.id, asOf, { benchmarkCandles, sectorPeerReturns });
+    const ctx = await buildStockContext(inst.id, asOf, { benchmarkCandles, sectorPeerReturns, fundamentalInputs });
     if (!ctx) continue;
 
     const bundle = buildFeatureBundle(ctx, factors);

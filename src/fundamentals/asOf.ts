@@ -64,3 +64,82 @@ export const peAsOf = (price: number, ttmEps: number | null): number | null => {
   if (ttmEps === null || ttmEps <= 0 || !(price > 0)) return null;
   return price / ttmEps;
 };
+
+/**
+ * Everything the FundamentalFactor needs about ONE stock as of a date, derived
+ * from its stored quarters + price. Produced by the pre-pass (backtest loop /
+ * live loader); the factor itself only scores these numbers.
+ */
+export type FundamentalSnapshotAsOf = {
+  /** As-of P/E (null when earnings are negative/unknown). */
+  pe: number | null;
+  /** TTM EPS as known on the date (4 most recent known quarters). */
+  ttmEps: number | null;
+  /** TTM EPS one year earlier (known quarters 5–8) — the YoY growth base. */
+  ttmEpsPrevYear: number | null;
+  quartersKnown: number;
+  /** Calendar days since the most recent result became known. */
+  daysSinceLastResult: number | null;
+  /** A calendar quarter has ended but its result is not yet known (risk window). */
+  resultsPending: boolean;
+};
+
+const DAY_MS = 86_400_000;
+
+/** Most recent calendar-quarter end (Mar/Jun/Sep/Dec) strictly before the date. */
+const lastCalendarQuarterEnd = (dateIso: string): string => {
+  const [y, m] = [Number(dateIso.slice(0, 4)), Number(dateIso.slice(5, 7))];
+  // Quarter-end month/day pairs, most recent one strictly before (y, m, d).
+  const ends: [number, string][] = [
+    [y, `${y}-12-31`],
+    [y, `${y}-09-30`],
+    [y, `${y}-06-30`],
+    [y, `${y}-03-31`],
+    [y - 1, `${y - 1}-12-31`],
+  ];
+  for (const [, end] of ends) if (end < dateIso) return end;
+  return `${y - 1}-09-30`; // dateIso ≤ Jan 1 edge — unreachable for real ISO dates
+};
+
+/**
+ * The fast, allocation-light as-of reconstruction used by the per-day backtest
+ * pre-pass (universe × trading-days calls). Comparisons are plain ISO string
+ * compares (lexicographic = chronological), matching `ttmEpsKnownBy`'s
+ * conservative semantics: a quarter announced with a time-of-day on day D
+ * becomes usable AFTER D (`availableAt > date` string-compares true).
+ *
+ * `quarters` must be sorted ascending by periodEnd (the store guarantees it).
+ */
+export const fundamentalsAsOf = (
+  quarters: readonly AvailableQuarter[],
+  price: number | null,
+  dateIso: string,
+): FundamentalSnapshotAsOf => {
+  const known = quarters.filter((q) => q.availableAt <= dateIso);
+  const quartersKnown = known.length;
+
+  const ttmEps = quartersKnown >= 4 ? known.slice(-4).reduce((s, q) => s + q.epsBasic, 0) : null;
+  const ttmEpsPrevYear =
+    quartersKnown >= 8 ? known.slice(-8, -4).reduce((s, q) => s + q.epsBasic, 0) : null;
+
+  let lastAvailable: string | null = null;
+  for (const q of known) {
+    if (lastAvailable === null || q.availableAt > lastAvailable) lastAvailable = q.availableAt;
+  }
+  const daysSinceLastResult = lastAvailable
+    ? Math.floor((Date.parse(dateIso) - Date.parse(lastAvailable.slice(0, 10))) / DAY_MS)
+    : null;
+
+  const pendingQuarterEnd = lastCalendarQuarterEnd(dateIso);
+  const resultsPending =
+    quartersKnown > 0 && !known.some((q) => q.periodEnd >= pendingQuarterEnd);
+
+  return {
+    pe: price !== null && ttmEps !== null ? peAsOf(price, ttmEps) : null,
+    ttmEps,
+    ttmEpsPrevYear,
+    quartersKnown,
+    daysSinceLastResult,
+    resultsPending,
+  };
+};

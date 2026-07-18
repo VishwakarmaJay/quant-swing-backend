@@ -9,6 +9,7 @@ import {
   round,
   type StockContext,
 } from '@/factors';
+import { fundamentalsAsOf, type FundamentalSnapshotAsOf } from '@/fundamentals';
 import { assessDataQuality, type Candle } from '@/ohlcv';
 import { detectRegime } from '@/regime';
 import { computeSignalLevels } from '@/signal';
@@ -79,6 +80,8 @@ export const generateRawSignals = (store: CandleStore, opts: BacktestOptions = {
 
     const slices = new Map<string, Candle[]>();
     const sectorReturns = new Map<string, number[]>();
+    const fundamentalsById = new Map<string, FundamentalSnapshotAsOf>();
+    const sectorPes = new Map<string, number[]>();
     let counted = 0;
     let above = 0;
     for (const inst of store.instruments) {
@@ -96,6 +99,16 @@ export const generateRawSignals = (store: CandleStore, opts: BacktestOptions = {
         const ret = lookbackReturnPct(closes, DEFAULT_SECTOR_RS_CONFIG.lookback);
         if (ret !== null) {
           (sectorReturns.get(inst.sector) ?? sectorReturns.set(inst.sector, []).get(inst.sector)!).push(ret);
+        }
+      }
+      // Fundamental pre-pass: as-of snapshot (announcement-dated, no lookahead)
+      // + this stock's valid P/E into its sector bucket for the value ranking.
+      const quarters = store.fundamentalsBySymbol.get(inst.symbol.replace(/-EQ$/, ''));
+      if (quarters?.length) {
+        const snap = fundamentalsAsOf(quarters, slice[slice.length - 1]!.close, asOf);
+        fundamentalsById.set(inst.id, snap);
+        if (inst.sector && snap.pe !== null) {
+          (sectorPes.get(inst.sector) ?? sectorPes.set(inst.sector, []).get(inst.sector)!).push(snap.pe);
         }
       }
     }
@@ -123,6 +136,12 @@ export const generateRawSignals = (store: CandleStore, opts: BacktestOptions = {
         sectorPeers: inst.sector
           ? { peerReturnsPct: sectorReturns.get(inst.sector) ?? [], lookback: DEFAULT_SECTOR_RS_CONFIG.lookback }
           : null,
+        fundamentals: (() => {
+          const snap = fundamentalsById.get(inst.id);
+          return snap
+            ? { ...snap, sectorPeerPes: inst.sector ? (sectorPes.get(inst.sector) ?? []) : [] }
+            : null;
+        })(),
       };
 
       const bundle = buildFeatureBundle(ctx, factors);

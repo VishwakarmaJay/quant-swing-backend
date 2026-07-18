@@ -1,0 +1,7 @@
+# FinBERT sidecar (ADR-0006 / ROADMAP B6). Python 3.11.
+# Pinned for reproducible scoring — bump consciously, re-spot-check after.
+fastapi==0.115.6
+uvicorn==0.32.1
+torch==2.5.1
+transformers==4.46.3
+pytest==8.3.4

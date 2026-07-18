@@ -1,5 +1,5 @@
 import { atr, round } from '@/factors/indicators';
-import { buildStockContext } from '@/factors';
+import { buildStockContext, loadFundamentalInputs } from '@/factors';
 import { computeSignalLevels } from '@/signal';
 import { prisma } from '@services/prisma';
 
@@ -21,7 +21,9 @@ const run = async () => {
     return;
   }
 
-  const ctx = await buildStockContext(inst.id);
+  const ctx = await buildStockContext(inst.id, new Date(), {
+    fundamentalInputs: await loadFundamentalInputs(),
+  });
   if (!ctx) return;
   const highs = ctx.candles.map((c) => c.high);
   const lows = ctx.candles.map((c) => c.low);

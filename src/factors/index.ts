@@ -6,6 +6,7 @@ export {
   type FeatureBundle,
   type MetricValue,
   type StockContext,
+  type StockFundamentals,
 } from './types';
 export {
   ema,
@@ -40,13 +41,20 @@ export {
   DEFAULT_SECTOR_RS_CONFIG,
   type SectorRelativeStrengthFactorConfig,
 } from './sectorRelativeStrengthFactor';
+export {
+  FundamentalFactor,
+  DEFAULT_FUNDAMENTAL_CONFIG,
+  type FundamentalFactorConfig,
+} from './fundamentalFactor';
 export { buildFeatureBundle } from './featureBundle';
 export {
   buildStockContext,
   loadBenchmarkCandles,
   loadSectorPeerReturns,
+  loadFundamentalInputs,
   BENCHMARK_ID,
   BENCHMARK_SYMBOL,
   type SectorPeerReturns,
+  type FundamentalInputs,
 } from './context';
 export { factors } from './registry';

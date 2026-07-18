@@ -29,6 +29,7 @@ const makeStore = (series: Record<string, { candles: Candle[]; sector: string | 
   seriesById: new Map(Object.entries(series).map(([id, s]) => [id, s.candles])),
   benchmark: flatSeries(100),
   tradingDates: dates,
+  fundamentalsBySymbol: new Map(),
 });
 
 const evaluation = (composite: number) =>

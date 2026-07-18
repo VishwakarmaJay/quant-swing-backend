@@ -179,3 +179,21 @@ status`. Two purpose-built alarms:
 | Manual run/report | `src/scripts/runNewsIngest.ts` (`bun run news:ingest`) |
 | Schema | `prisma/schema.prisma` → `news_article` |
 | Env knobs | `NEWS_INGEST_INTERVAL_MS` · `NEWS_DEDUPE_WINDOW_DAYS` · `NEWS_FETCH_TIMEOUT_MS` |
+
+## 11. Sentiment scoring (B6 — FinBERT sidecar)
+
+Every stored article is scored by the **FinBERT sidecar** ([`sidecar/README.md`](../sidecar/README.md)):
+ProsusAI/finbert at a **pinned revision**, behind an **India-term normalizer**
+(crore/lakh → converted magnitudes, ₹/Rs → INR, PAT/YoY/bps/NPA → FinBERT vocabulary).
+Scored fields on `news_article`: `sentimentScore` (pos−neg ∈ [−1,1]), `sentimentLabel`,
+the 3 probabilities, `sentimentModel` (`model@revision` — bumps never mix regimes),
+`sentimentScoredAt`.
+
+- **Ongoing:** every ingest run ends with a no-throw scoring pass (`scoreArticles.ts`);
+  a down sidecar leaves rows unscored and the next run catches up (degraded-neutral,
+  ADR-0006: 5s timeout, 2 retries).
+- **Backlog / model bumps:** `bun run sentiment:score` (`--rescore` wipes + re-scores).
+- **v1 scope:** the HEADLINE is scored (bodies range from absent to boilerplate).
+  Known limitation: occasional headline-level misreads (e.g. "shares tank as SEBI opens
+  probe" scoring weakly positive) — B7's aggregation (many articles, recency-weighted)
+  is the designed mitigation, not per-headline perfection.

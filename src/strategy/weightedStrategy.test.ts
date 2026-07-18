@@ -134,3 +134,39 @@ describe('WeightedStrategy — regimeGateOverrides (regime-conditioned entries)'
     expect(s.evaluate(makeBundle(), MarketRegime.SIDEWAYS).passed).toBe(true);
   });
 });
+
+describe('FundamentalFactor is observational (B5)', () => {
+  test('a fundamental result in the bundle leaves the baseline evaluation byte-identical', () => {
+    // The frozen baseline config has buckets.fundamental: [] — the registered
+    // FundamentalFactor's score must not touch composite, gates, or agreement
+    // until a config explicitly lists it. This is the observational guarantee.
+    const plain = makeBundle();
+    const withFund: FeatureBundle = {
+      ...plain,
+      results: { ...plain.results, fundamental: fr(95, { pe: 12, valueScore: 95 }) },
+    };
+    const a = strategy.evaluate(plain, MarketRegime.BULL);
+    const b = strategy.evaluate(withFund, MarketRegime.BULL);
+    expect(b).toEqual(a);
+    expect(b.fundamentalScore).toBeNull(); // bucket inactive → not even reported
+  });
+
+  test('activation is the explicit config lever: listing it in the bucket blends the composite', () => {
+    const cfg = {
+      ...DEFAULT_STRATEGY_CONFIG,
+      buckets: { ...DEFAULT_STRATEGY_CONFIG.buckets, fundamental: ['fundamental'] },
+    };
+    const active = new WeightedStrategy(cfg);
+    const plain = makeBundle();
+    const withFund: FeatureBundle = {
+      ...plain,
+      results: { ...plain.results, fundamental: fr(95) },
+    };
+    const e = active.evaluate(withFund, MarketRegime.BULL);
+    expect(e.fundamentalScore).toBe(95);
+    // BULL weights technical 0.5 / fundamental 0.2 renormalized over present buckets.
+    const technical = e.technicalScore;
+    const expected = Number(((technical * 0.5 + 95 * 0.2) / 0.7).toFixed(2));
+    expect(e.compositeScore).toBe(expected);
+  });
+});

@@ -73,6 +73,29 @@ export type StockContext = {
    * pure (no fetching, no cross-instrument reads inside the factor).
    */
   readonly sectorPeers?: { readonly peerReturnsPct: readonly number[]; readonly lookback: number } | null;
+  /**
+   * Point-in-time fundamentals for THIS stock as of `asOf`, plus the as-of PEs
+   * of its sector peers (cross-sectional pre-pass, like sectorPeers). Every
+   * number is reconstructed from announcement-dated quarters (B4) — a quarter
+   * enters only after its result became public, never at period end. Absent
+   * (table not backfilled / index rows) → the factor returns a neutral 50.
+   */
+  readonly fundamentals?: StockFundamentals | null;
+};
+
+/** The injected fundamental inputs the FundamentalFactor scores (all as-of). */
+export type StockFundamentals = {
+  /** As-of P/E (null when TTM earnings are negative/unknown). */
+  readonly pe: number | null;
+  /** As-of PEs of the sector peer group (valid PEs only, incl. self when valid). */
+  readonly sectorPeerPes: readonly number[];
+  readonly ttmEps: number | null;
+  /** TTM EPS one year earlier — the YoY growth base (null until 8 known quarters). */
+  readonly ttmEpsPrevYear: number | null;
+  readonly quartersKnown: number;
+  readonly daysSinceLastResult: number | null;
+  /** A calendar quarter ended but its result is not yet public (risk window). */
+  readonly resultsPending: boolean;
 };
 
 /** Deep-frozen bundle of every factor's result for one instrument as of a date. */

@@ -3,6 +3,7 @@ import {
   buildStockContext,
   factors,
   loadBenchmarkCandles,
+  loadFundamentalInputs,
   loadSectorPeerReturns,
 } from '@/factors';
 import { prisma } from '@services/prisma';
@@ -47,9 +48,10 @@ const run = async () => {
     return;
   }
 
-  // Load the Nifty benchmark + sector peer returns once and reuse per stock.
+  // Load the Nifty benchmark + sector peer returns + fundamentals once and reuse per stock.
   const benchmarkCandles = await loadBenchmarkCandles();
   const sectorPeerReturns = await loadSectorPeerReturns();
+  const fundamentalInputs = await loadFundamentalInputs();
 
   type Row = {
     symbol: string;
@@ -66,7 +68,7 @@ const run = async () => {
   const rows: Row[] = [];
 
   for (const inst of instruments) {
-    const ctx = await buildStockContext(inst.id, new Date(), { benchmarkCandles, sectorPeerReturns });
+    const ctx = await buildStockContext(inst.id, new Date(), { benchmarkCandles, sectorPeerReturns, fundamentalInputs });
     if (!ctx) continue;
     const bundle = buildFeatureBundle(ctx, factors);
     rows.push({

@@ -113,12 +113,16 @@ export const backfillFundamentals = async (onlySymbols?: string[]): Promise<Back
   };
 
   let consecutiveFailures = 0;
+  let abortLogged = false;
   for (const symbol of symbols) {
     if (consecutiveFailures >= CONSECUTIVE_FAILURE_ABORT) {
-      logger.warn(
-        `[Fundamentals]: backfill aborted after ${consecutiveFailures} consecutive fetch failures ` +
-          `(rate-limited?) — remaining symbols recorded as failed; re-run later (idempotent).`,
-      );
+      if (!abortLogged) {
+        abortLogged = true;
+        logger.warn(
+          `[Fundamentals]: backfill aborted after ${consecutiveFailures} consecutive fetch failures ` +
+            `(rate-limited?) — remaining symbols recorded as failed; re-run later (idempotent).`,
+        );
+      }
       summary.failedSymbols.push(symbol);
       continue;
     }
@@ -196,12 +200,16 @@ export const snapshotFundamentals = async (onlySymbols?: string[]): Promise<Snap
   const summary: SnapshotSummary = { fetchedAt, symbols: symbols.length, snapshots: 0, failedSymbols: [] };
 
   let consecutiveFailures = 0;
+  let abortLogged = false;
   for (const symbol of symbols) {
     if (consecutiveFailures >= CONSECUTIVE_FAILURE_ABORT) {
-      logger.warn(
-        `[Fundamentals]: snapshot aborted after ${consecutiveFailures} consecutive fetch failures ` +
-          `(rate-limited?) — remaining symbols recorded as failed; the weekly cron retries anyway.`,
-      );
+      if (!abortLogged) {
+        abortLogged = true;
+        logger.warn(
+          `[Fundamentals]: snapshot aborted after ${consecutiveFailures} consecutive fetch failures ` +
+            `(rate-limited?) — remaining symbols recorded as failed; the weekly cron retries anyway.`,
+        );
+      }
       summary.failedSymbols.push(symbol);
       continue;
     }

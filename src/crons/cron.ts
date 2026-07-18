@@ -64,6 +64,15 @@ const publishFire = (name: CRONJOBS, queueName: string): void => {
 const attachConsumer = async (name: CRONJOBS, queueName: string, jobFn: () => Promise<void>): Promise<void> => {
   const channel = getChannel();
   await channel.assertQueue(queueName, { durable: true });
+  // Drop stale fire messages from previous boots/crashed runs. A cron must
+  // never "catch up" missed ticks: persistent boot-fires accumulate across dev
+  // restarts (`bun --watch` restarts on every file save) and RabbitMQ requeues
+  // messages from killed-mid-run consumers — observed live 2026-07-18 as the
+  // weekly snapshot draining a backlog back-to-back every ~18s.
+  const purged = await channel.purgeQueue(queueName);
+  if (purged.messageCount > 0) {
+    logger.info(`[Cron]: ${name} purged ${purged.messageCount} stale fire message(s) from ${queueName}`);
+  }
   await channel.consume(queueName, (message) => {
     if (!message) return;
     jobFn()
@@ -127,7 +136,28 @@ export async function createIntervalCron(
   jobFn: () => Promise<void>,
 ): Promise<void> {
   const queueName = `CRON_${name}`;
-  await attachConsumer(name, queueName, jobFn);
+
+  // Min-gap guard: even if multiple fire messages slip through (races, manual
+  // publishes), never start a run while one is in flight or within half an
+  // interval of the last completion — an interval cron's ticks are fungible,
+  // so a skipped duplicate costs nothing.
+  let running = false;
+  let lastCompleted = 0;
+  const guarded = async (): Promise<void> => {
+    if (running || Date.now() - lastCompleted < intervalMs * 0.5) {
+      logger.info(`[Cron]: ${name} skipped duplicate fire (min-gap guard)`);
+      return;
+    }
+    running = true;
+    try {
+      await jobFn();
+      lastCompleted = Date.now();
+    } finally {
+      running = false;
+    }
+  };
+
+  await attachConsumer(name, queueName, guarded);
 
   if (!isCronEnabled(name)) {
     logger.info(`[Cron]: ${name} disabled via CRONS_ENABLED`);

@@ -6,7 +6,8 @@
 > updated as work lands; details live in the linked docs.
 >
 > Companions: [`COMPLETE_REFERENCE.md`](./COMPLETE_REFERENCE.md) (all math + limitations) ·
-> [`HANDOFF_NEXT_STEPS.md`](./HANDOFF_NEXT_STEPS.md) (narrative) · [`PHASE6.md`](./PHASE6.md)
+> [`HANDOFF_NEXT_STEPS.md`](./HANDOFF_NEXT_STEPS.md) (narrative) · [`PHASE6.md`](./PHASE6.md) ·
+> [`ARCHITECTURE_REVIEW_B3_B4.md`](./ARCHITECTURE_REVIEW_B3_B4.md) (principal-architect review of the data layer — read before B5/B6 work)
 
 **Standing rules**
 - Determinism is sacred: factor changes fail the golden test until consciously re-baselined.
@@ -164,6 +165,14 @@ only) = real announcement dates; `availableAt = announcedAt ?? periodEnd + SEBI 
       announcement); PE 22.8 → 24.7 from the information event, not price.
 - [x] Spot-verify vs known filings: RELIANCE all 8 quarters carry real dissemination dates
       matching its actual results calendar (Jul-18-25, Oct-17, Jan-16, Apr-24…).
+- [x] **Adjustment-consistency audit PASSED (2026-07-18)** — the architecture review's
+      CRITICAL assumption verified: (1) **zero** >30% single-day moves across all 167 stocks'
+      full 2-yr history → Angel OHLCV is consistently corp-action-adjusted (also validates the
+      technical factor stack); (2) computed `PE_asOf(today)` vs Screener's own P/E across 99
+      symbols: **median ratio 1.000**, 86/99 within ±10%. Six single-name outliers flagged
+      (JSWSTEEL/ABB = results-timing: our TTM already includes the Jul-17 Q1, Screener's P/E
+      lagged; SIEMENS/DALBHARAT = demerger/exceptional-item distortions) → B5 must use
+      **rank-based (percentile) PE with null/winsor handling**, which it was designed to anyway.
 - [ ] ⏳ Complete the 66-symbol retry (queued) → re-run summary; promoter/pledge % deferred
       (soft-flag only; `Corp_ShpPromoters_ng` endpoint verified for when needed).
 - **Done when:** every universe stock has an honest as-of fundamental series covering the

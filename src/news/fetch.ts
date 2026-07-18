@@ -7,17 +7,25 @@ import logger from '@services/logger';
  * orchestrator records that source as failed for the run. The only network I/O
  * in the module, kept out of the pure parser/mapper/dedupe code so those stay
  * unit-testable.
+ *
+ * User-Agent: a standard browser string, NOT a "(compatible; …Bot)" identifier —
+ * live-verified 2026-07: Moneycontrol (Akamai) and BSE's WAF return HTTP 403 to
+ * bot-style UAs but 200 to a browser UA on the same public feed URLs. Per-source
+ * extra headers (e.g. BSE's required Referer) are merged over the defaults.
  */
-export const fetchFeed = async (url: string): Promise<string | null> => {
+const BROWSER_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
+
+export const fetchFeed = async (url: string, headers?: Record<string, string>): Promise<string | null> => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), env.NEWS_FETCH_TIMEOUT_MS);
   try {
     const res = await fetch(url, {
       signal: controller.signal,
       headers: {
-        // Some feeds reject the default fetch UA; identify as a normal reader.
-        'User-Agent': 'Mozilla/5.0 (compatible; QuantSwingNewsBot/1.0)',
-        Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
+        'User-Agent': BROWSER_UA,
+        Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, application/json, */*',
+        ...headers,
       },
     });
     if (!res.ok) {

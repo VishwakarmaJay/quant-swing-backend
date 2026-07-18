@@ -21,12 +21,17 @@ const run = async () => {
 
   console.log(`\nNews ingest @ ${summary.fetchedAt.toISOString()}\n`);
   console.log(
-    `  ${pad('source', 20)} ${pad('parsed', 8)} ${pad('new', 6)} ${pad('dupes', 7)} ${pad('stored', 7)} ${pad('unmatched', 10)} status`,
+    `  ${pad('source', 20)} ${pad('parsed', 8)} ${pad('new', 6)} ${pad('dupes', 7)} ${pad('stored', 7)} ${pad('unmatched', 10)} ${pad('newest item', 22)} status`,
   );
+  const staleCutoff = summary.fetchedAt.getTime() - 3 * 86_400_000;
   for (const r of summary.perSource) {
+    // A feed whose newest item is days old is FROZEN even when counts look healthy
+    // (how Moneycontrol's RSS — dead since Apr 2024 — was caught).
+    const frozen = r.newestItem !== null && Date.parse(r.newestItem) < staleCutoff;
+    const status = r.error ?? (frozen ? '⚠️ FROZEN? newest item is >3d old' : 'ok');
     console.log(
       `  ${pad(r.source, 20)} ${pad(r.parsed, 8)} ${pad(r.inserted, 6)} ${pad(r.duplicates, 7)} ` +
-        `${pad(r.alreadyStored, 7)} ${pad(r.unmatched, 10)} ${r.error ?? 'ok'}`,
+        `${pad(r.alreadyStored, 7)} ${pad(r.unmatched, 10)} ${pad(r.newestItem?.slice(0, 16) ?? '—', 22)} ${status}`,
     );
   }
   const t = summary.totals;

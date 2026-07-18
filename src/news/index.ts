@@ -1,5 +1,5 @@
 export { ingestNews, type IngestSummary, type SourceResult } from './ingest';
-export { NEWS_SOURCES } from './sources';
+export { NEWS_SOURCES, resolveSourceUrl } from './sources';
 export { fetchFeed } from './fetch';
 export { parseFeed, parseRss, parseBse, cleanText, decodeEntities } from './rssParser';
 export {

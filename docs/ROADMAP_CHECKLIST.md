@@ -100,11 +100,30 @@ is a week of sentiment backtest lost. Module built under `src/news/` (+ `bun run
       conservative multi-word matching, bare group words ("Tata"/"Adani") and word-colliding
       tickers (OIL/SAIL/TITAN/TRENT) deliberately unmatched; unmatched-headline sample +
       `aliasCoverage()` gap report logged by `news:ingest` to grow the dictionary.
-- [ ] ⏳ Deployed + verified live on networked infra; confirm feed URLs (esp. BSE schema);
-      monitor daily volume/dupe rate.
+- [x] **Live-fetch fixes (2026-07-18)** — first live run showed MONEYCONTROL + BSE
+      "fetch failed"; root-caused and fixed:
+      1. **UA blocking:** both sites 403 the bot-style UA (`compatible; QuantSwingNewsBot`),
+         200 with a browser UA (curl-verified) → `fetch.ts` now sends a browser UA +
+         supports per-source headers.
+      2. **Moneycontrol RSS is FROZEN at 23 Apr 2024** (every item, both feeds — dead
+         regardless of UA) → **replaced with LIVEMINT** (`livemint.com/rss/markets`,
+         verified fresh same-day items).
+      3. **BSE was the wrong endpoint + dialect** (`notices.xml` = RSS of exchange-circular
+         PDFs) → repointed at the **AnnGetData corp-announcements JSON API** with the
+         Referer header it requires (WAF-pass verified); `parseBse` now handles the JSON
+         `{Table:[…]}` shape + "No Record Found!" alongside legacy XML.
+      4. **Frozen-feed detector:** per-source `newestItem` in the ingest report + a
+         `⚠️ FROZEN?` status when the newest item is >3 days old (would have caught #2
+         instantly).
+      Live smoke test: ET 50 · LiveMint 35 · Google 100 items, all fresh; BSE fetch passes,
+      parses empty. 188/188 tests, typecheck clean.
+- [ ] ⏳ **BSE params**: confirm the AnnGetData query params on infra (open
+      bseindia.com/corporates/ann.html → devtools network tab → copy the request the page
+      makes; probes here consistently return "No Record Found!"). Then monitor daily
+      volume/dupe rate on the 15-min cron.
 - **Done when:** articles/day flowing for all 4 sources, deduped, ≥90% of matched symbols
   correct on a manual sample. **Archive start date = sentiment backtest clock start.**
-  *(Pending the live-deploy step above — code + unit/integration verification done in-repo.)*
+  *(3 of 4 sources verified live + fresh; BSE pending the param confirmation above.)*
 
 ### B4. Fundamentals: snapshotter + point-in-time backfill — *clock #2 + the unblock* ⏰
 - [ ] Weekly snapshotter: current Screener/NSE fundamentals per stock with `fetchedAt`

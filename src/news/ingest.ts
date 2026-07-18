@@ -5,7 +5,7 @@ import { prisma } from '@services/prisma';
 import { isDuplicateTitle, normalizeTitle } from './dedupe';
 import { fetchFeed } from './fetch';
 import { parseFeed } from './rssParser';
-import { NEWS_SOURCES } from './sources';
+import { NEWS_SOURCES, resolveSourceUrl } from './sources';
 import { mapArticleSymbols } from './symbolMapper';
 import type { NewsSource, NewsSourceId } from './types';
 
@@ -22,6 +22,12 @@ export type SourceResult = {
   alreadyStored: number;
   /** Inserted articles that matched zero universe symbols (dictionary-growth log). */
   unmatched: number;
+  /**
+   * Newest feed-declared publish time among parsed items (ISO), or null. A feed
+   * whose newest item is days old is FROZEN even though counts look healthy —
+   * this is how Moneycontrol's dead RSS (frozen at Apr 2024) is caught.
+   */
+  newestItem: string | null;
   /** null on success; a short message when the feed fetch/parse failed. */
   error: string | null;
 };
@@ -73,10 +79,11 @@ export const ingestNews = async (sources: readonly NewsSource[] = NEWS_SOURCES):
       duplicates: 0,
       alreadyStored: 0,
       unmatched: 0,
+      newestItem: null,
       error: null,
     };
 
-    const xml = await fetchFeed(source.url);
+    const xml = await fetchFeed(resolveSourceUrl(source, fetchedAt), source.headers);
     if (xml === null) {
       result.error = 'fetch failed';
       perSource.push(result);
@@ -85,6 +92,8 @@ export const ingestNews = async (sources: readonly NewsSource[] = NEWS_SOURCES):
 
     const items = parseFeed(xml, source.dialect);
     result.parsed = items.length;
+    result.newestItem =
+      items.reduce<string | null>((max, i) => (i.publishedAt && (!max || i.publishedAt > max) ? i.publishedAt : max), null);
 
     for (const item of items) {
       const title = item.title.trim();

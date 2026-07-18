@@ -7,9 +7,9 @@ import type { FeedDialect, RawFeedItem } from './types';
  * are messy, so a malformed item is skipped, never thrown — ingestion must
  * degrade, not crash.
  *
- * Covers standard RSS `<item>` and Atom `<entry>` (ET Markets, Moneycontrol,
- * Google News). BSE corporate announcements use a bespoke XML shape handled by
- * `parseBse`; its exact live schema must be confirmed on infra (see sources.ts).
+ * Covers standard RSS `<item>` and Atom `<entry>` (ET Markets, LiveMint,
+ * Google News). BSE corporate announcements use a bespoke JSON/XML shape handled
+ * by `parseBse`; its exact live schema must be confirmed on infra (see sources.ts).
  */
 
 const HTML_ENTITIES: Record<string, string> = {
@@ -98,27 +98,61 @@ export const parseRss = (xml: string): RawFeedItem[] => {
   return entries.map(parseRssItem).filter((i): i is RawFeedItem => i !== null);
 };
 
-/**
- * Parses BSE corporate-announcement XML. BSE's announcement API returns rows
- * (commonly `<Table>…</Table>`) with fields like HEADLINE/NEWSSUB, SCRIP_CD,
- * NEWS_DT, and an attachment name. This reader is tolerant of field-name
- * variants; the exact live schema must be confirmed against the real endpoint
- * (see sources.ts). Falls back to the RSS reader if no rows are found.
- */
-export const parseBse = (xml: string): RawFeedItem[] => {
-  const rows = blocks(xml, 'Table');
-  if (!rows.length) return parseRss(xml);
+/** One row of BSE's announcement payload (JSON or XML), field names as published. */
+type BseRow = Record<string, unknown>;
 
+const bseField = (row: BseRow, ...keys: string[]): string | null => {
+  for (const k of keys) {
+    const v = row[k];
+    if (typeof v === 'string' && v.trim()) return v;
+  }
+  return null;
+};
+
+/** Maps one BSE announcement row (shared by the JSON and XML paths). */
+const bseRowToItem = (get: (...keys: string[]) => string | null): RawFeedItem | null => {
+  const title = cleanText(get('HEADLINE', 'NEWSSUB', 'NEWS_SUB'));
+  if (!title) return null;
+  const attach = cleanText(get('ATTACHMENTNAME'));
+  const url = attach ? `https://www.bseindia.com/xml-data/corpfiling/AttachLive/${attach}` : '';
+  const publishedAt = toIso(get('NEWS_DT', 'DissemDT', 'News_submission_dt', 'DT_TM'));
+  const body = cleanText(get('MORE', 'NEWSSUB')) || null;
+  return { title, url, publishedAt, body };
+};
+
+/**
+ * Parses BSE corporate announcements. The live AnnGetData API returns JSON —
+ * `{ Table: [ { NEWSSUB, HEADLINE, NEWS_DT, ATTACHMENTNAME, … } ] }`, or the
+ * literal string "No Record Found!" for an empty window — while older feeds
+ * used the same field names as XML `<Table>` rows. Both shapes are handled,
+ * tolerant of field-name variants; anything else falls back to the RSS reader.
+ */
+export const parseBse = (payload: string): RawFeedItem[] => {
+  const trimmed = payload.trim();
+
+  // JSON path (the current AnnGetData API).
+  if (trimmed.startsWith('{') || trimmed.startsWith('"') || trimmed.startsWith('[')) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (typeof parsed === 'string') return []; // "No Record Found!"
+      const table = Array.isArray(parsed)
+        ? parsed
+        : ((parsed as { Table?: unknown }).Table ?? []);
+      if (!Array.isArray(table)) return [];
+      return table
+        .filter((r): r is BseRow => typeof r === 'object' && r !== null)
+        .map((row) => bseRowToItem((...keys) => bseField(row, ...keys)))
+        .filter((i): i is RawFeedItem => i !== null);
+    } catch {
+      return [];
+    }
+  }
+
+  // XML path (legacy <Table> rows), else fall back to plain RSS.
+  const rows = blocks(payload, 'Table');
+  if (!rows.length) return parseRss(payload);
   return rows
-    .map((row): RawFeedItem | null => {
-      const title = cleanText(firstNonEmpty(tagText(row, 'HEADLINE'), tagText(row, 'NEWSSUB'), tagText(row, 'NEWS_SUB')));
-      if (!title) return null;
-      const attach = cleanText(tagText(row, 'ATTACHMENTNAME'));
-      const url = attach ? `https://www.bseindia.com/xml-data/corpfiling/AttachLive/${attach}` : '';
-      const publishedAt = toIso(firstNonEmpty(tagText(row, 'NEWS_DT'), tagText(row, 'DissemDT'), tagText(row, 'News_submission_dt')));
-      const body = cleanText(firstNonEmpty(tagText(row, 'MORE'), tagText(row, 'NEWSSUB'))) || null;
-      return { title, url, publishedAt, body };
-    })
+    .map((row) => bseRowToItem((...keys) => firstNonEmpty(...keys.map((k) => tagText(row, k)))))
     .filter((i): i is RawFeedItem => i !== null);
 };
 

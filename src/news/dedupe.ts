@@ -1,6 +1,6 @@
 /**
  * Title normalization + Jaccard dedup (ROADMAP B3). The same story is syndicated
- * across ET / Moneycontrol / Google News with near-identical headlines; counting
+ * across ET / LiveMint / Google News with near-identical headlines; counting
  * it once keeps the sentiment signal from double-weighting a single event.
  *
  * All pure functions — the ingestion job supplies the recent-title corpus from

@@ -84,6 +84,28 @@ describe('parseBse', () => {
     // No <Table> → RSS fallback path.
     expect(parseFeed(RSS, 'bse')).toHaveLength(2);
   });
+
+  test('parses the AnnGetData JSON shape ({ Table: [...] })', () => {
+    const json = JSON.stringify({
+      Table: [
+        { NEWSSUB: 'Reliance Industries - Outcome of Board Meeting', NEWS_DT: '2026-07-17T14:05:00', ATTACHMENTNAME: 'ril.pdf', SCRIP_CD: 500325 },
+        { HEADLINE: 'TCS - Investor Presentation', DT_TM: '2026-07-17T09:30:00' },
+        { SCRIP_CD: 500001 }, // no title → skipped
+      ],
+    });
+    const items = parseBse(json);
+    expect(items).toHaveLength(2);
+    expect(items[0]!.title).toContain('Outcome of Board Meeting');
+    expect(items[0]!.url).toContain('ril.pdf');
+    expect(items[0]!.publishedAt).toContain('2026-07-17');
+    expect(items[1]!.title).toContain('Investor Presentation');
+  });
+
+  test('JSON empty-window and garbage responses yield no items', () => {
+    expect(parseBse('"No Record Found!"')).toEqual([]);
+    expect(parseBse('{}')).toEqual([]);
+    expect(parseBse('{ broken json')).toEqual([]);
+  });
 });
 
 describe('parseFeed', () => {

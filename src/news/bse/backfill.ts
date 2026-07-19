@@ -2,7 +2,7 @@ import { env } from '@config/env';
 import { prisma } from '@services/prisma';
 import { NewsOrigin } from '@generated/prisma/enums';
 
-import { isDuplicateTitle, normalizeTitle } from '../dedupe';
+import { isDuplicateDatedTitle, normalizeTitle, type DatedTitle } from '../dedupe';
 import { sliceDateRange } from '../gdelt/download';
 import { mapArticleSymbols } from '../symbolMapper';
 import type { RawFeedItem } from '../types';
@@ -75,8 +75,13 @@ export type ProcessBseResult = {
  */
 export const bseCompanyKey = (body: string | null): string => normalizeTitle(body?.split(' — ')[0] ?? '');
 
-/** Per-company normalized-title corpus for filing dedupe. */
-export type BseCorpus = Map<string, Set<string>>;
+/**
+ * Per-company DATED-title corpus for filing dedupe: filings dedupe within
+ * their company AND within ±NEWS_DEDUPE_WINDOW_DAYS of their own
+ * dissemination time (the live recency rule in article time) — a quarterly
+ * recurrence of a templated title is a new event, not a duplicate.
+ */
+export type BseCorpus = Map<string, DatedTitle[]>;
 
 /**
  * Pure processing core (mirrors the GDELT one): identity check → per-company
@@ -115,10 +120,11 @@ export const processBseItems = (
     const companyKey = bseCompanyKey(item.body);
     let companyTitles = corpus.get(companyKey);
     if (!companyTitles) {
-      companyTitles = new Set();
+      companyTitles = [];
       corpus.set(companyKey, companyTitles);
     }
-    if (isDuplicateTitle(titleNormalized, companyTitles)) {
+    const windowMs = env.NEWS_DEDUPE_WINDOW_DAYS * 86_400_000;
+    if (isDuplicateDatedTitle(titleNormalized, publishedAt.getTime(), companyTitles, windowMs)) {
       duplicates++;
       continue;
     }
@@ -136,7 +142,7 @@ export const processBseItems = (
       availableAt: new Date(publishedAt.getTime() + latencyMinutes * 60_000),
       origin: NewsOrigin.BSE_BACKFILL,
     });
-    companyTitles.add(titleNormalized);
+    companyTitles.push({ titleNormalized, publishedAtMs: publishedAt.getTime() });
     existingKeys.add(key);
     if (symbols.length > 0) mapped++;
     else unmatched++;
@@ -173,18 +179,18 @@ export const loadBseBackfillContext = async (
       source: BSE_SOURCE,
       publishedAt: { gte: new Date(from.getTime() - pad), lte: new Date(to.getTime() + pad) },
     },
-    select: { titleNormalized: true, url: true, body: true },
+    select: { titleNormalized: true, url: true, body: true, publishedAt: true },
   });
   const corpus: BseCorpus = new Map();
   const existingKeys = new Set<string>();
   for (const r of rows) {
     const companyKey = bseCompanyKey(r.body);
-    let set = corpus.get(companyKey);
-    if (!set) {
-      set = new Set();
-      corpus.set(companyKey, set);
+    let list = corpus.get(companyKey);
+    if (!list) {
+      list = [];
+      corpus.set(companyKey, list);
     }
-    set.add(r.titleNormalized);
+    list.push({ titleNormalized: r.titleNormalized, publishedAtMs: r.publishedAt.getTime() });
     existingKeys.add(r.url);
   }
   return { corpus, existingKeys };

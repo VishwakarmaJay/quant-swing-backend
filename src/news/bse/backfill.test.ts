@@ -77,7 +77,10 @@ describe('processBseItems — idempotency and duplicate handling', () => {
   test('near-duplicate titles within the SAME company are dropped', () => {
     const company = bseCompanyKey('Reliance Industries Ltd — quarterly results');
     const corpus: BseCorpus = new Map([
-      [company, new Set([normalizeTitle('Reliance reports record quarterly consolidated results March')])],
+      [
+        company,
+        [{ titleNormalized: normalizeTitle('Reliance reports record quarterly consolidated results March'), publishedAtMs: new Date('2025-03-27T10:00:00Z').getTime() }],
+      ],
     ]);
     const result = processBseItems(
       [item({ title: 'Reliance reports record quarterly consolidated results for March', url: 'https://x.test/other.pdf' })],
@@ -87,6 +90,24 @@ describe('processBseItems — idempotency and duplicate handling', () => {
       new Set(),
     );
     expect(result.rows).toHaveLength(0);
+    expect(result.duplicates).toBe(1);
+  });
+
+  test('the SAME templated title recurring months later is a NEW event, not a duplicate', () => {
+    const corpus: BseCorpus = new Map();
+    const result = processBseItems(
+      [
+        item({ title: 'Board Meeting Intimation', url: 'https://x.test/q4.pdf', publishedAt: '2025-01-15T10:00:00.000' }),
+        item({ title: 'Board Meeting Intimation', url: 'https://x.test/q1.pdf', publishedAt: '2025-04-15T10:00:00.000' }),
+        // …but the same title 1 day later IS a duplicate (re-filing/correction).
+        item({ title: 'Board Meeting Intimation', url: 'https://x.test/q1b.pdf', publishedAt: '2025-04-16T10:00:00.000' }),
+      ],
+      IMPORTED_AT,
+      30,
+      corpus,
+      new Set(),
+    );
+    expect(result.rows).toHaveLength(2);
     expect(result.duplicates).toBe(1);
   });
 

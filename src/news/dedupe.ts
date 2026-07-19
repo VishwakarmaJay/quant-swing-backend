@@ -65,3 +65,30 @@ export const isDuplicateTitle = (
   }
   return false;
 };
+
+/** A normalized title with its article-time, for time-windowed dedup. */
+export type DatedTitle = { titleNormalized: string; publishedAtMs: number };
+
+/**
+ * Time-windowed variant for HISTORICAL processing (B3.5/B3.6): a candidate is
+ * a duplicate only of titles published within ±`windowMs` of it — the live
+ * pipeline's recency rule transposed to article time. Without this, a
+ * multi-year backfill corpus collapses every recurrence of a periodic
+ * templated title (quarterly "Board Meeting Intimation"…) into its first
+ * occurrence — measured live: 64%+ of a 2.5-year BSE run wrongly dropped.
+ */
+export const isDuplicateDatedTitle = (
+  candidateNormalized: string,
+  candidatePublishedAtMs: number,
+  corpus: readonly DatedTitle[],
+  windowMs: number,
+  threshold: number = DEFAULT_JACCARD_THRESHOLD,
+): boolean => {
+  const candSet = titleTokens(candidateNormalized);
+  for (const other of corpus) {
+    if (Math.abs(other.publishedAtMs - candidatePublishedAtMs) > windowMs) continue;
+    if (other.titleNormalized === candidateNormalized) return true;
+    if (jaccard(candSet, titleTokens(other.titleNormalized)) >= threshold) return true;
+  }
+  return false;
+};

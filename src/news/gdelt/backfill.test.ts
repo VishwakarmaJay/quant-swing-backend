@@ -20,7 +20,7 @@ describe('processGdeltRecords — row construction', () => {
     const result = processGdeltRecords(
       [record({ url: 'https://x.test/ril', title: 'Reliance Industries posts record quarterly profit' })],
       IMPORTED_AT,
-      new Set(),
+      [],
       new Set(),
     );
     expect(result.rows).toHaveLength(1);
@@ -44,7 +44,7 @@ describe('processGdeltRecords — symbol mapping integration (real mapper + alia
         record({ url: 'https://x.test/3', title: 'Monsoon arrives early across the country' }),
       ],
       IMPORTED_AT,
-      new Set(),
+      [],
       new Set(),
     );
     expect(result.rows[0]!.symbols).toEqual(['RELIANCE']);
@@ -59,7 +59,7 @@ describe('processGdeltRecords — symbol mapping integration (real mapper + alia
     const result = processGdeltRecords(
       [record({ url: 'https://x.test/sbilife', title: 'SBI Life reports strong premium growth' })],
       IMPORTED_AT,
-      new Set(),
+      [],
       new Set(),
     );
     // "sbi" must NOT fire on "SBI Life" (SBILIFE is its own universe stock).
@@ -69,7 +69,9 @@ describe('processGdeltRecords — symbol mapping integration (real mapper + alia
 
 describe('processGdeltRecords — duplicate handling', () => {
   test('near-duplicate titles vs the corpus are skipped (Jaccard, shared code)', () => {
-    const corpus = new Set([normalizeTitle('Reliance Industries posts record quarterly profit for Q1')]);
+    const corpus = [
+      { titleNormalized: normalizeTitle('Reliance Industries posts record quarterly profit for Q1'), publishedAtMs: new Date('2025-06-13T10:00:00Z').getTime() },
+    ];
     const result = processGdeltRecords(
       [record({ url: 'https://x.test/dupe', title: 'Reliance Industries posts record quarterly profit in Q1' })],
       IMPORTED_AT,
@@ -87,7 +89,7 @@ describe('processGdeltRecords — duplicate handling', () => {
         record({ url: 'https://b.test/story', title: 'Tata Motors launches new EV platform in a partnership' }),
       ],
       IMPORTED_AT,
-      new Set(),
+      [],
       new Set(),
     );
     expect(result.rows).toHaveLength(1);
@@ -101,7 +103,7 @@ describe('processGdeltRecords — duplicate handling', () => {
         record({ url: 'https://x.test/b', title: 'Infosys announces leadership change in cloud division' }),
       ],
       IMPORTED_AT,
-      new Set(),
+      [],
       new Set(),
     );
     expect(result.rows).toHaveLength(2);
@@ -115,7 +117,7 @@ describe('processGdeltRecords — idempotency', () => {
   ];
 
   test('re-processing the same records with the post-run state creates zero rows', () => {
-    const corpus = new Set<string>();
+    const corpus: { titleNormalized: string; publishedAtMs: number }[] = [];
     const existingUrls = new Set<string>();
 
     const first = processGdeltRecords(records, IMPORTED_AT, corpus, existingUrls);
@@ -131,7 +133,7 @@ describe('processGdeltRecords — idempotency', () => {
 
   test('URL identity check precedes Jaccard (stable-identifier idempotency)', () => {
     const existingUrls = new Set(['https://x.test/1']);
-    const result = processGdeltRecords([records[0]!], IMPORTED_AT, new Set(), existingUrls);
+    const result = processGdeltRecords([records[0]!], IMPORTED_AT, [], existingUrls);
     expect(result.alreadyStored).toBe(1);
     expect(result.duplicates).toBe(0);
     expect(result.rows).toHaveLength(0);

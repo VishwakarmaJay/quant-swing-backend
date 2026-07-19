@@ -200,17 +200,30 @@ validate on the live-only subset as it accrues.
       30%→~88%; the same day-bucketed index replaced an O(n²) flat scan that CPU-locked the
       import host. Regression tests pin cross-company + cross-quarter survival.
 
-### ✅ Validation gate + observability (2026-07-18/19) — *measure the archive before B7 builds on it*
+### ✅ Validation gate + observability (2026-07-18/19) — *measure the archive before B7 builds on it* — CLOSED
+Archive after all loads + fixes: **GDELT 114,859 (81,001 mapped) · BSE_BACKFILL 57,025
+(100% mapped) · LIVE_RSS/BSE ~1k**. Manual precision audits: **BSE 100% · GDELT ≥90%**
+(post-fix). Deployed on AWS (`docs/DEPLOYMENT_AWS.md`).
 - [x] **`ingest_run` persistence + Telegram alerts** (`src/news/ingestRun.ts`): every ingest
       pass writes a row (per-source, totals, `status`, alert lines) and pages the operator —
       FROZEN feed immediate; source-fail / zero-parse / sidecar-down on the 2nd consecutive
       run; onset-only (no repeat-spam). Closes the architecture review's console-only-ops
       hole now that the archive lives on an unattended VM.
-- [x] **Alias growth + remap** (`bun run news:remap`): grew `companyAliases.ts` from the
-      unmatched-headline log (10 forms — "sun pharmaceutical", one97/one 97, "ambuja cements",
-      "tata motors", etc.) and re-tagged stored rows; institutionalizes the B3 growth loop.
+- [x] **Alias growth + remap** (`bun run news:remap`, now domain-aware): grew
+      `companyAliases.ts` from the unmatched-headline log (10 forms) and re-tagged stored rows;
+      institutionalizes the B3 growth loop.
 - [x] Per-origin composition / coverage / timestamp-integrity checks (availableAt exactly
       publishedAt+latency, zero negatives/futures); manual precision sample of imported tags.
+- [x] **GDELT precision fix — the gate did its job** (`docs/GDELT_PRECISION_FIX.md`). The audit
+      caught GDELT symbol-mapping at ~80% (BRITANNIA ~50%): the GAL bulk downloader had dropped
+      the DOC API's `sourcecountry:IN`, so single-word aliases collided with foreign homonyms
+      (Britannia the Welsh bridge / cruise ship / coin, Lupin the Netflix show, Colgate the US
+      university, "federal bank fraud"). Fix (6 steps, S1–S6): Indian-domain allowlist
+      (`src/news/indianDomains.ts`, +36 tests) + surgical `ALIAS_EXCLUSIONS` homonym guards
+      (evidence showed the domain filter is the primary lever; aggressive alias-stripping
+      rejected to protect recall) + a domain-aware remap that **removed 24,671 false tags** +
+      the downloader domain-filtered at source. **Re-audit: GDELT 30/30, BRITANNIA ~96% — gate
+      CLEARED.** All in the derivation layer; no scores/prices/factors touched; 328 tests pass.
 
 ### ✅ B4. Fundamentals: snapshotter + point-in-time backfill — *clock #2 + the unblock* ⏰ — DONE
 Module `src/fundamentals/` (+13 tests, 202/202 pass) · migration `b4_fundamentals`
@@ -300,11 +313,22 @@ scorer `src/news/scoreArticles.ts` + `bun run sentiment:score` · migration `b6_
       correctly neutral. Known miss: "shares tank as SEBI opens probe" scored weakly
       positive — headline-level FinBERT limitation, noted for B7's aggregation design.
 
-### B7. SentimentFactor — ⏳ gated on ~6 months of B3 archive (clock started 2026-07-18 → ready ≈ Jan 2027)
-- [ ] Aggregation: recency-weighted, deduped, chase-decay → per-stock 0–100
-- [ ] Observational first; sentiment bucket + gate 7 activate automatically
-- [ ] Walk-forward once the archive window is long enough to split honestly
-- **Done when:** sentiment's marginal OOS contribution measured over ≥6mo of archive.
+### B7. SentimentFactor — 🟢 DATA-UNBLOCKED (2026-07-19) via B3.5/B3.6 backfills; ready to build
+The ~6-month live-clock gate is **softened**: the GDELT (media, 2025-01→) + BSE (filings,
+2024-01→) backfills give ~2.5yr of backtestable, provenance-tagged, precision-audited
+history *now* — no longer calendar-blocked to Jan 2027. Caveat that shapes the build:
+backfilled rows carry *reconstructed* `availableAt`, so every evaluation must run
+**per-origin** (live-only vs +BSE_BACKFILL vs +GDELT), proving any edge on the strongest
+evidence tier before believing it.
+- [ ] Aggregation: recency-weighted, deduped, chase-decay → per-stock 0–100, reading
+      `availableAt` only (point-in-time); injected via the `ctx` pre-pass pattern (like
+      `sectorPeers`/`fundamentals`).
+- [ ] Observational first (weight 0, golden byte-identical); sentiment bucket + gate 7
+      activate automatically only when the factor is listed.
+- [ ] Attribution + selection tests, then **embargoed walk-forward, split per-origin**.
+- **Done when:** sentiment's marginal OOS contribution is measured on the walk-forward,
+  validated on the live/BSE (strong-evidence) subset. **Prereqs met:** B6 scoring done,
+  archive loaded + precision-audited (see the validation-gate + `GDELT_PRECISION_FIX` rows).
 
 ### ✅ B8. Robustness upgrades — DONE (2026-07-18; one honest residual) 🧰
 - [x] **B8.1 Deep backfill:** `backfill:ohlcv all 2000` → **1,356 candles/instrument

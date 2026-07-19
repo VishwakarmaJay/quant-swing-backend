@@ -242,33 +242,45 @@ ingest cron pass, or run `bun run sentiment:score` manually.
 5. **250-record cap per query window (DOC API only).** A busy symbol × 30-day window can
    truncate (detected + warned). Mitigation: lower `GDELT_BATCH_DAYS`; the run stays
    idempotent. The GAL path has no such cap.
-6. **Query recall is bounded by the alias dictionary.** *DOC API:* a company is searched by
+6. **Country filter is mandatory — global English news pollutes single-word aliases.**
+   *(Learned 2026-07-19, `GDELT_PRECISION_FIX.md`.)* GAL v1 filtered only `lang=en` and
+   symbol-mapping precision fell to ~80% (BRITANNIA ~50%): "Britannia" matched a Welsh
+   bridge / cruise ship / gold coin, "Lupin" the Netflix show, "Colgate" a US university,
+   "federal bank" a US crime. **Fix:** both the downloader and `news:remap` now require
+   `isIndianNewsDomain(url)` for GDELT rows (`src/news/indianDomains.ts`) — restoring the DOC
+   API's `sourcecountry:IN`. Post-fix GDELT audits at ≥90% (30/30 sample; BRITANNIA ~96%).
+   BSE/live rows are Indian-sourced already and unaffected.
+7. **Query recall is bounded by the alias dictionary.** *DOC API:* a company is searched by
    its *first* curated alias only — GDELT answers parenthesized-OR phrase queries with its
    429 throttle message even in isolation (live-verified 2026-07-18). *GAL:* the download
-   prefilter matches **any** alias in the title (a single combined regex), so GAL recall is
-   materially better. Either way the mapper keeps its precision rules on what comes back.
+   prefilter matches **any** alias in an Indian-domain title (a single combined regex), so
+   GAL recall is materially better. Either way the mapper keeps its precision rules on
+   what comes back.
    *(dedup note)* Historical dedup uses a day-bucketed, time-windowed `DatedTitleIndex`
    (`dedupe.ts`): a candidate is a duplicate only of titles within ±`NEWS_DEDUPE_WINDOW_DAYS`
    of its **own** publication time. The earlier flat-array scan was O(n²) and CPU-locked the
    import host at 171k records; the index makes each check near-constant and is
    brute-force-equivalence tested.
-7. **GDELT titles are tokenized** (spaces around punctuation). A cleanup pass reattaches
+8. **GDELT titles are tokenized** (spaces around punctuation). A cleanup pass reattaches
    punctuation deterministically, but stored titles can differ cosmetically from the
    publisher's exact headline — dedup and mapping are punctuation-insensitive, so this is
    cosmetic only.
-8. **DOC API coverage starts 2017-01-01**, and the endpoint is free/unofficial — the same
-   fragility class as every B3 source (rate policy or format can change without notice).
-9. **Free-text relevance noise.** GDELT full-text search can return articles whose
-   *title* never mentions the company (match was in the body we don't get). Those rows
-   are stored with `symbols = []` (unmatched) — archived but invisible to per-stock
-   research; the precision gate stays with the mapper, not the query.
+9. **Coverage starts 2017-01-01 (DOC API) / 2020-01-01 (GAL)**, and both endpoints are
+   free/unofficial — the same fragility class as every B3 source (rate policy or format can
+   change without notice).
+10. **Free-text relevance noise.** GDELT can return articles whose *title* never mentions
+   the company (match was in the body we don't get). Those rows are stored with
+   `symbols = []` (unmatched) — archived but invisible to per-stock research; the precision
+   gate stays with the mapper, not the query.
 
 ## 9. Where things live
 
 | Piece | File |
 |---|---|
-| **GAL bulk downloader (preferred)** | `src/scripts/downloadGalArchive.ts` (`bun run news:gal:download`) |
+| **GAL bulk downloader (preferred, domain-filtered)** | `src/scripts/downloadGalArchive.ts` (`bun run news:gal:download`) |
 | **GAL importer → shared pipeline** | `src/scripts/importGalArchive.ts` (`bun run news:gal:import`) |
+| **Indian-domain allowlist (precision fix)** | `src/news/indianDomains.ts` · see `GDELT_PRECISION_FIX.md` |
+| **Domain-aware remap** | `src/scripts/remapSymbols.ts` (`bun run news:remap`) |
 | DOC API client (networking only) | `src/news/gdelt/gdeltClient.ts` |
 | Payload parsing + timestamp reconstruction | `src/news/gdelt/parser.ts` |
 | Range slicing, query building, pacing | `src/news/gdelt/download.ts` |

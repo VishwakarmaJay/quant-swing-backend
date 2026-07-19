@@ -617,12 +617,15 @@ caveats; 13–17 are engineering/scope.)
 2. **Technicals-only — the orthogonal buckets are empty.** Sentiment + Fundamental factors
    are not built; their weights renormalize out (composite = technical score). The 4 weighted
    factors are correlated trend/momentum variants — low diversity, ρ≈0 discrimination.
-3. **Fundamental factor is data-blocked.** No point-in-time historical fundamentals exist
-   (schema, ingestion, source — none). Current Screener/NSE values would be lookahead for a
-   backtest. Sourcing dated as-of fundamentals is the highest-leverage open task.
-4. **Sentiment can't be backtested for ~6 months** even once built — a news archive has to
-   accumulate in real time (a clock that hasn't been started; needs RSS ingestion + FinBERT
-   sidecar, also not built).
+3. **Fundamental factor is data-blocked.** ~~No point-in-time historical fundamentals
+   exist.~~ **[RESOLVED — B4/B5, 2026-07-18]** `quarterly_fundamental` holds 1,984
+   announcement-dated quarters across 167/167 symbols; `FundamentalFactor` built + measured
+   (floor-mechanism favoured, weight held observational). See `FUNDAMENTAL_FACTOR.md`.
+4. **Sentiment can't be backtested for ~6 months.** **[SOFTENED — B3.5/B3.6/B6, 2026-07-19]**
+   The live clock started 2026-07-18, but the GDELT (media, 2025-01→) + BSE (filings,
+   2024-01→) backfills now give ~2.5yr of provenance-tagged, precision-audited, FinBERT-scored
+   history — B7 is data-unblocked *now* (validate per-origin; backfilled `availableAt` is
+   reconstructed). See `GDELT_BACKFILL.md`, `BSE_BACKFILL.md`, `GDELT_PRECISION_FIX.md`.
 5. **BULL remains net-negative** (−0.32 OOS even with the pullback entry). The buy-strength
    style is structurally wrong there, and the pullback style only reduces the damage.
 6. **The conviction/composite score is uninformative (ρ ≈ 0)** — yet it drives position
@@ -663,17 +666,19 @@ caveats; 13–17 are engineering/scope.)
 
 ## 17. Current state & what's next
 
-**State:** a complete, reproducible, honestly-measured research platform. 149 tests + golden
-gate green. Two OOS-validated relative levers (SRS selection, BULL pullback+resumption)
-combine to PF 0.91 vs baseline 0.78 — near-breakeven, not yet profitable.
+**State:** a complete, reproducible, honestly-measured research platform. **[UPDATED
+2026-07-19]** 328 tests + golden gate green. Two OOS-validated relative levers (SRS
+selection, BULL pullback+resumption) combine to PF 0.91 vs baseline 0.78 — near-breakeven,
+not yet profitable. Since the original writing: B4/B5 fundamentals + factor done, B6 FinBERT
+sidecar done, B8 robustness (deep OHLCV, VIX, embargo) done, **B3.5/B3.6 news backfills
+loaded + precision-audited** (GDELT media + BSE filings, ~2.5yr), and the whole stack is
+**deployed on AWS** (`DEPLOYMENT_AWS.md`). Master tracker: `ROADMAP_CHECKLIST.md`.
 
-**Highest-leverage next moves, in order:**
-1. **Source point-in-time historical fundamentals** (external data-engineering task) → build
-   FundamentalFactor → the orthogonal signal most likely to close the edge gap (§16.3).
-2. **Start the news-archive clock** (RSS ingestion) — cheap now, unblocks Sentiment ~6 months
-   later (§16.4).
-3. **Portfolio-level backtest** (caps, sizing, one capital base) → makes "beat Nifty"
-   a real, fair gate (§16.8–9).
+**Highest-leverage next move:**
+1. **B7 — SentimentFactor**, now data-unblocked by the backfills: aggregation → observational
+   → embargoed walk-forward, split per-origin (live/BSE strong-evidence vs GDELT). Then B9
+   (joint rerun) → B10 gate re-read. Earlier "source fundamentals / start the news clock"
+   moves are **done** (B4/B5, B3/B3.5/B3.6).
 4. Historical-constituent data to kill survivorship bias (§16.7) — harder, lower priority.
 5. Only after new orthogonal signal exists: revisit learned weighting through the
    walk-forward harness (§16.6, §16.11).

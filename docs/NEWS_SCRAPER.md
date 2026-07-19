@@ -96,14 +96,18 @@ First live pass: 241 parsed → 124 stored (116 cross-source dupes caught), 49 s
   test). Matching is case-insensitive, word-boundary-anchored, whitespace-flexible.
   Deliberately **not** matched: bare tickers colliding with English words (TITAN, TRENT,
   OIL, SAIL), bare group names ("Tata", "Adani", "Bajaj") that map to many members.
-- **`ALIAS_EXCLUSIONS`** — negative-lookahead blocks for group prefixes: bare `sbi` does
-  not match "SBI **Life**" (a different universe stock!), "SBI **Funds/Capital/Cards**…" —
-  the single failure mode found in the live precision audit. "SBI raises rates" still
-  maps to SBIN.
-- **Measured precision:** manual audit of all 54 mapped articles from the first live run
-  (75 symbol-assignments, bodies verified for every multi-symbol tag): **92.0%**, all six
-  misses being the SBI-subsidiary mode → exclusions added, stored rows remapped →
-  **100% on the audited sample**.
+- **`ALIAS_EXCLUSIONS`** — negative-lookahead blocks: (a) group prefixes — bare `sbi` does
+  not match "SBI **Life**" (a different universe stock!), "SBI **Funds/Capital/Cards**…";
+  (b) **homonym guards** (2026-07-19) — `britannia`+bridge/beach/coin/…, `lupin`+series/…,
+  `colgate`+university/…, `federal bank`+fraud/… so foreign homonyms don't tag the company.
+  "SBI raises rates" / "Britannia Q1" still map.
+- **Country filter for historical GDELT** — media backfill rows are kept only from Indian
+  outlets (`src/news/indianDomains.ts`); global English news otherwise collides single-word
+  aliases with foreign homonyms. Live feeds are Indian-sourced already. See
+  [`GDELT_PRECISION_FIX.md`](./GDELT_PRECISION_FIX.md).
+- **Measured precision:** live first-run audit **92% → 100%** (SBI exclusions). Backfill
+  audits (2026-07-19): **BSE_BACKFILL 100%**, **GDELT ≥90%** post domain-filter + homonym
+  guards (BRITANNIA ~50% → ~96%).
 - **Growth loop:** every run logs a sample of unmatched headlines + alias-coverage gaps —
   the dictionary is meant to be grown from this log over time.
 
@@ -185,13 +189,14 @@ status`. Two purpose-built alarms:
 | Source registry + URL resolution | `src/news/sources.ts` |
 | Fetcher (UA, headers, timeout) | `src/news/fetch.ts` |
 | RSS/Atom/BSE parser | `src/news/rssParser.ts` |
-| Symbol mapper + exclusions | `src/news/symbolMapper.ts`, `src/news/companyAliases.ts` |
+| Symbol mapper + exclusions (incl. homonym guards) | `src/news/symbolMapper.ts`, `src/news/companyAliases.ts` |
+| Indian-domain allowlist (GDELT precision) | `src/news/indianDomains.ts` · [`GDELT_PRECISION_FIX.md`](./GDELT_PRECISION_FIX.md) |
 | Dedup (live + `DatedTitleIndex` for backfills) | `src/news/dedupe.ts` |
 | Orchestrator | `src/news/ingest.ts` |
 | Observability (`ingest_run` + Telegram alerts) | `src/news/ingestRun.ts` |
 | Cron | `src/crons/newsIngest.ts` |
 | Manual run/report | `src/scripts/runNewsIngest.ts` (`bun run news:ingest`) |
-| Re-tag stored rows after alias growth | `src/scripts/remapSymbols.ts` (`bun run news:remap`) |
+| Domain-aware re-tag after alias growth | `src/scripts/remapSymbols.ts` (`bun run news:remap`) |
 | Historical backfills (provenance-tagged) | GDELT: [`GDELT_BACKFILL.md`](./GDELT_BACKFILL.md) · BSE filings: [`BSE_BACKFILL.md`](./BSE_BACKFILL.md) |
 | Schema | `prisma/schema.prisma` → `news_article` (+ `origin`, `availableAt`), `ingest_run` |
 | Env knobs | `NEWS_INGEST_INTERVAL_MS` · `NEWS_DEDUPE_WINDOW_DAYS` · `NEWS_FETCH_TIMEOUT_MS` |

@@ -16,48 +16,59 @@ decision support, not an execution bot.
 - Live at `git@github.com:VishwakarmaJay/quant-swing-backend` (pushed over HTTPS via `gh`).
 - Frontend is a separate repo (`quant-swing-frontend`).
 
-## Current state (Phases 1–4 complete)
+## Current state (Phases 1–4 + the Part-B research program complete; B9 is next)
 
-The **entire signal pipeline runs end-to-end and is backtested**:
+The **entire signal pipeline runs end-to-end, is backtested, and is deployed**:
 
 ```
-OHLCV → DataQuality → 5 factors → regime → WeightedStrategy → signal math
+OHLCV → DataQuality → 8 factors → regime → strategy (+ BULL pullback entry) → signal math
       → PortfolioManager → persist (versioned) → Telegram
 ```
 
-- **Phase 1** ✅ data foundation (historical OHLCV, universe of 166 equities + 3 indices, nightly update)
-- **Phase 2** ✅ 5 factors: Trend, Momentum, RelativeStrength, Volume, Volatility
-  (+ **SectorRelativeStrength** added later — built, observational/weight-0 pending Phase 6)
+- **Phase 1** ✅ data foundation (OHLCV — now 5.5yr/227k candles, universe of 166 equities + indices + India VIX)
+- **Phase 2** ✅ factor layer — Trend, Momentum, RelativeStrength, Volume, Volatility,
+  **SectorRelativeStrength** (production weight 0.25), **Fundamental** + **Sentiment** (observational)
 - **Phase 2.5** ✅ golden determinism gate (byte-identical factor output in CI)
 - **CI/CD** ✅ GitHub Actions (typecheck + test) + Docker → ghcr.io
 - **Phase 3** ✅ decision layer: regime, strategy, signal math, portfolio, persistence, delivery
-- **Phase 4** ✅ backtesting: replay engine, trade simulator (5 exit triggers), metrics, Nifty benchmark, parameter sweep
+- **Phase 4** ✅ backtesting: replay engine, trade simulator, metrics, Nifty benchmark, sweep
+- **Part B** ✅ portfolio-level backtest · news archive + GDELT/BSE backfills · point-in-time
+  fundamentals · FinBERT sidecar · embargoed walk-forward · deployed on AWS
 
-**112 tests pass**, `bun run typecheck` clean.
+**358 tests pass**, `bun run typecheck` clean.
 
-## ⚠️ The one thing you must know: the backtest says NO edge yet
+## ⚠️ The one thing you must know: still NO out-of-sample edge
 
-Over **~16 months / 981 trades**: profit factor **0.86**, expectancy **−0.22%/trade**,
-loses to Nifty (+10%). The **parameter sweep proves all 16 exit configs lose** → **the
-problem is the entries, not the exits.** The strategy currently runs on **4 technical
-factors only** (Sentiment + Fundamental not built; their weight-buckets renormalize out).
+The research program has removed roughly a third of the per-trade loss and validated it
+out-of-sample — but never crossed into profit:
 
-**Do NOT proceed to Phase 5 (paper trading)** — its gate is "beat Nifty," which the
-backtest already fails. See `SYSTEM.md` §7.5 and §13.
+- **Signal edge (deep 5.5yr window, production config):** 4,394 trades, PF **0.94**,
+  −0.097%/trade vs Nifty +42.9%.
+- **Portfolio level — the decisive gate:** OOS the book lost **−12.7%** (best config) vs
+  Nifty **−4.4%**. Portfolio truth is *worse* than signal truth, because a 2-slot book
+  takes only ~15% of signals and compounds the drift.
 
-## What to do next (recommended order)
+**Do NOT proceed to Phase 5 / B10 (paper trading)** — its gate is "beat Nifty
+risk-adjusted, net of costs, out-of-sample," which is currently failed by a wide margin.
+See `PORTFOLIO_BACKTEST.md` and `SYSTEM.md` §13.
 
-1. ~~**Sector-relative RS**~~ ✅ **built** (observational, weight 0) — the deferred half of
-   RelativeStrength. Selection test shows it improves backtested expectancy (−0.22 → −0.13) as an
-   orthogonal filter; weight deferred to Phase 6. See `ATTRIBUTION.md`.
-2. **Fundamental factor** (Screener/NSE) — backtestable orthogonal signal (Step-1 attribution says
-   favour orthogonal over more trend factors).
-3. **Sentiment factor** (FinBERT) — start the news archive now (can't backtest until ~6mo of it).
-4. **Phase 6** — factor pruning + joint learned weighting (this is where the SRS weight gets set),
-   using the Phase 4 backtest + attribution harness to measure what actually has edge.
+## What to do next
 
-> ⚠️ The backtest still shows **no net edge** (see below) — do these to *build* edge; Phase 5
-> (paper trading) stays gated until a backtest beats Nifty. Plan detail: `HANDOFF_NEXT_STEPS.md`.
+The master tracker is [`ROADMAP_CHECKLIST.md`](./ROADMAP_CHECKLIST.md) — trust it over this
+summary. In short:
+
+1. **B7 Phase 2 — measure sentiment.** The factor is built and observational; run
+   attribution + embargoed walk-forward, **per-origin** (live-only vs +BSE_BACKFILL vs
+   +GDELT) so any edge rests on the most trustworthy `availableAt` tier. Run it on a
+   workstation — the VM is CPU-credit-throttled.
+2. **B9 — Phase 6 rerun.** Joint weighting across the enriched factor set; prune what
+   doesn't contribute (volume is the standing suspect); decide the fundamental floor and
+   the sentiment bucket on walk-forward evidence.
+3. **Slot-allocation research** — B1 showed *which* 15% of signals you take matters as much
+   as the signals; today they're ranked by a score with ρ≈0.
+
+> Two levers are validated and already in production (SRS 0.25 + BULL pullback entry) —
+> they are the least-bad config, **not** an edge. Plan narrative: `HANDOFF_NEXT_STEPS.md`.
 
 ## Where to look
 
@@ -81,21 +92,27 @@ backtest already fails. See `SYSTEM.md` §7.5 and §13.
 bun install
 bun run prisma:deploy         # migrations
 bun run sync:instruments      # universe from Angel One
-bun run backfill:ohlcv all 800   # ~2yr history (needed for a real backtest)
+bun run backfill:ohlcv all 2000  # ~5.5yr history — the current research baseline
 
 bun run factors:eval          # factor scan
 bun run strategy:eval         # full pipeline preview
 bun run signals:run           # nightly run (persist + deliver)
-bun run backtest:run          # historical performance vs Nifty
-bun run backtest:sweep        # parameter sensitivity
+bun run backtest:run          # signal-edge replay vs Nifty
+bun run backtest:portfolio    # portfolio-level "beat Nifty" gate ← the decisive one
+bun run backtest:phase6       # embargoed walk-forward (OOS)
 
-bun test                      # 112 tests
+bun test                      # 358 tests
 bun run typecheck
 ```
 
-Infra needed: PostgreSQL, Redis, RabbitMQ (all on localhost). Env in `.env`
-(see `.env.example`). Telegram/Angel One creds are optional — the system degrades
-gracefully (logs alerts, disables the live feed) when unset.
+Infra needed: PostgreSQL, Redis, RabbitMQ, and the **FinBERT sidecar** (see
+[`sidecar/README.md`](../sidecar/README.md)) for sentiment scoring. Env in `.env` (see
+`.env.example`). Telegram/Angel One creds are optional — the system degrades gracefully
+(logs alerts, disables the live feed) when unset; a down sidecar leaves articles unscored
+and the next run catches up.
+
+Deployed on one EC2 box — see [`DEPLOYMENT_AWS.md`](./DEPLOYMENT_AWS.md). ⚠️ It is a
+burstable t3.small: **run CPU-heavy backtests and imports on a workstation**, not the VM.
 
 ## Conventions (important)
 
@@ -105,3 +122,12 @@ gracefully (logs alerts, disables the live feed) when unset.
 - **Every numeric is config**, not a literal in business logic.
 - **Every rejection has a reason** (persisted in `signal_rejection`).
 - Runtime knobs are **env vars** (e.g. `PORTFOLIO_BASE_CAPITAL`, `PORTFOLIO_MAX_OPEN_POSITIONS`).
+- **Point-in-time is sacred too**: the as-of date is the date *we could have known it* —
+  `availableAt` for news, `announcedAt` for fundamentals. Never `publishedAt`, never
+  period-end. Backfilled rows carry a reconstructed `availableAt`, so evaluate per-`origin`.
+- **New factors land observational** (empty bucket / weight 0), keeping the baseline
+  byte-identical; they graduate only on walk-forward evidence. `DEFAULT_STRATEGY_CONFIG`
+  stays **frozen** as the research control — production config lives in
+  `src/strategy/productionStrategy.ts`.
+- **Nothing is believed off a single window.** Grid-picked configs must be OOS-validated;
+  this project has been burned by in-sample optimism more than once.

@@ -1,4 +1,4 @@
-# QuantSwing — System Overview (Zero → Phase 4)
+# QuantSwing — System Overview (Zero → Phase 4, + the Part-B research program)
 
 A deterministic, explainable quantitative decision-support system for Indian equities
 (NSE). It scans a ~166-stock universe every evening and produces **ranked, gated,
@@ -8,6 +8,13 @@ execution bot.
 
 > **Design creed:** every number is reproducible from stored data + versioned config.
 > No randomness, no wall-clock reads inside factor logic, every rejection has a reason.
+
+> **Scope note.** §§1–12 document the Phase 1–4 platform and its math, which is still
+> exactly what runs. Work since then (Part B: news archive, fundamentals, FinBERT,
+> and two new factors) added *data and observational factors*, not new decision math —
+> see §13 for current state and [`ROADMAP_CHECKLIST.md`](./ROADMAP_CHECKLIST.md) for the
+> live tracker. **Two strategy configs now exist** (§6.2a): a frozen research baseline
+> and the production config the nightly run actually uses.
 
 ---
 
@@ -44,7 +51,10 @@ Angel One (scrip master + historical candles + live LTP)
  DataQualityService  ──► StockContext (candles ≤ asOf, no lookahead, + Nifty benchmark)
         │
         ▼
- 6 Factors ──► FeatureBundle (immutable, deep-frozen)   [5 in composite + SectorRelativeStrength, observational]
+ 8 Factors ──► FeatureBundle (immutable, deep-frozen)
+        │       [4 directional in the composite · Volatility feeds signal math ·
+        │        SectorRelativeStrength weighted 0.25 in PRODUCTION only ·
+        │        Fundamental + Sentiment computed but OBSERVATIONAL (empty buckets)]
         │
         ▼
  MarketRegimeService (Nifty trend + breadth + VIX)
@@ -84,6 +94,8 @@ unit-testable: the same inputs always produce byte-identical outputs.
 | Delivery | **Telegram Bot API** |
 | Tests | `bun:test` (unit + golden), Testcontainers-ready |
 | CI/CD | GitHub Actions (typecheck + test) + Docker image → ghcr.io |
+| Sentiment scoring | **FinBERT sidecar** — FastAPI + ProsusAI/finbert at a pinned revision, CPU, localhost-only (ADR-0006) |
+| Deployment | One EC2 t3.small, five containers via `docker-compose` ([`DEPLOYMENT_AWS.md`](./DEPLOYMENT_AWS.md)) |
 
 All indicator math is **in-house** (no external TA library) so it is versioned,
 auditable, and golden-tested.
@@ -202,7 +214,14 @@ ATR[p] = mean(TR[1..p])
 ATR[i] = (ATR[i−1] × (p−1) + TR[i]) / p
 ```
 
-### 4.3 The factors (5 in the composite + SectorRelativeStrength, observational)
+### 4.3 The factors (8 built; what each contributes differs — see §6.2/§6.2a)
+
+| Factor | Status |
+|---|---|
+| Trend, Momentum, RelativeStrength, Volume | in the directional technical composite |
+| Volatility | non-directional — feeds signal math / sizing, never the composite |
+| SectorRelativeStrength | weight **0.25 in the production config**; 0 in the frozen baseline |
+| Fundamental (B5), Sentiment (B7) | built + computed into every bundle, **observational** (empty buckets) |
 
 Each factor is 0–100 (higher = more bullish) with `agreementContribution = (score−50)/50`
 unless noted. All parameters are config, not literals.
@@ -335,8 +354,11 @@ regime weights (technical / sentiment / fundamental):
 
 composite = Σ(bucketScore × weight) / Σ(weight)   over present buckets
 ```
-Today only `technical` exists, so **composite = technicalScore**. When Sentiment/
-Fundamental factors land, the full blend activates automatically — no code change.
+Only `technical` is a *present* bucket, so **composite = technicalScore**. The Sentiment
+and Fundamental factors are now **built** (B5/B7), but their buckets are held explicitly
+empty (`buckets.sentiment: []`, `buckets.fundamental: []`) so the blend stays dormant and
+the baseline stays byte-identical — a listed factor would auto-activate the regime blend.
+Activation is a one-line config lever, set only on walk-forward evidence (B9).
 
 **Agreement score** (uncalibrated factor agreement):
 ```
@@ -354,9 +376,33 @@ HIGH_VOL +5, BEAR +10.
 4. macd-bullish      : momentum.histogram > 0
 5. price-above-ema20 : close > EMA20
 6. rsi-band          : 35 ≤ RSI ≤ 68
-7. sentiment-floor   : sentiment ≥ 40   (only when a SentimentFactor exists)
+7. sentiment-floor   : sentiment ≥ 40   (only when the sentiment BUCKET is active —
+                                         dormant today, so this gate never fires)
 ```
-Gate 6's *reward:risk* form is realized by signal math (below).
+Gate 6's *reward:risk* form is realized by signal math (below). Two further gates exist
+but are **absent from both shipped configs**, used only by research tooling:
+`fundamental-floor` (B5 — reject fundamental < floor; the measured-but-unadopted lever)
+and the per-regime `regimeGateOverrides` tightening (Step 4).
+
+### 6.2a Two configs: the frozen baseline vs what production actually runs
+
+**This distinction governs how to read every number in this document.** Since B2 the
+nightly run does *not* use `DEFAULT_STRATEGY_CONFIG`:
+
+| | `DEFAULT_STRATEGY_CONFIG` | `createProductionStrategy()` |
+|---|---|---|
+| Role | **frozen research baseline** — the control every attribution / regime / phase6 / portfolio experiment measures against | **what `signals:run` delivers to Telegram** |
+| Technical weights | trend .35 · momentum .30 · relativeStrength .25 · volume .10 | + **sectorRelativeStrength 0.25** |
+| BULL entry | buy-strength (WeightedStrategy everywhere) | **BullPullbackStrategy** — pullback + resumption in BULL, delegates to WeightedStrategy off-BULL (RSI 40–55, dip ≤2% above EMA20, stack intact, MACD histogram rising) |
+| `weightsVersion` | `w-fd0e1dec2aa9` | `w-6edfeb770e4a` |
+
+The baseline is deliberately **kept frozen** so the research controls stay intact and
+comparable across the whole program; production carries the `pullback+srs0.25` config that
+`backtest:phase6` selected on all three walk-forward folds. Code:
+`src/strategy/productionStrategy.ts`, wired into `runPipeline`.
+
+⚠️ This is **not** an edge — it is the least-bad validated config. Orders remain manual and
+Phase 5 stays gated (§13).
 
 ### 6.3 Signal math — entry, stop, targets, R:R
 
@@ -492,6 +538,16 @@ Buy & Hold** over the same window.
 and ranked by profit factor (`backtest:sweep`). Isolates the exit/target hypotheses.
 
 ### 7.5 THE KEY FINDING — the strategy has no edge (yet)
+
+> **Read this as the historical baseline.** These 981 trades are the frozen reference set
+> every attribution/ablation experiment decomposes, so the numbers are kept verbatim. Two
+> things have since superseded it as the *current* measurement:
+> - **B8.1 deep window** (5.5yr, real VIX, production config): **4,394 trades, win 43.1%,
+>   exp −0.097%/trade, PF 0.94** vs Nifty +42.9%. Less bad, measured across cycles, still
+>   no edge. All research re-baselines from here.
+> - **B1 portfolio backtest** is now the decisive gate (§13) — per-trade PF is necessary,
+>   portfolio CAGR vs Nifty is what Phase 5 reads.
+
 Backtested over **~16 months / 981 trades** (2 years of history backfilled):
 ```
 Win rate      41.3%
@@ -530,6 +586,20 @@ Research / decision tables (Phase 1–3):
 | `undelivered_alert` | Failed Telegram alerts awaiting resend |
 | `app_config` | KV config (e.g. instrument universe filter) |
 
+Research-data tables added by Part B:
+
+| Table | Role |
+|---|---|
+| `news_article` | The archive — source, url, title, symbols[], `publishedAt`, `fetchedAt`, **`availableAt`** (the as-of key), **`origin`** (`LIVE_RSS`/`LIVE_BSE`/`GDELT`/`BSE_BACKFILL`), FinBERT score + `model@revision` |
+| `ingest_run` | Per-pass ingest observability (per-source counts, status, alert lines) |
+| `quarterly_fundamental` | Point-in-time quarterly EPS/profit/sales + `announcedAt` → `availableAt` |
+| `fundamental_snapshot` | Weekly as-of ratio capture (`fetchedAt` as-of key, append-only) |
+
+> **The as-of rule for both:** research reads `availableAt` (news) and
+> `announcedAt`-derived availability (fundamentals) — never `publishedAt` or period-end.
+> Backfilled rows carry a *reconstructed* `availableAt`, which is why `origin` exists and
+> why B7 evaluates per-origin.
+
 Legacy OMS tables also exist (`order`, `position`, `trade_setup`, `broker_token`,
 `broker_log`, …) from the options order-management layer; the research pipeline above is
 independent of them.
@@ -544,12 +614,16 @@ independent of them.
 | Trend | EMA 20 / 50 / 200, 25 pts each |
 | Momentum | RSI 14, MACD 12/26/9, weights macd 0.5 / rsi 0.5 |
 | RelativeStrength | lookback 60, excessCapPct 20 |
-| SectorRelativeStrength | lookback 60, minPeers 3 — *observational, weight 0 (not in composite yet)* |
+| SectorRelativeStrength | lookback 60, minPeers 3 — weight **0.25 in production**, 0 in the frozen baseline (§6.2a) |
 | Volume | lookback 20, priceWindow 5, convictionCap 1.0 |
 | Volatility | ATR 14, idealAtrPct 1.5, rejectAtrPct 6.0, percentileLookback 100 |
+| Fundamental (B5) | PE-vs-sector percentile 0.6 + TTM EPS YoY growth 0.4, growthCapPct 40, ≥3 valid-PE peers — *observational* |
+| Sentiment (B7) | windowDays 30, halfLifeDays 7, minArticles 3 — *observational* |
 
 **Regime:** trend EMA 200, fast EMA 50, bull breadth 55%, bear breadth 40%,
 crash drop 3%, crash VIX 30, high-vol VIX 20, high-vol ATR% 2.0.
+VIX precedence (B8.4): explicit operator value → **stored India VIX** (token 99926017,
+staleness-guarded 5d) → Nifty-ATR% proxy as the fallback.
 
 **Strategy:** baseThreshold 65, technicalFloor 60, sentimentFloor 40, RSI band 35–68,
 regime weight matrix (§6.2), threshold adj HIGH_VOL +5 / BEAR +10.
@@ -586,8 +660,16 @@ roundTripCostPct 0.25%, size-reduction 3–6% ATR × 0.75.
 | `backtest:regime` | Regime-conditioned entry experiment ([`REGIME_ENTRIES.md`](./REGIME_ENTRIES.md)) |
 | `backtest:pullback` | BULL pullback-entry experiment + out-of-sample split ([`REGIME_ENTRIES.md`](./REGIME_ENTRIES.md) Step-4b) |
 | `backtest:phase6` | Walk-forward evaluation of the combined levers ([`PHASE6.md`](./PHASE6.md)) |
+| `backtest:portfolio` | **Portfolio-level backtest — the fair "beat Nifty" gate** ([`PORTFOLIO_BACKTEST.md`](./PORTFOLIO_BACKTEST.md)) |
+| `news:ingest` | Manual news-archive ingest + report (also the 15-min cron) ([`NEWS_SCRAPER.md`](./NEWS_SCRAPER.md)) |
+| `news:gal:download` / `news:gal:import` | GDELT bulk media backfill — download on a workstation, import on the DB host ([`GDELT_BACKFILL.md`](./GDELT_BACKFILL.md)) |
+| `news:backfill` / `news:backfill:universe` | GDELT DOC API backfill (throttled; targeted top-ups only) |
+| `news:backfill:bse` | BSE announcements historical backfill ([`BSE_BACKFILL.md`](./BSE_BACKFILL.md)) |
+| `news:remap` | Domain-aware re-tag of stored articles after alias growth |
+| `sentiment:score` | FinBERT scoring catch-up (`--rescore` on model bumps) |
+| `fundamentals:backfill` / `:snapshot` / `:retry` | Point-in-time fundamentals history + weekly snapshotter (B4) |
 | `golden:snapshot` / `golden:update` | Refresh / re-baseline the golden fixture |
-| `test`, `typecheck` | **149 tests**; strict tsc |
+| `test`, `typecheck` | **358 tests**; strict tsc |
 
 **Cron schedule** (RabbitMQ-backed, IST):
 | Time | Job |
@@ -596,6 +678,8 @@ roundTripCostPct 0.25%, size-reduction 3–6% ATR × 0.75.
 | 16:00 | Post-market cleanup (legacy OMS) |
 | 16:30 | OHLCV incremental update |
 | **17:00** | **Nightly signal run → persist → Telegram** |
+| every 15 min | News ingest (4 sources) + FinBERT scoring pass — the archive clock |
+| every 7 days | Fundamentals snapshot (fires on server boot) |
 
 ---
 
@@ -642,37 +726,60 @@ and persisted; the alert renders to Telegram.
 | **CI/CD** | ✅ Done |
 | **3 — Decision layer** (Regime, Strategy, Signal math, Portfolio, Persistence, Delivery) | ✅ Done |
 | **4 — Backtesting** (as-of replay, cost sim, vs Nifty B&H, sweep) | ✅ Done |
-| 5 — Paper trading (≥2-week beat-Nifty gate) | ⛔ **Gated — strategy must first show edge** |
-| 6 — Evaluation + ML weighting | ⏳ The natural next work |
+| **Part B — research program** (portfolio backtest, news archive + backfills, fundamentals, FinBERT, Fundamental + Sentiment factors, robustness) | ✅ B1–B8 done |
+| **B9 — Phase 6 rerun** (joint weighting over the enriched factor set) | ⏳ **The next work** |
+| 5 / B10 — Paper trading (≥2-week beat-Nifty gate) | 🔒 **Hard-gated — strategy must first show edge** |
 
-### Why Phase 5 is NOT next
-**Phase 5 (paper trading) is not warranted yet** — its gate is "beat Nifty risk-adjusted,"
-and the backtest already shows the opposite over 16 months (§7.5). Paper-trading a
-known-negative strategy would just burn calendar time.
+> The live tracker is [`ROADMAP_CHECKLIST.md`](./ROADMAP_CHECKLIST.md); all math and the
+> full limitations list are in [`COMPLETE_REFERENCE.md`](./COMPLETE_REFERENCE.md). This
+> section is the summary, not the source of truth for task state.
 
-### The work is in the entries — concrete, evidence-based next moves
-1. **Build the missing factors — Sentiment (FinBERT) and Fundamental.** The strategy is
-   running on **4 technical factors alone**; the docs' whole thesis is that sentiment +
-   fundamentals add the edge technicals lack. Their weight-buckets currently **renormalize
-   out entirely** (composite = technical score today).
-2. **Sector-relative RS** — the deferred half of `RelativeStrengthFactor` (today it's
-   vs-Nifty only).
-3. **Factor pruning + ML weighting (Phase 6)** — you now have the backtest harness to
-   measure whether any factor combination *does* have edge, which is precisely what Phase 6
-   needs.
+### Why Phase 5 is still NOT next
+Its gate is "beat Nifty risk-adjusted, net of costs, **out-of-sample**." B1's
+portfolio-level backtest — the fair test in the same units as the benchmark — currently
+**fails it by a wide margin**: OOS the book lost −12.7% (best config) to −23.4% (baseline)
+while Nifty lost −4.4% ([`PORTFOLIO_BACKTEST.md`](./PORTFOLIO_BACKTEST.md)). Paper-trading
+a known-negative strategy just burns calendar time.
+
+### Where the evidence now points
+The Part-B program answered §7.5's "the problem is the entries" and then kept measuring:
+
+- **Two relative levers are validated OOS** and are in production (§6.2a): sector-relative
+  RS at 0.25 and the BULL pullback+resumption entry. Walk-forward OOS PF 0.78 → 0.91.
+  **An improvement, not an edge** — PF still < 1.
+- **Orthogonal data was the bet, and it is now built, not blocked.** Fundamentals
+  (1,984 quarters, announcement-dated, 167/167 symbols) and a ~2.5yr provenance-tagged,
+  precision-audited news archive + FinBERT scoring exist. Both factors are built and
+  **observational**.
+- **Fundamental's verdict is already in and it is nuanced:** the bucket blend was
+  **rejected on evidence** (harmful, monotone with dose); only the *floor* gate helps
+  (+0.07 exp), and it is held observational pending B9 ([`FUNDAMENTAL_FACTOR.md`](./FUNDAMENTAL_FACTOR.md)).
+- **Sentiment (B7) is at Phase 1** — built and observational; its measurement pass
+  (attribution → embargoed walk-forward, run **per-origin** so conclusions rest on the
+  most trustworthy `availableAt` tier) is the immediate next task.
+- **A third lever surfaced at portfolio level:** with a 2-slot book taking only ~15% of
+  signals, *the ranking that picks them* matters as much as the signals — and Step-1 proved
+  that ranking (composite, ρ≈0) is uninformative.
 
 ### The honest bottom line
-You now have a **complete, working, reproducible signal factory and a backtest that proves
-it doesn't yet have edge.** That's a real, valuable place to be — most people discover this
-*after* losing money. The next phase isn't Phase 5; it's improving the **entries**
-(sentiment/fundamental factors, then Phase 6 evaluation).
+A complete, reproducible signal factory; an honest measurement stack (attribution,
+selection tests, embargoed walk-forward, portfolio simulator); a real data moat accruing.
+**Still no positive out-of-sample edge.** The program's repeated pattern — single-window
+result looks like a breakthrough, OOS split exposes it as in-sample optimism, the doc
+records the correction — is the process working, not failing.
 
-**Known simplifications** (documented, non-blocking): RS is vs-Nifty only (sector-relative
-pending); `instrumentMasterVersion` is best-effort; `snapshotJson` holds the approved
-signal (could carry the full factor bundle); VIX is proxied by Nifty ATR% until a VIX feed
-is wired; Sentiment + Fundamental factors not yet built (their buckets renormalize out).
+**Known simplifications** (documented, non-blocking): `instrumentMasterVersion` is
+best-effort; `snapshotJson` holds the approved signal (could carry the full factor bundle);
+Fundamental + Sentiment buckets are empty by choice (not absent). **Open integrity
+residual:** historical index-constituent changes could not be sourced, so survivorship bias
+in the pre-curation past is unrepaired — revisit before B9's conclusions are treated as
+final. The architecture review's governing criticism also stands: the data layer has no
+immutable raw capture and entity resolution is unversioned, so the *archive* is not yet held
+to the same reproducibility standard as the *factor pipeline*
+([`ARCHITECTURE_REVIEW_B3_B4.md`](./ARCHITECTURE_REVIEW_B3_B4.md)).
 
 ---
 
-*Generated at the completion of Phase 4. Every formula above is the exact implementation
-in `src/` and is covered by the 112-test suite + golden determinism gate.*
+*§§1–12 were written at the completion of Phase 4 and remain the exact implementation in
+`src/`; §13 and the config/script tables are maintained forward. Covered by the
+**358-test** suite + the golden determinism gate.*

@@ -4,21 +4,32 @@
 > Claude Code session (possibly on a different account) can understand the whole project
 > and know exactly what to do next from a single prompt.
 
+> ⚠️ **This doc is now largely a HISTORICAL NARRATIVE.** Steps 1–5 below were executed and
+> each carries its own `✅ RESULT` — that record is the point and is preserved verbatim,
+> including the numbers as they stood at the time. For **current state and what to do
+> next**, read [`ROADMAP_CHECKLIST.md`](./ROADMAP_CHECKLIST.md) (master tracker) and
+> [`START_HERE.md`](./START_HERE.md). Since this file was written, the whole Part-B program
+> (portfolio backtest, news archive + GDELT/BSE backfills, point-in-time fundamentals,
+> FinBERT, Fundamental + Sentiment factors, AWS deploy) has landed — B9 is the next task.
+> The §4 "what to do first" sequence is **complete**, not pending.
+
 ---
 
 ## 0. One-prompt kickoff for the next Claude
 
 Paste this as your first message in the new session:
 
-> Read `docs/HANDOFF_NEXT_STEPS.md`, then `docs/START_HERE.md` and `docs/SYSTEM.md`.
-> This is QuantSwing, a deterministic quant decision-support system for NSE equities.
-> The backtest proves the current strategy has **no edge** and the problem is the
-> **entries, not the exits**. Do NOT jump to building new factors. Follow the numbered
-> sequence in the handoff file, starting at **Step 1 (factor attribution)** and
-> **Step 2 (doc reconciliation)**. Confirm you understand the plan, then ask me which
-> step to start.
+> Read `docs/START_HERE.md`, then `docs/ROADMAP_CHECKLIST.md` (the master tracker), then
+> `docs/SYSTEM.md` for the math. This is QuantSwing, a deterministic quant decision-support
+> system for NSE equities. Phases 1–4 and the Part-B program (B1–B8) are **done**; the
+> strategy has been improved from clearly-losing to near-breakeven but has **no positive
+> out-of-sample edge** — the portfolio-level gate is failed, so Phase 5 stays hard-gated.
+> The next work is **B7 Phase 2** (measure the observational SentimentFactor, per-origin)
+> then **B9** (joint weighting). Nothing graduates to production without embargoed
+> walk-forward evidence. Confirm you understand the state, then ask me which task to start.
 
-That's enough for the new session to orient itself and continue.
+That's enough for the new session to orient itself and continue. *(The older kickoff
+pointed at Steps 1–2 of §4; those are long complete — see the banner above.)*
 
 ---
 
@@ -31,11 +42,14 @@ That's enough for the new session to orient itself and continue.
   randomness, no wall-clock reads inside factor logic, every rejection has a recorded reason.
 - **Stack:** Bun + TypeScript + Express + Prisma/PostgreSQL + Redis (+ RabbitMQ). All
   indicator math is in-house so it can be golden-tested.
-- **Pipeline:** `OHLCV → DataQuality → 5 factors → regime → WeightedStrategy (composite + 7
+- **Pipeline:** `OHLCV → DataQuality → factors → regime → WeightedStrategy (composite + 7
   gates) → signal math (ATR stop, T1/T2, R:R) → PortfolioManager (sizing, caps, kill switch)
-  → versioned persistence → Telegram`.
-- **Status:** Phases 1–4 complete (data, factors, golden gate, decision layer, backtesting).
-  112 tests pass, typecheck clean.
+  → versioned persistence → Telegram`. *(5 factors when written; **8** now, and production
+  runs a BULL pullback entry over an SRS-weighted composite — `SYSTEM.md` §6.2a.)*
+- **Status *as this file was written*:** Phases 1–4 complete (data, factors, golden gate,
+  decision layer, backtesting). 112 tests pass, typecheck clean.
+  *(Current: Phases 1–4 + Part B B1–B8 complete, 8 factors, **358 tests** — see
+  [`ROADMAP_CHECKLIST.md`](./ROADMAP_CHECKLIST.md).)*
 
 ## 2. The one finding that drives everything
 

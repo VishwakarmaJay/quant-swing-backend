@@ -44,10 +44,11 @@ No randomness, no wall-clock reads inside factor logic, every rejection has a pe
 **Stack:** Bun + TypeScript (strict) + Express + Prisma/PostgreSQL + Redis (cache/LTP) +
 RabbitMQ (jobs). All indicator math is in-house so it can be golden-tested byte-for-byte.
 
-**Status:** Phases 1–4 complete + research program (attribution, regime experiments,
-walk-forward) complete. **149 tests, typecheck clean.** The strategy has been improved from
-clearly losing to near-breakeven **but has no positive out-of-sample edge yet** — Phase 5
-(paper trading) is gated (§15, §17).
+**Status:** Phases 1–4 complete + the Part-B research program (attribution, regime
+experiments, walk-forward, portfolio backtest, news archive + backfills, fundamentals,
+FinBERT, Fundamental + Sentiment factors) — B1–B8 done, B9 next. **358 tests, typecheck
+clean.** The strategy has been improved from clearly losing to near-breakeven **but has no
+positive out-of-sample edge yet** — Phase 5 (paper trading) is gated (§15, §17).
 
 ## 2. The pipeline
 
@@ -64,8 +65,9 @@ Angel One (scrip master + daily candles + live LTP)
  DataQualityService  ──► StockContext (candles ≤ asOf — no lookahead, + Nifty benchmark
         │                              + sector-peer returns via cross-sectional pre-pass)
         ▼
- 6 Factors ──► FeatureBundle (immutable, deep-frozen)
-        │        [5 in the composite + SectorRelativeStrength, observational]
+ 8 Factors ──► FeatureBundle (immutable, deep-frozen)
+        │        [4 directional in the composite · volatility → signal math ·
+        │         sectorRS weighted 0.25 in PRODUCTION · fundamental + sentiment observational]
         ▼
  MarketRegimeService (Nifty trend + EMA50 breadth + VIX/ATR proxy)
         │
@@ -253,8 +255,10 @@ computes every universe stock's 60d return, groups by sector, and injects the gr
 `ctx.sectorPeers` — in the backtest daily loop, in `loadSectorPeerReturns` (live/eval), and
 across the golden fixture stocks. `evaluate` never fetches anything.
 
-**Status:** computed in every FeatureBundle, **not in the composite** (weight 0) — pending
-Phase-6-style joint weighting (measured value: §15, Step 3).
+**Status:** **[UPDATED — B2, 2026-07-18]** weight 0 in the frozen research baseline
+(`DEFAULT_STRATEGY_CONFIG`), but **0.25 in the production config** — it graduated after
+`backtest:phase6` selected `pullback+srs0.25` on all three walk-forward folds. The baseline
+stays frozen so every experiment keeps its control. Measured value: §15, Step 3.
 
 ### 5.6 VolumeFactor — volume-confirmed direction
 
@@ -319,10 +323,11 @@ Regime affects the strategy two ways: bucket weights (§8) and a threshold add-o
 ```
 technical  = Σ(score_f × w_f) / Σ(w_f)  over PRESENT directional factors
              weights: trend 0.35, momentum 0.30, relativeStrength 0.25, volume 0.10
-             (renormalized over whichever are present; volatility & sectorRS excluded —
-              volatility is non-directional, sectorRS is observational/weight-0)
-sentiment  = mean of sentiment-bucket factor scores   → null (factor not built)
-fundamental= mean of fundamental-bucket factor scores → null (factor not built)
+             (renormalized over whichever are present; volatility excluded — it is
+              non-directional. sectorRS: excluded in the frozen baseline, weight 0.25
+              in the production config)
+sentiment  = mean of sentiment-bucket factor scores   → null (bucket held EMPTY)
+fundamental= mean of fundamental-bucket factor scores → null (bucket held EMPTY)
 ```
 
 ### 8.2 Composite — regime-weighted, renormalized over present buckets
@@ -336,9 +341,11 @@ regime weights (technical / sentiment / fundamental):
 
 composite = Σ(bucketScore × weight) / Σ(weight)   over present buckets
 ```
-Only `technical` exists today ⇒ **composite = technicalScore** (the other buckets
-renormalize out). When Sentiment/Fundamental land, the full blend activates with no code
-change.
+Only `technical` is *present* ⇒ **composite = technicalScore** (the other buckets
+renormalize out). **[UPDATED — B5/B7]** The Sentiment and Fundamental factors now exist,
+but their buckets are held **explicitly empty** so the blend stays dormant and the baseline
+stays byte-identical — a *listed* factor would auto-activate the regime blend. Activation
+is a one-line config lever, set only on walk-forward evidence (B9).
 
 ### 8.3 Agreement (uncalibrated)
 
@@ -614,9 +621,11 @@ caveats; 13–17 are engineering/scope.)
 1. **No positive out-of-sample edge.** The central limitation. OOS expectancy −0.12, PF 0.91.
    The system is a working signal *factory* whose current signals still lose slightly.
    Phase 5 (paper trading) is correctly gated until a backtest clears "beat Nifty".
-2. **Technicals-only — the orthogonal buckets are empty.** Sentiment + Fundamental factors
-   are not built; their weights renormalize out (composite = technical score). The 4 weighted
-   factors are correlated trend/momentum variants — low diversity, ρ≈0 discrimination.
+2. **Technicals-only in the DECISION path — the orthogonal buckets are empty.**
+   **[UPDATED — B5/B7]** Sentiment + Fundamental factors are now ~~not built~~ **built and
+   computed**, but held observational (empty buckets), so the composite is still the
+   technical score. The weighted factors remain correlated trend/momentum variants — low
+   diversity, ρ≈0 discrimination. Activating a bucket is B9's decision, on evidence.
 3. **Fundamental factor is data-blocked.** ~~No point-in-time historical fundamentals
    exist.~~ **[RESOLVED — B4/B5, 2026-07-18]** `quarterly_fundamental` holds 1,984
    announcement-dated quarters across 167/167 symbols; `FundamentalFactor` built + measured
@@ -632,17 +641,29 @@ caveats; 13–17 are engineering/scope.)
    sizing, so sizing currently adds no value (may subtract). Needs orthogonal signal before
    reweighting/learning can fix it.
 7. **Survivorship bias:** the universe is *today's* 166 constituents replayed into the past —
-   results are optimistic; delisted/degraded names are absent. No historical constituent DB.
-8. **Signal-edge, not portfolio truth:** the backtest takes *every* signal (no 2-position
-   cap, no sizing, no capital constraint). Portfolio-level performance (with caps, overlap,
-   compounding) is unmeasured; the additive equity curve / max-drawdown is a naive artifact
-   of overlapping equal-weight trades.
-9. **"Beat Nifty" is not yet a fair test:** per-trade net % vs a buy-and-hold % are different
-   units (equal-weight overlapping trades vs one capital base). A genuine gate needs a
-   portfolio-level simulation — not built.
-10. **Short validation history:** ~2 years / 544 days, 3 walk-forward folds, one market
-    cycle. The OOS windows are small (≈170 days each); one fold was positive, two negative.
-    Fold boundaries are calendar-arbitrary. Statistical power is limited.
+   results are optimistic; delisted/degraded names are absent. **[PARTIALLY ADDRESSED —
+   B8.2]** `src/universe/membership.ts` adds point-in-time membership windows, enforced in
+   `generateRawSignals`, and the standing rule is **never delete a symbol — set its `to`
+   date** so the bias stops compounding going forward. ⚠️ **Open residual:** the
+   pre-curation past cannot be repaired without historical NSE index-change records, which
+   are not statically fetchable. Revisit before B9's conclusions are treated as final.
+8. **Signal-edge ≠ portfolio truth.** **[RESOLVED — B1, 2026-07]** `backtest:run` still takes
+   *every* signal (no caps/sizing), and its additive equity curve / max-drawdown remains a
+   naive artifact of overlapping trades — but `bun run backtest:portfolio` now simulates one
+   ₹2L book with the real caps, sizing and kill switch. **Portfolio truth turned out to be
+   *worse* than signal truth** (OOS −12.7% vs the −0.12%/trade near-breakeven reading),
+   because a 2-slot book takes only ~15% of signals and compounds the drift.
+9. **"Beat Nifty" is now a fair test — and it FAILS.** **[RESOLVED — B1]** ~~A genuine gate
+   needs a portfolio-level simulation — not built.~~ It is built, in the same units as the
+   benchmark: OOS the book lost −12.7% to −23.4% vs Nifty −4.4%; full window −2.1% vs
+   +10.0%. Every sizing mode, both windows, both cost levels. See `PORTFOLIO_BACKTEST.md`.
+10. **Short validation history:** the headline research window is ~2 years / 544 days,
+    3 walk-forward folds, one market cycle; OOS windows ≈170 days each (one fold positive,
+    two negative), fold boundaries calendar-arbitrary. **[IMPROVED — B8.1/B8.3]** OHLCV now
+    goes back **5.5yr (1,356 candles/instrument, 2021-01→)**, giving a deep-window baseline
+    across cycles (4,394 trades, PF 0.94), and the walk-forward is now **embargoed** (10d)
+    so a train-end signal's time-stop can't resolve inside the test window. Statistical
+    power is still limited — one market, one cycle family.
 11. **Overfitting pressure is real and demonstrated:** both Step 3 and Step 4b looked far
     better in-sample than out. All grids explored here were small, but every future config
     choice must flow through the walk-forward harness — single-window numbers in these docs
@@ -661,13 +682,14 @@ caveats; 13–17 are engineering/scope.)
     still emits the *baseline* strategy's signals — i.e., production currently runs the
     known-no-edge config (safe only because orders are manual and Phase 5 is gated).
 17. **Operational gaps vs spec (documented drift):** no intraday thesis checks or pre-market
-    job; no FinBERT sidecar; `snapshotJson` stores the approved signal, not the full factor
-    bundle; `instrumentMasterVersion` is best-effort.
+    job; `snapshotJson` stores the approved signal, not the full factor bundle;
+    `instrumentMasterVersion` is best-effort. *(The "no FinBERT sidecar" item was resolved
+    by B6 — the sidecar is built, pinned, and deployed.)*
 
 ## 17. Current state & what's next
 
 **State:** a complete, reproducible, honestly-measured research platform. **[UPDATED
-2026-07-19]** 328 tests + golden gate green. Two OOS-validated relative levers (SRS
+2026-07-19]** 358 tests + golden gate green. Two OOS-validated relative levers (SRS
 selection, BULL pullback+resumption) combine to PF 0.91 vs baseline 0.78 — near-breakeven,
 not yet profitable. Since the original writing: B4/B5 fundamentals + factor done, B6 FinBERT
 sidecar done, B8 robustness (deep OHLCV, VIX, embargo) done, **B3.5/B3.6 news backfills

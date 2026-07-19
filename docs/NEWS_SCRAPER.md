@@ -186,11 +186,14 @@ status`. Two purpose-built alarms:
 | Fetcher (UA, headers, timeout) | `src/news/fetch.ts` |
 | RSS/Atom/BSE parser | `src/news/rssParser.ts` |
 | Symbol mapper + exclusions | `src/news/symbolMapper.ts`, `src/news/companyAliases.ts` |
-| Dedup | `src/news/dedupe.ts` |
+| Dedup (live + `DatedTitleIndex` for backfills) | `src/news/dedupe.ts` |
 | Orchestrator | `src/news/ingest.ts` |
+| Observability (`ingest_run` + Telegram alerts) | `src/news/ingestRun.ts` |
 | Cron | `src/crons/newsIngest.ts` |
 | Manual run/report | `src/scripts/runNewsIngest.ts` (`bun run news:ingest`) |
-| Schema | `prisma/schema.prisma` → `news_article` |
+| Re-tag stored rows after alias growth | `src/scripts/remapSymbols.ts` (`bun run news:remap`) |
+| Historical backfills (provenance-tagged) | GDELT: [`GDELT_BACKFILL.md`](./GDELT_BACKFILL.md) · BSE filings: [`BSE_BACKFILL.md`](./BSE_BACKFILL.md) |
+| Schema | `prisma/schema.prisma` → `news_article` (+ `origin`, `availableAt`), `ingest_run` |
 | Env knobs | `NEWS_INGEST_INTERVAL_MS` · `NEWS_DEDUPE_WINDOW_DAYS` · `NEWS_FETCH_TIMEOUT_MS` |
 
 ## 11. Sentiment scoring (B6 — FinBERT sidecar)

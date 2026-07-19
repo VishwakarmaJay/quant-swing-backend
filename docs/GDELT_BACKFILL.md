@@ -5,7 +5,13 @@
 > news index so sentiment research has history *before* the live archive clock started
 > (2026-07-18). **It is NOT the SentimentFactor** (that's B7) and it changes no trading
 > behaviour: this is data acquisition only.
-> **Run:** `bun run news:backfill --from YYYY-MM-DD --to YYYY-MM-DD [--symbols A,B] [--dry-run]`
+>
+> **Two acquisition paths, same pipeline:**
+> - **GAL bulk (preferred — §7A):** `bun run news:gal:download` (bulk files, no rate limit,
+>   ~90 min for 18 months on a workstation) → `bun run news:gal:import`. This is the path
+>   actually used to load the archive (≈100k+ Indian-media rows for 2025-01→2026-07).
+> - **DOC API (§7B, legacy):** `bun run news:backfill --from … --to …` — throttled and
+>   slow; kept for small targeted top-ups only.
 
 ---
 
@@ -132,14 +138,55 @@ set `GDELT_RATE_LIMIT_MS=5000` and let it run unattended rather than churn throu
 retries. A window that stays throttled is reported as a **failed query**, never as an
 empty result.
 
-## 7. Operational usage
+## 7A. GAL bulk path — the fast, rate-limit-free way (PREFERRED)
+
+The DOC API (§7B) is throttled to ~1 request / 5 s with sticky multi-minute penalties, so
+a full-universe media backfill takes *days* and fights the API the whole way. GDELT
+publishes the **same article metadata** as bulk files with **no rate limit** — this is the
+path that actually built the archive.
+
+**The dataset: GDELT Article List (GAL).** One gzipped NDJSON file per publish tick
+(minutes +1..+5 after every quarter-hour) at
+`http://data.gdeltproject.org/gdeltv3/gal/YYYYMMDDHHMMSS.gal.json.gz`, each record
+`{date, url, domain, title, desc, lang, …}` — *more* than the DOC API gives (adds `desc`,
+stored as the article `body`). Coverage from 2020-01-01. Plain HTTP; also on BigQuery as
+`gdelt-bq.gdeltv2.gal`, but the file path needs no cloud account.
+
+```bash
+# 1. Download + filter on a workstation (bandwidth + CPU; NOT the small VM):
+#    sweeps every 15-min file in the range, keeps English titles matching any
+#    curated alias, writes compact NDJSON. Checkpointed per quarter-hour.
+bun run news:gal:download --from 2025-01-01 --to 2026-07-17 \
+  --out .cache/gal-matched.ndjson --state .cache/gal-download-state.json
+
+# 2. Ship the NDJSON to the DB host, then import through the SAME pipeline:
+bun run news:gal:import --file gal-matched.ndjson        # [--dry-run]
+```
+
+- `downloadGalArchive.ts` — pure network+filesystem (no DB/env). Streams each file
+  through gunzip in memory (nothing large hits disk — ~90 MB of matched output for 18
+  months), prefilters by `lang=en` + a single combined alias regex, appends matches.
+  ~90 min for 18 months on a laptop; resumable (`caffeinate` on a Mac to prevent sleep).
+- `importGalArchive.ts` — feeds records into the **same `processGdeltRecords`** core
+  (timestamp reconstruction, dedup, symbol mapping, `origin=GDELT`, `skipDuplicates`).
+  Idempotent: re-imports and overlap with prior DOC-API rows are absorbed by `(source,url)`.
+- **Verified live 2026-07-19:** 563 days swept → 171,721 matched records → ~100k+ stored
+  GDELT rows (the rest windowed-dupes or already-present). This replaced the abandoned
+  DOC-API grind entirely.
+
+⚠️ **Run the import on an adequately-sized host.** On a CPU-credit-exhausted burstable VM
+(t3.small) the import starves — see `DEPLOYMENT_AWS.md`. The dedup was also re-engineered
+(§8, dedup note) from an O(n²) flat scan to a day-bucketed `DatedTitleIndex` after the
+flat version CPU-locked the box at 171k records.
+
+## 7B. DOC API path (legacy — targeted top-ups only)
 
 ```bash
 # A few symbols, checking what would happen first:
 bun run news:backfill --from 2025-01-01 --to 2025-06-30 --symbols RELIANCE,TCS,INFY --dry-run
 bun run news:backfill --from 2025-01-01 --to 2025-06-30 --symbols RELIANCE,TCS,INFY
 
-# THE WHOLE UNIVERSE (the intended bulk path) — resumable, checkpointed:
+# THE WHOLE UNIVERSE via the DOC API — resumable, checkpointed (but slow; prefer §7A):
 bun run news:backfill:universe --from 2025-01-01 --to 2025-06-30
 ```
 
@@ -189,18 +236,22 @@ ingest cron pass, or run `bun run sentiment:score` manually.
    regional coverage, and `sourcecountry:IN sourcelang:eng` filtering means
    India-relevant stories in foreign outlets are missed. Article *counts* per stock are
    not comparable across origins — normalize per-origin in any aggregation.
-4. **Headlines only, no bodies.** The DOC API returns titles; `body` is null. Symbol
-   mapping sees less text than live BSE rows (which get `SLONGNAME` prepended), so recall
-   is lower per article. FinBERT scores headlines either way (B6 v1 scope).
-5. **250-record cap per query window.** A busy symbol × 30-day window can truncate
-   (detected + warned). Mitigation: lower `GDELT_BATCH_DAYS`; the run stays idempotent.
-6. **Query recall is bounded by the alias dictionary — primary alias only.** A company is
-   searched by its *first* curated alias as a single quoted phrase: GDELT answers
-   parenthesized-OR phrase queries with its 429 throttle message even in isolation
-   (live-verified 2026-07-18), so secondary aliases ("ril", "sbi", …) are not searched.
-   Stories that use only a secondary name or name the company obliquely are missed — the
-   same precision-first trade B3 chose, applied to search. (The mapper still matches
-   every alias in whatever titles come back.)
+4. **Headlines primarily.** The **DOC API** returns titles only (`body` null). The **GAL
+   bulk path** additionally stores the `desc` snippet as `body`, giving the mapper a bit
+   more text. FinBERT scores headlines either way (B6 v1 scope).
+5. **250-record cap per query window (DOC API only).** A busy symbol × 30-day window can
+   truncate (detected + warned). Mitigation: lower `GDELT_BATCH_DAYS`; the run stays
+   idempotent. The GAL path has no such cap.
+6. **Query recall is bounded by the alias dictionary.** *DOC API:* a company is searched by
+   its *first* curated alias only — GDELT answers parenthesized-OR phrase queries with its
+   429 throttle message even in isolation (live-verified 2026-07-18). *GAL:* the download
+   prefilter matches **any** alias in the title (a single combined regex), so GAL recall is
+   materially better. Either way the mapper keeps its precision rules on what comes back.
+   *(dedup note)* Historical dedup uses a day-bucketed, time-windowed `DatedTitleIndex`
+   (`dedupe.ts`): a candidate is a duplicate only of titles within ±`NEWS_DEDUPE_WINDOW_DAYS`
+   of its **own** publication time. The earlier flat-array scan was O(n²) and CPU-locked the
+   import host at 171k records; the index makes each check near-constant and is
+   brute-force-equivalence tested.
 7. **GDELT titles are tokenized** (spaces around punctuation). A cleanup pass reattaches
    punctuation deterministically, but stored titles can differ cosmetically from the
    publisher's exact headline — dedup and mapping are punctuation-insensitive, so this is
@@ -216,12 +267,15 @@ ingest cron pass, or run `bun run sentiment:score` manually.
 
 | Piece | File |
 |---|---|
+| **GAL bulk downloader (preferred)** | `src/scripts/downloadGalArchive.ts` (`bun run news:gal:download`) |
+| **GAL importer → shared pipeline** | `src/scripts/importGalArchive.ts` (`bun run news:gal:import`) |
 | DOC API client (networking only) | `src/news/gdelt/gdeltClient.ts` |
 | Payload parsing + timestamp reconstruction | `src/news/gdelt/parser.ts` |
 | Range slicing, query building, pacing | `src/news/gdelt/download.ts` |
 | Processing core + batch persistence | `src/news/gdelt/backfill.ts` |
-| CLI (range/symbols) | `src/scripts/runNewsBackfill.ts` (`bun run news:backfill`) |
-| CLI (full universe, resumable) | `src/scripts/runNewsBackfillUniverse.ts` (`bun run news:backfill:universe`) |
+| Time-windowed dedup index | `src/news/dedupe.ts` (`DatedTitleIndex`) |
+| DOC API CLI (range/symbols) | `src/scripts/runNewsBackfill.ts` (`bun run news:backfill`) |
+| DOC API CLI (full universe, resumable) | `src/scripts/runNewsBackfillUniverse.ts` (`bun run news:backfill:universe`) |
 | Schema (`availableAt`, `origin`) + migration | `prisma/schema.prisma` · `prisma/migrations/…_b3_5_news_backfill/` |
 | Env knobs | `GDELT_BATCH_DAYS` · `GDELT_LATENCY_MINUTES` · `GDELT_RATE_LIMIT_MS` |
-| Tests | `src/news/gdelt/*.test.ts` |
+| Tests | `src/news/gdelt/*.test.ts` · `src/news/dedupe.test.ts` |

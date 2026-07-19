@@ -32,6 +32,37 @@ keeps one stable IP for the WAF-sensitive scrapers.
 swap absorbs them. Heavy work (universe GDELT backfills, deep backtests) runs, but
 slowly — run those in `tmux` and let them take the time they take.
 
+### ⚠️ The CPU-credit wall (t3.small burstable — the #1 operational gotcha)
+
+t3.small is a **burstable** instance: 2 vCPU that only sustain **~40% total** (baseline)
+once the earned CPU-credit balance hits zero. Any sustained CPU job — a big FinBERT
+scoring backlog, a large import, a backtest — burns credits in ~20–40 min, then the box
+throttles to baseline and becomes **so slow SSH times out during banner exchange** (looks
+like a freeze; it isn't — CloudWatch shows `CPUCreditBalance=0`, `CPUUtilization≈40%`).
+Hit **three times** during the 2026-07-18/19 news backfills.
+
+- **Diagnose without SSH:** `aws cloudwatch get-metric-statistics --namespace AWS/EC2
+  --metric-name CPUCreditBalance --dimensions Name=InstanceId,Value=<id> --start-time …
+  --end-time … --period 300 --statistics Average`. Balance 0 + util pinned ~40% = throttled,
+  not crashed.
+- **Recover:** `aws ec2 reboot-instances --instance-ids <id>` (compose `restart:
+  unless-stopped` brings every container back; the DB volume + all data survive). Then let
+  the box idle to re-accrue credits (t3.small earns 24/hr) before the next heavy job.
+- **`Unlimited` credits are BLOCKED on this account** (`aws ec2
+  modify-instance-credit-specification … CpuCredits=unlimited` → "This account cannot run
+  burstable instances with Unlimited enabled"). So the only real fixes are: (a) run
+  CPU-heavy imports/backtests **on a workstation**, ship results to the VM (this is why
+  `news:gal:download` runs on the Mac and only `news:gal:import` runs on the box); or
+  (b) **resize to a non-burstable instance** (m-family) or a larger t3 before B7/B9's
+  backtests — those will hit this wall hard.
+- **Don't run two CPU-heavy jobs at once here.** A large import + the 15-min FinBERT
+  scoring cron competing on a 0-credit box is what caused the worst stall. Import first
+  (unscored rows accumulate harmlessly), let scoring catch up after.
+
+**Scoring tunables set for this box** (`~/quantswing/.env`): `SENTIMENT_TIMEOUT_MS=120000`
+(FinBERT is slow on shared throttled vCPUs) and `SENTIMENT_BATCH_SIZE=16` (smaller batches
+fit the per-request timeout instead of timing the whole batch out).
+
 ## 2. Sharp edges (read before touching)
 
 1. **`TZ=Asia/Kolkata` on the backend container is load-bearing.** BSE announcement
@@ -121,16 +152,36 @@ canary — a healthy deploy shows all four live sources fresh within a cycle.
 
 ## 7. Running research/ops jobs on the box
 
+Light jobs run fine on the box; **CPU-heavy jobs should run on a workstation** and only
+their output ships to the VM (see the CPU-credit wall in §1). Long jobs go in `tmux` with
+a host-mounted state/output dir (`~/quantswing/gdelt-state/`) so a container recreation or
+reboot doesn't lose progress:
+
 ```bash
 ssh -i ~/.ssh/quantswing-key.pem ubuntu@<IP>
 cd ~/quantswing
 docker compose exec backend bun run news:ingest              # manual ingest + report
 docker compose exec backend bun run sentiment:score          # scoring catch-up
-tmux new -s backfill
-docker compose exec backend sh -c 'GDELT_BATCH_DAYS=10 GDELT_RATE_LIMIT_MS=10000 \
-  bun run news:backfill:universe --from 2025-01-01 --to 2026-07-17'   # long; detach with C-b d
+docker compose exec backend bun run news:remap               # re-tag after alias growth
+
+# BSE filing backfill (exchange API, light) — checkpoint on the HOST volume:
+tmux new -s bse
+docker compose run --rm --no-deps -v /home/ubuntu/quantswing/gdelt-state:/state backend \
+  sh -c 'bun run news:backfill:bse --from 2024-01-01 --to 2026-07-17 --state /state/bse.json'
 ```
 
-(The GDELT checkpoint lives inside the container FS at `.cache/` — `docker compose
-restart backend` preserves it only until the container is recreated; for long
-backfills prefer finishing a run before redeploying, or re-run — it's idempotent.)
+**GDELT media history — download on the workstation, import on the box** (the download is
+CPU-heavy and would wall the VM's credits; the import is what needs the DB):
+
+```bash
+# workstation:
+bun run news:gal:download --from 2025-01-01 --to 2026-07-17 --out .cache/gal.ndjson --state .cache/gal-state.json
+scp -i ~/.ssh/quantswing-key.pem .cache/gal.ndjson ubuntu@<IP>:~/quantswing/gal.ndjson
+# box (idempotent; run when the box has CPU credits and scoring is idle):
+docker compose run --rm --no-deps -v /home/ubuntu/quantswing/gal.ndjson:/data/gal.ndjson \
+  backend bun run news:gal:import --file /data/gal.ndjson
+```
+
+All backfills/imports are **idempotent** (`(source,url)` unique + `skipDuplicates`) — a
+killed run resumes or re-runs safely. New rows are unscored; the 15-min cron (or
+`sentiment:score`) catches them up.

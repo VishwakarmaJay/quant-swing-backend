@@ -42,6 +42,18 @@ URL, `SLONGNAME` prepended to the body so boilerplate headlines still symbol-map
 Jaccard dedup against the archive titles *around the announcement's own time*, the
 curated symbol mapper, `createMany(skipDuplicates)`.
 
+**Dedup is per-company AND time-windowed (fixed 2026-07-19).** BSE filing titles are
+templated ("Financial Results for the quarter ended…", "Board Meeting Intimation") — the
+company lives only in the `SLONGNAME` body prefix. A naive title-only Jaccard therefore
+(a) collapsed *different companies'* identical filings into one, and (b) collapsed a
+company's *quarterly recurrence* of the same title into its first occurrence. Both were
+measured on the first full run: **~64% of downloads wrongly dropped, some symbols
+retaining ~5%.** The fix keys dedup by `bseCompanyKey(body)` into a per-company
+`DatedTitleIndex`, so a filing dedupes only against the *same company's* titles within
+±`NEWS_DEDUPE_WINDOW_DAYS` of its own dissemination. **Retention after the fix: ~88%**
+(e.g. HDFCBANK 436/495 vs 149/495 before), which is what took the archive to 57,025
+BSE_BACKFILL rows.
+
 | Field | Value |
 |---|---|
 | `source` | `BSE_ANNOUNCEMENTS` — **shared with live capture**, so the `(source,url)` identity space dedupes overlapping days instead of duplicating |
@@ -59,9 +71,11 @@ per symbol (`.cache/bse-backfill.json`, range-keyed); re-run the same command to
 1. **Filings, not journalism.** Much of the stream is procedural boilerplate FinBERT
    scores neutral; the sentiment signal concentrates in results/orders/ratings rows.
    The value is event coverage + timestamps, not tone volume.
-2. **Boilerplate Jaccard collisions.** Near-identical repeated titles ("Newspaper
-   Publication…") dedupe within the recency window — same policy as live (observed:
-   10/39 RELIANCE Q1-2025 rows). Distinct filings with near-identical titles can drop.
+2. **Boilerplate Jaccard collisions (bounded by §3's per-company, time-windowed dedup).**
+   Two *different* filings from the *same company* within the recency window with
+   near-identical titles can still collapse — but cross-company and cross-quarter
+   collisions (the big losses) are fixed. Residual over-merge is now small and same-policy
+   as live.
 3. **Latency margin is still an assumption** (default 30 min), just anchored to a far
    better base than GDELT's crawl time.
 4. **BSE only** — NSE-only listings (none in the current universe) would be invisible.

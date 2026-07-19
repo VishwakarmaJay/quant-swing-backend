@@ -169,15 +169,19 @@ is weaker evidence than live capture).
       corpus + `createMany(skipDuplicates)` — re-running a range creates zero duplicates.
 - [x] Live-verified against the DOC 2.0 API (2026-07-18): artlist JSON shape, seendate
       format, and the real throttle protocol (HTTP 429 + plain-text notice at >1 req/5s;
-      client backs off ≥5s, bounded retries, throttled ≠ empty). For long runs set
-      `GDELT_RATE_LIMIT_MS=5000`.
+      client backs off ≥5s, bounded retries, throttled ≠ empty).
+- [x] **GAL bulk path added (2026-07-19) — the way the archive was actually loaded.** The
+      DOC API is too throttled for bulk (days per run); the GDELT Article List dataset
+      publishes the same metadata as rate-limit-free bulk files. `bun run news:gal:download`
+      (workstation sweep, ~90 min for 18 months, any-alias title match, `desc`→`body`) →
+      `bun run news:gal:import` (same `processGdeltRecords` core). Live 2026-07-19: 563 days
+      → 171,721 matched → **~100k+ GDELT rows** for 2025-01→2026-07.
 - [x] Tests: parser, timestamp reconstruction, idempotency, duplicate handling, symbol-
       mapping integration; full suite + typecheck green (B3 live behaviour unchanged —
       same code paths, two new stamped fields).
 - **Done when:** a date range can be backfilled repeatably with honest availability +
-  provenance on every imported row, through the existing pipeline. ✅ **Met.** Note: the
-  archive's pre-2026-07-18 history is GDELT-origin only (headlines, no BSE announcements) —
-  see `GDELT_BACKFILL.md` §8 before trusting any research built on it.
+  provenance on every imported row, through the existing pipeline. ✅ **Met** (GAL bulk
+  path is the recommended acquisition route; DOC API kept for top-ups).
 
 ### ✅ B3.6. Historical BSE announcements backfill — *exchange-timestamped history* — DONE (2026-07-18)
 Full doc: [`BSE_BACKFILL.md`](./BSE_BACKFILL.md) · `bun run news:backfill:bse --from … --to …`.
@@ -186,8 +190,27 @@ API limit is universe-wide only — live-verified for all categories) give every
 announcement with the exchange's own `DissemDT`; `availableAt = DissemDT + 30min`
 (anchored to exchange truth, not a crawl proxy); `origin = BSE_BACKFILL`; scrip codes
 from the B4 archive (167/167). Same pipeline, checkpointed, idempotent. ~1,800 requests
-per 2.5 years at WAF-polite pacing. Together with B3.5 this softens B7's archive gate:
-backtestable history exists now — validate on the live-only subset as it accrues.
+per 2.5 years at WAF-polite pacing. **Loaded 2026-07-19: 57,025 rows, 100% scored.**
+Together with B3.5 this softens B7's archive gate: backtestable history exists now —
+validate on the live-only subset as it accrues.
+- [x] **Dedup fixed to per-company + time-windowed (2026-07-19).** Templated filing titles
+      ("Financial Results for the quarter ended…") collapsed across companies *and* across
+      quarters under title-only Jaccard — measured ~64% wrongly dropped. Fix keys dedup by
+      `bseCompanyKey(body)` into a `DatedTitleIndex` (±`NEWS_DEDUPE_WINDOW_DAYS`). Retention
+      30%→~88%; the same day-bucketed index replaced an O(n²) flat scan that CPU-locked the
+      import host. Regression tests pin cross-company + cross-quarter survival.
+
+### ✅ Validation gate + observability (2026-07-18/19) — *measure the archive before B7 builds on it*
+- [x] **`ingest_run` persistence + Telegram alerts** (`src/news/ingestRun.ts`): every ingest
+      pass writes a row (per-source, totals, `status`, alert lines) and pages the operator —
+      FROZEN feed immediate; source-fail / zero-parse / sidecar-down on the 2nd consecutive
+      run; onset-only (no repeat-spam). Closes the architecture review's console-only-ops
+      hole now that the archive lives on an unattended VM.
+- [x] **Alias growth + remap** (`bun run news:remap`): grew `companyAliases.ts` from the
+      unmatched-headline log (10 forms — "sun pharmaceutical", one97/one 97, "ambuja cements",
+      "tata motors", etc.) and re-tagged stored rows; institutionalizes the B3 growth loop.
+- [x] Per-origin composition / coverage / timestamp-integrity checks (availableAt exactly
+      publishedAt+latency, zero negatives/futures); manual precision sample of imported tags.
 
 ### ✅ B4. Fundamentals: snapshotter + point-in-time backfill — *clock #2 + the unblock* ⏰ — DONE
 Module `src/fundamentals/` (+13 tests, 202/202 pass) · migration `b4_fundamentals`
@@ -340,7 +363,8 @@ scorer `src/news/scoreArticles.ts` + `bun run sentiment:score` · migration `b6_
 B1 portfolio backtest ──────────────┐
 B2 wire config (operator) ─┐        │
 B3 news archive ────────┬─► B6 FinBERT ──► B7 SentimentFactor ─┐
-B3.5 GDELT backfill ────┘ (retro-extends B3; origin-labelled)  │
+B3.5 GDELT backfill ────┤ (media history via GAL bulk)         │
+B3.6 BSE backfill ──────┘ (exchange-filing history, DissemDT)  │
 B4 fundamentals data ──► B5 FundamentalFactor ─────────────────┼──► B9 Phase-6 rerun ──► B10 Phase 5
 B8 robustness (parallel) ──────────────────────────────────────┘         (gated by B1's fair test)
 ```

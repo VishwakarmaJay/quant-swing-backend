@@ -82,11 +82,16 @@ Two levers (domain + alias) + verify. `[ ]` → pending, `[x]` → done (see log
       domain distribution. **Sizing (2026-07-19):** 83,948 Indian rows kept / 30,911 foreign
       to unmap; of mapped GDELT rows, 75,880 kept · **29,792 false tags to drop** (~28%,
       matching the audit's estimate). Shared by S3 (unmap) and S6 (downloader).
-- [ ] **S2 — Tighten toxic aliases.** Audit every single-common-word alias for homonym risk.
-      Known offenders: Britannia → require "britannia industries"; Lupin → "lupin
-      pharma"/"lupin ltd"; Colgate → "colgate-palmolive"/"colgate india"; add an
-      `ALIAS_EXCLUSIONS` rule so "federal bank" does not match crime phrases
-      (fraud/charges/robbery). Same B3 growth-loop (audit → tighten → remap).
+- [x] **S2 — Homonym guards (re-scoped on evidence).** ✅ Sampling Indian-domain-only rows
+      showed the domain filter (S1) already lifts the suspects to ~95-100% on Indian
+      coverage — BRITANNIA ~95% (only a Mumbai "Britannia & Co" restaurant + a Britain
+      litchi headline residual), COLPAL ~100%, FEDERALBNK ~100% (the "federal bank fraud"
+      false positive was a US-news foreign domain, S3-removed). So **stripping bare aliases
+      was rejected — it would cost real recall for ~0 precision gain.** Instead added
+      surgical `ALIAS_EXCLUSIONS` (zero-recall-cost negative lookaheads) for the exact
+      homonym phrases from the audit: `britannia` +beach/bridge/stand/coin/cruise/…;
+      `lupin` +writer/series/season/thief/…; `colgate` +university/divinity/rochester/…;
+      `federal bank` +fraud/charges/robbery/indicted. +symbolMapper tests; 328 pass.
 - [ ] **S3 — Unmap, don't delete.** GDELT rows failing the filters (non-allowlisted domain,
       or a now-tightened alias no longer matching) get `symbols = []` — invisible to
       per-stock research but retained, `origin`-tagged, reversible (respects the
@@ -130,5 +135,11 @@ GDELT symbol tags clear **≥90%** on a fresh audit; the worst-offender names ve
   Yahoo, tickerreport spam — all blocked; ET/Moneycontrol/`.in`/subdomains allowed;
   boundary-safe). Typecheck clean. Impact measured on the live archive: **27% of GDELT
   rows are foreign-domain (30,911); 29,792 currently-mapped rows will lose their false
-  tags** in S3. Domain lever confirmed to catch the bulk of the pollution. **Next: S2
-  (alias tightening) + S6 (downloader filter), then S3/S4/S5 apply after overnight scoring.**
+  tags** in S3. Domain lever confirmed to catch the bulk of the pollution.
+- **2026-07-19** — ✅ **S2 done.** Evidence changed the plan: Indian-domain-only samples
+  showed BRITANNIA ~95% / COLPAL ~100% / FEDERALBNK 100% — the homonym false positives were
+  overwhelmingly foreign-domain (S3's job), so aggressive alias-stripping was **rejected**
+  as a recall-for-nothing trade. Added surgical zero-recall-cost `ALIAS_EXCLUSIONS`
+  (britannia/lupin/colgate/federal-bank + their homonym-follow words) as a defensive second
+  line. 328 tests pass, typecheck clean. **Remaining: S6 (downloader filter — code, safe
+  now), then S3/S4/S5 apply after overnight scoring finishes.**

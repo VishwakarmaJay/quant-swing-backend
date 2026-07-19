@@ -52,6 +52,25 @@ describe('mapArticleSymbols — precision guards (conservative)', () => {
     expect(mapArticleSymbols("SBI's Q1 profit beats estimates").symbols).toEqual(['SBIN']);
     expect(mapArticleSymbols('State Bank of India board approves fundraise').symbols).toEqual(['SBIN']);
   });
+
+  test('homonym guards (S2): foreign homonyms blocked, real companies still map', () => {
+    // The exact false positives from the GDELT audit (2026-07-19) — blocked.
+    expect(mapArticleSymbols('A55 Britannia Bridge closed due to Storm Éowyn').symbols).toEqual([]);
+    expect(mapArticleSymbols('New Netflix shows filmed in Britannia Beach').symbols).toEqual([]);
+    expect(mapArticleSymbols('Britannia Stand Co-opted - Ipswich Town News').symbols).toEqual([]);
+    // (A quoted "'Lupin'" title is caught by S3's domain filter; the exclusion
+    // handles the un-quoted homonym-word-follows case.)
+    expect(mapArticleSymbols('Lupin series review: Omar Sy returns as the thief').symbols).toEqual([]);
+    expect(mapArticleSymbols('Colgate Rochester Crozer Divinity School relocates').symbols).toEqual([]);
+    expect(mapArticleSymbols('Letitia James indicted on federal bank fraud charges').symbols).toEqual([]);
+    // …while the real Indian companies still map (the disambiguating word only
+    // ever follows the homonym, never the company).
+    expect(mapArticleSymbols('Britannia Q1 FY26 net profit rises').symbols).toEqual(['BRITANNIA']);
+    expect(mapArticleSymbols('Accumulate Britannia Industries; target Rs 5229').symbols).toEqual(['BRITANNIA']);
+    expect(mapArticleSymbols('Lupin receives USFDA nod for Nagpur facility').symbols).toEqual(['LUPIN']);
+    expect(mapArticleSymbols('Colgate-Palmolive India Q2 profit falls 17%').symbols).toEqual(['COLPAL']);
+    expect(mapArticleSymbols('Federal Bank net profit up 13.7% on higher NII').symbols).toEqual(['FEDERALBNK']);
+  });
 });
 
 describe('aliasCoverage', () => {

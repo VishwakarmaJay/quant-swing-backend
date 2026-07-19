@@ -240,7 +240,27 @@ export const COMPANY_ALIASES: Record<string, string[]> = {
  * sample (2026-07-18, 92%) showed every miss was bare "sbi" firing inside
  * "SBI Life" (a different universe stock!), "SBI Funds Management", and
  * "SBI Capital Markets". "SBI raises rates" / "SBI's Q1" still match SBIN.
+ *
+ * ── Homonym guards (GDELT_PRECISION_FIX S2, 2026-07-19) ──
+ * The GDELT media backfill exposed common-English-word aliases colliding with
+ * foreign homonyms. The Indian-domain allowlist (`indianDomains.ts`) is the
+ * PRIMARY fix and already lifts these symbols to ~95-100% on Indian coverage;
+ * these exclusions are a cheap, zero-recall-cost second line (a homonym slipping
+ * through on an allowlisted domain, or any future domain-filter gap). Words are
+ * the disambiguating token that FOLLOWS the alias in the false-positive — never
+ * a token that follows the real company (verified against the live sample), so
+ * "Britannia Q1", "Colgate India", "Federal Bank net profit", "Lupin shares"
+ * all still map.
  */
 export const ALIAS_EXCLUSIONS: Record<string, string[]> = {
   sbi: ['life', 'card', 'cards', 'funds', 'fund', 'capital', 'mutual', 'general', 'amc', 'caps'],
+  // "A55 Britannia Bridge", "Britannia Beach", "Britannia Stand", cruise ship
+  // "Britannia", gold "Britannia" coin, "Britannia Coconut Dancers".
+  britannia: ['beach', 'bridge', 'stand', 'coconut', 'coin', 'cruise', 'naval', 'royal', 'yacht', 'row'],
+  // "'Lupin' writer/series/season" (Netflix show), Arsène Lupin the gentleman thief.
+  lupin: ['writer', 'series', 'season', 'netflix', 'part', 'thief', 'gentleman', 'star', 'cast'],
+  // "Colgate Rochester Crozer Divinity School", Colgate University "Raiders".
+  colgate: ['university', 'rochester', 'divinity', 'maroon', 'raiders', 'college'],
+  // "federal bank fraud charges" (US crime), bank robberies/heists.
+  'federal bank': ['fraud', 'charges', 'robbery', 'robberies', 'heist', 'indicted'],
 };

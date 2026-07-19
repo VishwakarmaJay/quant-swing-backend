@@ -76,11 +76,12 @@ this fix.
 
 Two levers (domain + alias) + verify. `[ ]` → pending, `[x]` → done (see log).
 
-- [ ] **S1 — Indian-domain allowlist.** From the GDELT domain-frequency data, allowlist the
-      Indian financial/news outlets (ET, Moneycontrol, Hindu BusinessLine, LiveMint,
-      BusinessToday, Financial Express, TOI, news18, equitybulls, …); the foreign tail is
-      out-of-scope. Trade-off accepted: lose some legit foreign coverage of Indian stocks
-      (Reuters/Bloomberg on Reliance) — small vs the noise removed; precision is the gate.
+- [x] **S1 — Indian-domain allowlist.** ✅ `src/news/indianDomains.ts` +36 tests. Rule:
+      any `.in` ccTLD host OR a curated set of major Indian `.com`/`.org` outlets
+      (subdomain- and boundary-safe); everything else is foreign. Grown from the live GDELT
+      domain distribution. **Sizing (2026-07-19):** 83,948 Indian rows kept / 30,911 foreign
+      to unmap; of mapped GDELT rows, 75,880 kept · **29,792 false tags to drop** (~28%,
+      matching the audit's estimate). Shared by S3 (unmap) and S6 (downloader).
 - [ ] **S2 — Tighten toxic aliases.** Audit every single-common-word alias for homonym risk.
       Known offenders: Britannia → require "britannia industries"; Lupin → "lupin
       pharma"/"lupin ltd"; Colgate → "colgate-palmolive"/"colgate india"; add an
@@ -123,3 +124,11 @@ GDELT symbol tags clear **≥90%** on a fresh audit; the worst-offender names ve
 - **2026-07-19** — Finding raised by the validation gate. BSE 100% / GDELT ~80% (BRITANNIA
   ~50%). Root cause = GAL download missing the `sourcecountry:IN` constraint. Plan agreed;
   this doc created. Overnight scoring pass running. **Steps S1–S6 pending.**
+- **2026-07-19** — ✅ **S1 done.** Built `src/news/indianDomains.ts` (`isIndianNewsDomain`,
+  `domainOf`) + `indianDomains.test.ts` (36 tests, incl. the real false-positive domains
+  — thecolgatemaroonnews.com, screenrant/collider, cruise/coin/football, marketscreener,
+  Yahoo, tickerreport spam — all blocked; ET/Moneycontrol/`.in`/subdomains allowed;
+  boundary-safe). Typecheck clean. Impact measured on the live archive: **27% of GDELT
+  rows are foreign-domain (30,911); 29,792 currently-mapped rows will lose their false
+  tags** in S3. Domain lever confirmed to catch the bulk of the pollution. **Next: S2
+  (alias tightening) + S6 (downloader filter), then S3/S4/S5 apply after overnight scoring.**

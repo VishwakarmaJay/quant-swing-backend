@@ -1,12 +1,14 @@
 import dayjs from 'dayjs';
 
 import { fundamentalsAsOf, loadFundamentalQuarters, type FundamentalSnapshotAsOf } from '@/fundamentals';
+import { DEFAULT_SENTIMENT_AGGREGATE_CONFIG } from '@/news/sentimentAggregate';
 import { assessDataQuality, type Candle } from '@/ohlcv';
 import { prisma } from '@services/prisma';
+import { NewsOrigin } from '@generated/prisma/enums';
 
 import { lookbackReturnPct } from './indicators';
 import { DEFAULT_SECTOR_RS_CONFIG } from './sectorRelativeStrengthFactor';
-import type { StockContext } from './types';
+import type { SentimentArticleInput, StockContext } from './types';
 
 /** The market benchmark used for relative strength. */
 export const BENCHMARK_ID = 'NSE:Nifty 50';
@@ -123,6 +125,68 @@ export const loadFundamentalInputs = async (asOf: Date = new Date()): Promise<Fu
   return { bySymbol, pesBySector };
 };
 
+/** Symbol → its as-of scored articles (the SentimentFactor's injected input). */
+export type SentimentInputs = Map<string, SentimentArticleInput[]>;
+
+/** Sentiment pre-pass tuning (window must cover the factor's aggregate window). */
+export type SentimentInputsOptions = {
+  /** Only articles with `availableAt` within this many days of `asOf` are loaded. */
+  windowDays?: number;
+  /**
+   * Restrict to these provenance origins. The B7 evaluation runs PER-ORIGIN
+   * (live-only vs +BSE_BACKFILL vs +GDELT) to prove any edge on the strongest
+   * evidence tier — backfilled rows carry reconstructed `availableAt`, weaker
+   * than live capture. Omit → all origins.
+   */
+  origins?: readonly NewsOrigin[];
+};
+
+/**
+ * Cross-sectional pre-pass for the SentimentFactor (mirrors the fundamental /
+ * sector-peer loaders): reads the FinBERT-scored news archive and groups, per
+ * universe symbol, every article whose honest availability time
+ * (`availableAt`) is ≤ `asOf` and within the window, as `{ ageDays, score,
+ * neutralProb }`. **Point-in-time by construction:** the query keys on
+ * `availableAt` (never `publishedAt`/`fetchedAt`), and unscored rows are
+ * excluded. Load once per as-of date and pass to `buildStockContext`.
+ */
+export const loadSentimentInputs = async (
+  asOf: Date = new Date(),
+  opts: SentimentInputsOptions = {},
+): Promise<SentimentInputs> => {
+  const windowDays = opts.windowDays ?? DEFAULT_SENTIMENT_AGGREGATE_CONFIG.windowDays;
+  const asOfIso = dayjs(asOf).format('YYYY-MM-DD');
+  const asOfDate = new Date(`${asOfIso}T00:00:00.000Z`);
+  const windowStart = new Date(asOfDate.getTime() - windowDays * 86_400_000);
+
+  const rows = await prisma.newsArticle.findMany({
+    where: {
+      availableAt: { gte: windowStart, lte: asOfDate },
+      sentimentScoredAt: { not: null },
+      sentimentScore: { not: null },
+      symbols: { isEmpty: false },
+      ...(opts.origins?.length ? { origin: { in: [...opts.origins] } } : {}),
+    },
+    select: { symbols: true, availableAt: true, sentimentScore: true, sentimentNeutral: true },
+  });
+
+  const bySymbol: SentimentInputs = new Map();
+  for (const r of rows) {
+    if (r.sentimentScore === null) continue;
+    const ageDays = (asOfDate.getTime() - r.availableAt.getTime()) / 86_400_000;
+    const input: SentimentArticleInput = {
+      ageDays,
+      score: r.sentimentScore,
+      neutralProb: r.sentimentNeutral ?? 0,
+    };
+    for (const symbol of r.symbols) {
+      const arr = bySymbol.get(symbol) ?? bySymbol.set(symbol, []).get(symbol)!;
+      arr.push(input);
+    }
+  }
+  return bySymbol;
+};
+
 /**
  * Builds the StockContext a factor evaluates: the instrument's candles + data
  * quality, its sector, and the market benchmark (Nifty). Pass
@@ -137,6 +201,7 @@ export const buildStockContext = async (
     benchmarkCandles?: readonly Candle[];
     sectorPeerReturns?: SectorPeerReturns;
     fundamentalInputs?: FundamentalInputs;
+    sentimentInputs?: SentimentInputs;
   },
 ): Promise<StockContext | null> => {
   const instrument = await prisma.instrument.findUnique({
@@ -174,6 +239,10 @@ export const buildStockContext = async (
       }
     : null;
 
+  // Symbol mapping keys news on the canonical symbol (no -EQ suffix).
+  const articles = opts?.sentimentInputs?.get(canonical);
+  const sentiment = articles ? { articles } : null;
+
   return {
     symbol: instrument.symbol,
     asOf: asOfIso,
@@ -185,5 +254,6 @@ export const buildStockContext = async (
       : null,
     sectorPeers,
     fundamentals,
+    sentiment,
   };
 };

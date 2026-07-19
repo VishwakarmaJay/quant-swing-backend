@@ -2,9 +2,13 @@ import dayjs from 'dayjs';
 
 import { BENCHMARK_ID } from '@/factors';
 import { loadFundamentalQuarters, type FundamentalQuartersBySymbol } from '@/fundamentals';
+import type { DatedScoredArticle } from '@/news/sentimentAggregate';
 import type { Candle } from '@/ohlcv';
 import { VIX_ID } from '@/regime';
 import { prisma } from '@services/prisma';
+
+/** Canonical symbol → its scored articles, ascending by availableAt (B7). */
+export type NewsBySymbol = Map<string, DatedScoredArticle[]>;
 
 /**
  * Loads every candle for the equity universe + the Nifty benchmark into memory
@@ -31,9 +35,47 @@ export type CandleStore = {
    * Nifty-ATR proxy (identical to pre-feed behaviour).
    */
   vixByDate: Map<string, number>;
+  /**
+   * FinBERT-scored articles per canonical symbol (B7), for the per-day sentiment
+   * pre-pass. Empty when the archive isn't scored/present → the SentimentFactor
+   * stays neutral (baseline unchanged). Loaded all-origins; per-origin
+   * evaluation filters at build time.
+   */
+  newsBySymbol: NewsBySymbol;
 };
 
-export const loadCandleStore = async (): Promise<CandleStore> => {
+/**
+ * Loads the FinBERT-scored news archive into per-symbol arrays (ascending by
+ * availability). Optional `origins` filter for the B7 per-origin evaluation
+ * (live-only vs +BSE_BACKFILL vs +GDELT); omit for all origins.
+ */
+export const loadNewsBySymbol = async (origins?: readonly string[]): Promise<NewsBySymbol> => {
+  const rows = await prisma.newsArticle.findMany({
+    where: {
+      sentimentScoredAt: { not: null },
+      sentimentScore: { not: null },
+      symbols: { isEmpty: false },
+      ...(origins?.length ? { origin: { in: origins as never[] } } : {}),
+    },
+    orderBy: { availableAt: 'asc' },
+    select: { symbols: true, availableAt: true, sentimentScore: true, sentimentNeutral: true },
+  });
+  const bySymbol: NewsBySymbol = new Map();
+  for (const r of rows) {
+    if (r.sentimentScore === null) continue;
+    const article: DatedScoredArticle = {
+      availableAtMs: r.availableAt.getTime(),
+      score: r.sentimentScore,
+      neutralProb: r.sentimentNeutral ?? 0,
+    };
+    for (const symbol of r.symbols) {
+      (bySymbol.get(symbol) ?? bySymbol.set(symbol, []).get(symbol)!).push(article);
+    }
+  }
+  return bySymbol;
+};
+
+export const loadCandleStore = async (opts?: { sentimentOrigins?: readonly string[] }): Promise<CandleStore> => {
   const instruments = await prisma.instrument.findMany({
     where: { instrumentType: 'EQ' },
     select: { id: true, symbol: true, name: true, sector: true },
@@ -63,6 +105,7 @@ export const loadCandleStore = async (): Promise<CandleStore> => {
 
   const benchmark = seriesById.get(BENCHMARK_ID) ?? [];
   const fundamentalsBySymbol = await loadFundamentalQuarters();
+  const newsBySymbol = await loadNewsBySymbol(opts?.sentimentOrigins);
   const vixByDate = new Map((seriesById.get(VIX_ID) ?? []).map((c) => [c.tradeDate, c.close]));
   seriesById.delete(VIX_ID); // not a tradeable series — regime input only
   return {
@@ -72,6 +115,7 @@ export const loadCandleStore = async (): Promise<CandleStore> => {
     tradingDates: benchmark.map((c) => c.tradeDate),
     fundamentalsBySymbol,
     vixByDate,
+    newsBySymbol,
   };
 };
 

@@ -8,7 +8,14 @@ export {
   type TradeLevels,
 } from './tradeSimulator';
 export { computeMetrics, type BacktestMetrics } from './metrics';
-export { loadCandleStore, benchmarkReturn, type CandleStore, type UniverseInstrument } from './candleStore';
+export {
+  loadCandleStore,
+  loadNewsBySymbol,
+  benchmarkReturn,
+  type CandleStore,
+  type UniverseInstrument,
+  type NewsBySymbol,
+} from './candleStore';
 export {
   runBacktest,
   generateRawSignals,

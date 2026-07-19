@@ -10,6 +10,7 @@ import {
   type StockContext,
 } from '@/factors';
 import { fundamentalsAsOf, type FundamentalSnapshotAsOf } from '@/fundamentals';
+import { DEFAULT_SENTIMENT_AGGREGATE_CONFIG, sentimentInputsAsOf } from '@/news/sentimentAggregate';
 import { assessDataQuality, type Candle } from '@/ohlcv';
 import { isMemberOn } from '@/universe/membership';
 import { detectRegime } from '@/regime';
@@ -65,6 +66,8 @@ export type BacktestOptions = {
 const DEFAULT_WARMUP = 205;
 /** Min gap between successive signals on the same stock (config-independent). */
 const RESIGNAL_COOLDOWN_DAYS = 5;
+/** Sentiment lookback window (days) for the per-day pre-pass (B7). */
+const SENTIMENT_WINDOW_DAYS = DEFAULT_SENTIMENT_AGGREGATE_CONFIG.windowDays;
 
 /** The expensive pass: replay the pipeline and collect raw signals (entry + SL). */
 export const generateRawSignals = (store: CandleStore, opts: BacktestOptions = {}): RawSignal[] => {
@@ -77,6 +80,9 @@ export const generateRawSignals = (store: CandleStore, opts: BacktestOptions = {
 
   for (let d = from; d < to; d++) {
     const asOf = store.tradingDates[d]!;
+    // As-of cutoff for sentiment: midnight (UTC) of asOf — same no-lookahead
+    // convention as the live loader (excludes same-day-later news).
+    const asOfMidnightMs = new Date(`${asOf}T00:00:00.000Z`).getTime();
     const niftySlice = store.benchmark.filter((c) => c.tradeDate <= asOf);
 
     const slices = new Map<string, Candle[]>();
@@ -152,6 +158,15 @@ export const generateRawSignals = (store: CandleStore, opts: BacktestOptions = {
           return snap
             ? { ...snap, sectorPeerPes: inst.sector ? (sectorPes.get(inst.sector) ?? []) : [] }
             : null;
+        })(),
+        // B7 point-in-time sentiment: articles available ≤ asOf-midnight, within
+        // the window. Observational (buckets.sentiment: [] keeps replay
+        // byte-identical); measured via attribution / walk-forward.
+        sentiment: (() => {
+          const articles = store.newsBySymbol.get(symbol);
+          if (!articles?.length) return null;
+          const inputs = sentimentInputsAsOf(articles, asOfMidnightMs, SENTIMENT_WINDOW_DAYS);
+          return inputs.length ? { articles: inputs } : null;
         })(),
       };
 

@@ -7,6 +7,8 @@ export {
   type MetricValue,
   type StockContext,
   type StockFundamentals,
+  type StockSentiment,
+  type SentimentArticleInput,
 } from './types';
 export {
   ema,
@@ -46,15 +48,23 @@ export {
   DEFAULT_FUNDAMENTAL_CONFIG,
   type FundamentalFactorConfig,
 } from './fundamentalFactor';
+export {
+  SentimentFactor,
+  DEFAULT_SENTIMENT_CONFIG,
+  type SentimentFactorConfig,
+} from './sentimentFactor';
 export { buildFeatureBundle } from './featureBundle';
 export {
   buildStockContext,
   loadBenchmarkCandles,
   loadSectorPeerReturns,
   loadFundamentalInputs,
+  loadSentimentInputs,
   BENCHMARK_ID,
   BENCHMARK_SYMBOL,
   type SectorPeerReturns,
   type FundamentalInputs,
+  type SentimentInputs,
+  type SentimentInputsOptions,
 } from './context';
 export { factors } from './registry';

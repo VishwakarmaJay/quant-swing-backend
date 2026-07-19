@@ -82,7 +82,12 @@ export const DEFAULT_STRATEGY_CONFIG: StrategyConfig = {
     // Volatility is non-directional (feeds signal-math/sizing), so it is NOT in
     // the directional technical composite.
     technical: ['trend', 'momentum', 'relativeStrength', 'volume'],
-    sentiment: ['sentiment'],
+    // The SentimentFactor exists (B7) but is OBSERVATIONAL — empty bucket keeps
+    // this frozen baseline byte-identical now that a factor NAMED 'sentiment' is
+    // registered (a listed factor would auto-activate the regime blend). Was
+    // ['sentiment'] when no such factor existed (equivalently null); flipped to
+    // [] on B7 integration. Activate via walk-forward evidence (B9).
+    sentiment: [],
     // The FundamentalFactor exists (B5) but is OBSERVATIONAL: an empty bucket
     // here keeps this frozen research baseline byte-identical (a listed factor
     // would auto-activate the regime-weighted blend). Activating it is an

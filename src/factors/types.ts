@@ -81,6 +81,31 @@ export type StockContext = {
    * (table not backfilled / index rows) → the factor returns a neutral 50.
    */
   readonly fundamentals?: StockFundamentals | null;
+  /**
+   * Point-in-time news sentiment for THIS stock as of `asOf` (ROADMAP B7),
+   * produced by a pre-pass over the FinBERT-scored news archive: every article
+   * whose honest availability time (`availableAt`) is ≤ `asOf` and within the
+   * lookback window, as `{ ageDays, score, neutralProb }`. The factor aggregates
+   * these (recency + confidence weighted) — kept as injected data so `evaluate`
+   * stays pure. Absent / thin coverage → the factor returns a neutral 50.
+   */
+  readonly sentiment?: StockSentiment | null;
+};
+
+/** One as-of scored article the SentimentFactor aggregates (point-in-time). */
+export type SentimentArticleInput = {
+  /** `asOf − availableAt` in days (≥ 0) — the point-in-time recency key. */
+  readonly ageDays: number;
+  /** FinBERT pos − neg ∈ [−1, 1]. */
+  readonly score: number;
+  /** FinBERT neutral probability ∈ [0, 1] (drives the confidence weight). */
+  readonly neutralProb: number;
+};
+
+/** The injected sentiment inputs the SentimentFactor scores (all as-of). */
+export type StockSentiment = {
+  /** Scored articles for this stock with `availableAt ≤ asOf`, within the window. */
+  readonly articles: readonly SentimentArticleInput[];
 };
 
 /** The injected fundamental inputs the FundamentalFactor scores (all as-of). */

@@ -7,6 +7,7 @@ import {
   loadBenchmarkCandles,
   loadFundamentalInputs,
   loadSectorPeerReturns,
+  loadSentimentInputs,
 } from '@/factors';
 import {
   PortfolioManager,
@@ -59,6 +60,9 @@ export const runPipeline = async (
   const benchmarkCandles = await loadBenchmarkCandles(asOf);
   const sectorPeerReturns = await loadSectorPeerReturns(asOf);
   const fundamentalInputs = await loadFundamentalInputs(asOf);
+  // B7: injected point-in-time sentiment (observational — buckets.sentiment: []
+  // keeps live signals byte-identical until the bucket is activated on evidence).
+  const sentimentInputs = await loadSentimentInputs(asOf);
   // ROADMAP B2: the graduated production strategy — OOS-validated combined config
   // (SRS composite weight 0.25 + BULL pullback+resumption entry), not the baseline.
   const strategy = createProductionStrategy();
@@ -76,7 +80,12 @@ export const runPipeline = async (
     const symbol = inst.symbol.replace(/-EQ$/, '');
     instrumentIdBySymbol.set(symbol, inst.id);
 
-    const ctx = await buildStockContext(inst.id, asOf, { benchmarkCandles, sectorPeerReturns, fundamentalInputs });
+    const ctx = await buildStockContext(inst.id, asOf, {
+      benchmarkCandles,
+      sectorPeerReturns,
+      fundamentalInputs,
+      sentimentInputs,
+    });
     if (!ctx) continue;
 
     const bundle = buildFeatureBundle(ctx, factors);

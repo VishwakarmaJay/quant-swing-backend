@@ -170,3 +170,38 @@ describe('FundamentalFactor is observational (B5)', () => {
     expect(e.compositeScore).toBe(expected);
   });
 });
+
+describe('SentimentFactor is observational (B7)', () => {
+  test('a sentiment result in the bundle leaves the baseline evaluation byte-identical', () => {
+    // The frozen baseline has buckets.sentiment: [] — the registered
+    // SentimentFactor's score must not touch composite, gates (incl. gate 7
+    // sentiment-floor), or agreement until a config explicitly lists it.
+    const plain = makeBundle();
+    const withSent: FeatureBundle = {
+      ...plain,
+      results: { ...plain.results, sentiment: fr(95, { articleCount: 12, sentimentMean: 0.9 }) },
+    };
+    const a = strategy.evaluate(plain, MarketRegime.BULL);
+    const b = strategy.evaluate(withSent, MarketRegime.BULL);
+    expect(b).toEqual(a);
+    expect(b.sentimentScore).toBeNull(); // bucket inactive → not reported, gate 7 dormant
+  });
+
+  test('activation via the bucket lever blends the composite + arms gate 7', () => {
+    const cfg = {
+      ...DEFAULT_STRATEGY_CONFIG,
+      buckets: { ...DEFAULT_STRATEGY_CONFIG.buckets, sentiment: ['sentiment'] },
+    };
+    const active = new WeightedStrategy(cfg);
+    const plain = makeBundle();
+    const withSent: FeatureBundle = {
+      ...plain,
+      results: { ...plain.results, sentiment: fr(95) },
+    };
+    const e = active.evaluate(withSent, MarketRegime.BULL);
+    expect(e.sentimentScore).toBe(95);
+    // BULL weights technical 0.5 / sentiment 0.3 renormalized over present buckets.
+    const expected = Number(((e.technicalScore * 0.5 + 95 * 0.3) / 0.8).toFixed(2));
+    expect(e.compositeScore).toBe(expected);
+  });
+});

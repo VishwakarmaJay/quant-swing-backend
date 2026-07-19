@@ -313,22 +313,26 @@ scorer `src/news/scoreArticles.ts` + `bun run sentiment:score` · migration `b6_
       correctly neutral. Known miss: "shares tank as SEBI opens probe" scored weakly
       positive — headline-level FinBERT limitation, noted for B7's aggregation design.
 
-### B7. SentimentFactor — 🟢 DATA-UNBLOCKED (2026-07-19) via B3.5/B3.6 backfills; ready to build
-The ~6-month live-clock gate is **softened**: the GDELT (media, 2025-01→) + BSE (filings,
-2024-01→) backfills give ~2.5yr of backtestable, provenance-tagged, precision-audited
-history *now* — no longer calendar-blocked to Jan 2027. Caveat that shapes the build:
-backfilled rows carry *reconstructed* `availableAt`, so every evaluation must run
-**per-origin** (live-only vs +BSE_BACKFILL vs +GDELT), proving any edge on the strongest
-evidence tier before believing it.
-- [ ] Aggregation: recency-weighted, deduped, chase-decay → per-stock 0–100, reading
-      `availableAt` only (point-in-time); injected via the `ctx` pre-pass pattern (like
-      `sectorPeers`/`fundamentals`).
-- [ ] Observational first (weight 0, golden byte-identical); sentiment bucket + gate 7
-      activate automatically only when the factor is listed.
-- [ ] Attribution + selection tests, then **embargoed walk-forward, split per-origin**.
+### B7. SentimentFactor — 🟢 PHASE 1 BUILT (2026-07-19, observational); Phase 2 (measurement) next
+Full doc: [`SENTIMENT_FACTOR.md`](./SENTIMENT_FACTOR.md). Data-unblocked by B3.5/B3.6 (GDELT
+media 2025-01→ + BSE filings 2024-01→, ~2.5yr, provenance-tagged, precision-audited) — no
+longer calendar-blocked to Jan 2027. Backfilled rows carry *reconstructed* `availableAt`, so
+every evaluation runs **per-origin** (live-only vs +BSE_BACKFILL vs +GDELT).
+- [x] **Aggregation core** (`src/news/sentimentAggregate.ts`): recency × confidence weighted,
+      chase-decay (half-life 7d), thin-coverage→neutral → per-stock 0–100. Pure, +18 tests.
+- [x] **Point-in-time, no lookahead** — reads `availableAt` only, cutoff = midnight(asOf);
+      mirrored in the live pre-pass (`loadSentimentInputs`→`runPipeline`) and the backtest
+      replay (`loadNewsBySymbol`→`backtestEngine`, via unit-tested `sentimentInputsAsOf`).
+- [x] **Factor + observational integration**: `SentimentFactor` registered; frozen baseline
+      flipped `buckets.sentiment` `['sentiment']`→`[]` so composite/golden/backtest stay
+      **byte-identical** (regression test pins it; gate 7 stays dormant). Golden re-baselined
+      (neutral 50 on candle-only fixtures). 358 tests pass, typecheck clean.
+- [ ] **Phase 2 (after overnight scoring):** attribution + selection, then embargoed
+      walk-forward, **each split per-origin**; run on the workstation (backtests are CPU-heavy
+      — VM is credit-throttled).
 - **Done when:** sentiment's marginal OOS contribution is measured on the walk-forward,
-  validated on the live/BSE (strong-evidence) subset. **Prereqs met:** B6 scoring done,
-  archive loaded + precision-audited (see the validation-gate + `GDELT_PRECISION_FIX` rows).
+  validated on the live/BSE (strong-evidence) subset; bucket activated (or rejected) on that
+  evidence in B9.
 
 ### ✅ B8. Robustness upgrades — DONE (2026-07-18; one honest residual) 🧰
 - [x] **B8.1 Deep backfill:** `backfill:ohlcv all 2000` → **1,356 candles/instrument

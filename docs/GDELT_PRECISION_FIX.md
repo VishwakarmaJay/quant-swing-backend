@@ -1,10 +1,10 @@
 # GDELT Symbol-Mapping Precision Fix (validation-gate finding, 2026-07-19)
 
-> **Status:** 🟡 IN PROGRESS · owner: news-archive track · does **not** block B7 (which
-> starts on the clean `LIVE_* + BSE_BACKFILL` subset). This is a data-quality fix in the
-> news-archive derivation layer only — no prices, factors, or live behaviour are touched.
+> **Status:** ✅ **DONE (2026-07-19)** — all six steps landed; GDELT gate cleared (30/30
+> sample, BRITANNIA ~96%). This was a data-quality fix in the news-archive derivation layer
+> only — no prices, factors, or live behaviour touched.
 >
-> **Live progress log at the bottom — updated as each step lands.**
+> **Live progress log at the bottom.**
 
 ---
 
@@ -92,19 +92,21 @@ Two levers (domain + alias) + verify. `[ ]` → pending, `[x]` → done (see log
       homonym phrases from the audit: `britannia` +beach/bridge/stand/coin/cruise/…;
       `lupin` +writer/series/season/thief/…; `colgate` +university/divinity/rochester/…;
       `federal bank` +fraud/charges/robbery/indicted. +symbolMapper tests; 328 pass.
-- [ ] **S3 — Unmap, don't delete.** GDELT rows failing the filters (non-allowlisted domain,
-      or a now-tightened alias no longer matching) get `symbols = []` — invisible to
-      per-stock research but retained, `origin`-tagged, reversible (respects the
-      never-delete / version-the-derivation creed).
-- [ ] **S4 — Remap the archive.** Re-run `news:remap` with the tightened dictionary over all
-      rows: false positives drop to unmatched, legitimately-missed tags get picked up.
-      Non-destructive (rewrites `symbols[]` only). BSE/live rows unaffected.
-- [ ] **S5 — Re-audit + re-close the gate.** Fresh random sample + targeted spot-checks on
-      the worst names (BRITANNIA, LUPIN, COLPAL, FEDERALBNK). Gate passes at **≥90%**.
-      Record before/after precision and rows dropped.
-- [ ] **S6 — Fix the downloader for the future.** Add the domain filter to
-      `downloadGalArchive.ts` so a future GAL re-run/extension does not re-introduce the
-      problem.
+- [x] **S3 + S4 — Domain-aware remap (one pass).** ✅ S3 and S4 CANNOT be separate passes —
+      both write `symbols[]`, so a naive S4 remap would re-tag the foreign rows S3 cleared.
+      Folded into `news:remap` (`remapSymbols.ts`): `symbols = (GDELT && !isIndianNewsDomain)
+      ? [] : mapArticleSymbols(...)`. Rows retained (`origin`-tagged, reversible). Applied on
+      the box (scoring stopped to avoid CPU collision): **172,856 scanned · 24,671 false tags
+      removed** (24,668 foreign-domain GDELT + 3 Indian-domain homonyms — confirming the
+      domain filter is ~all of it). GDELT mapped: 105,672 → **81,001**.
+- [x] **S5 — Re-audit: GATE CLEARED.** ✅ Fresh GDELT sample **30/30 correct** (LUPIN now
+      shows the pharma article, not the show). BRITANNIA re-audit **~96%** (23/24, up from
+      ~50%; sole residual = an Indian locality "Britannia Nagar"). COLPAL/FEDERALBNK verified
+      clean pre-fix on Indian domains. **GDELT ≥90% — passes.** BSE_BACKFILL stays 100%.
+- [x] **S6 — Downloader domain-filtered.** ✅ `downloadGalArchive.ts` now drops any record
+      whose URL fails `isIndianNewsDomain` before the alias match — restoring the DOC API's
+      `sourcecountry:IN` at the source, so a future GAL re-run/extension never re-introduces
+      the problem. 328 tests pass, typecheck clean.
 
 ## 7. Sequencing (agreed 2026-07-19)
 
@@ -141,5 +143,11 @@ GDELT symbol tags clear **≥90%** on a fresh audit; the worst-offender names ve
   overwhelmingly foreign-domain (S3's job), so aggressive alias-stripping was **rejected**
   as a recall-for-nothing trade. Added surgical zero-recall-cost `ALIAS_EXCLUSIONS`
   (britannia/lupin/colgate/federal-bank + their homonym-follow words) as a defensive second
-  line. 328 tests pass, typecheck clean. **Remaining: S6 (downloader filter — code, safe
-  now), then S3/S4/S5 apply after overnight scoring finishes.**
+  line. 328 tests pass, typecheck clean.
+- **2026-07-19** — ✅ **S3+S4+S5+S6 done — FIX COMPLETE.** Folded S3/S4 into a domain-aware
+  `news:remap` (can't be separate — both write `symbols[]`); applied on the box with
+  scoring stopped to avoid CPU collision. **24,671 false tags removed** (24,668 foreign +
+  3 homonyms); GDELT mapped 105,672 → 81,001. **S5 re-audit: 30/30 sample, BRITANNIA ~96%
+  (was ~50%) — gate CLEARED.** S6: `downloadGalArchive.ts` now domain-filters at the source
+  so future sweeps stay clean. Overnight scoring to be resumed (symbol-agnostic — the fix
+  touched no scores). **B7 may now consume the `origin=GDELT` subset as a media overlay.**

@@ -3,6 +3,7 @@ import { dirname } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 
 import { COMPANY_ALIASES } from '@/news';
+import { isIndianNewsDomain } from '@/news/indianDomains';
 
 /**
  * GDELT Article List (GAL) bulk downloader (B3.5 fast path — replaces the
@@ -103,6 +104,11 @@ const sweepQuarter = async (quarter: Date): Promise<{ lines: string[]; files: nu
         continue;
       }
       if (!rec.title || !rec.url || !rec.date) continue;
+      // Country constraint (GDELT_PRECISION_FIX S6): only Indian outlets — the
+      // DOC API's `sourcecountry:IN` that GAL dropped. Without it, single-word
+      // aliases collide with foreign homonyms (Britannia the Welsh bridge, Lupin
+      // the show, Colgate the US university). Restores precision at the source.
+      if (!isIndianNewsDomain(rec.url)) continue;
       if (!ALIAS_RE.test(rec.title.toLowerCase())) continue;
       lines.push(JSON.stringify({ date: rec.date, url: rec.url, domain: rec.domain, title: rec.title, desc: rec.desc ?? '' }));
     }

@@ -37,6 +37,8 @@ export type GdeltRecord = {
   availableAt: Date;
   /** Publisher domain (kept for provenance/debugging; not persisted today). */
   domain: string;
+  /** Description/snippet when the source dataset provides one (GAL does). */
+  body?: string | null;
 };
 
 /** Parses GDELT's `YYYYMMDDTHHMMSSZ` seendate into a UTC Date, or null. */

@@ -69,26 +69,53 @@ export const isDuplicateTitle = (
 /** A normalized title with its article-time, for time-windowed dedup. */
 export type DatedTitle = { titleNormalized: string; publishedAtMs: number };
 
+const DAY_MS = 86_400_000;
+
 /**
- * Time-windowed variant for HISTORICAL processing (B3.5/B3.6): a candidate is
- * a duplicate only of titles published within ±`windowMs` of it — the live
- * pipeline's recency rule transposed to article time. Without this, a
- * multi-year backfill corpus collapses every recurrence of a periodic
- * templated title (quarterly "Board Meeting Intimation"…) into its first
- * occurrence — measured live: 64%+ of a 2.5-year BSE run wrongly dropped.
+ * Day-bucketed index of dated titles for time-windowed dedup (B3.5/B3.6). A
+ * candidate is a duplicate only of titles published within ±`windowMs` of it
+ * — the live pipeline's recency rule transposed to article time. Without the
+ * window, a multi-year backfill corpus collapses every recurrence of a
+ * periodic templated title (quarterly "Board Meeting Intimation"…) into its
+ * first occurrence — measured live: 64%+ of a 2.5-year BSE run wrongly dropped.
+ *
+ * The bucketing keeps this near-linear: a flat scan is O(corpus) PER candidate
+ * → O(n²) over a run, which CPU-starved the import box at 171k records. Keying
+ * by UTC day and probing only the ±ceil(windowDays) neighbouring buckets makes
+ * each check O(titles in-window), independent of total corpus size.
  */
-export const isDuplicateDatedTitle = (
-  candidateNormalized: string,
-  candidatePublishedAtMs: number,
-  corpus: readonly DatedTitle[],
-  windowMs: number,
-  threshold: number = DEFAULT_JACCARD_THRESHOLD,
-): boolean => {
-  const candSet = titleTokens(candidateNormalized);
-  for (const other of corpus) {
-    if (Math.abs(other.publishedAtMs - candidatePublishedAtMs) > windowMs) continue;
-    if (other.titleNormalized === candidateNormalized) return true;
-    if (jaccard(candSet, titleTokens(other.titleNormalized)) >= threshold) return true;
+export class DatedTitleIndex {
+  private readonly buckets = new Map<number, DatedTitle[]>();
+  private readonly windowMs: number;
+  private readonly windowDays: number;
+  private readonly threshold: number;
+
+  constructor(windowMs: number, threshold: number = DEFAULT_JACCARD_THRESHOLD) {
+    this.windowMs = windowMs;
+    this.windowDays = Math.ceil(windowMs / DAY_MS);
+    this.threshold = threshold;
   }
-  return false;
-};
+
+  add(titleNormalized: string, publishedAtMs: number): void {
+    const day = Math.floor(publishedAtMs / DAY_MS);
+    const bucket = this.buckets.get(day);
+    if (bucket) bucket.push({ titleNormalized, publishedAtMs });
+    else this.buckets.set(day, [{ titleNormalized, publishedAtMs }]);
+  }
+
+  hasDuplicate(candidateNormalized: string, candidatePublishedAtMs: number): boolean {
+    const day = Math.floor(candidatePublishedAtMs / DAY_MS);
+    let candSet: Set<string> | null = null;
+    for (let d = day - this.windowDays; d <= day + this.windowDays; d++) {
+      const bucket = this.buckets.get(d);
+      if (!bucket) continue;
+      for (const other of bucket) {
+        if (Math.abs(other.publishedAtMs - candidatePublishedAtMs) > this.windowMs) continue;
+        if (other.titleNormalized === candidateNormalized) return true;
+        candSet ??= titleTokens(candidateNormalized);
+        if (jaccard(candSet, titleTokens(other.titleNormalized)) >= this.threshold) return true;
+      }
+    }
+    return false;
+  }
+}

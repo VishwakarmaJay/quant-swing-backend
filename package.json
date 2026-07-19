@@ -26,6 +26,8 @@
     "news:backfill:universe": "bun src/scripts/runNewsBackfillUniverse.ts",
     "news:backfill:bse": "bun src/scripts/runBseBackfill.ts",
     "news:remap": "bun src/scripts/remapSymbols.ts",
+    "news:gal:download": "bun src/scripts/downloadGalArchive.ts",
+    "news:gal:import": "bun src/scripts/importGalArchive.ts",
     "fundamentals:backfill": "bun src/scripts/runFundamentalsBackfill.ts",
     "fundamentals:snapshot": "bun src/scripts/runFundamentalsSnapshot.ts",
     "fundamentals:retry": "bun src/scripts/runFundamentalsRetry.ts",

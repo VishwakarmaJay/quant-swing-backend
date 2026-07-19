@@ -2,7 +2,7 @@ import { env } from '@config/env';
 import { prisma } from '@services/prisma';
 import { NewsOrigin } from '@generated/prisma/enums';
 
-import { isDuplicateDatedTitle, normalizeTitle, type DatedTitle } from '../dedupe';
+import { DatedTitleIndex, normalizeTitle } from '../dedupe';
 import { sliceDateRange } from '../gdelt/download';
 import { mapArticleSymbols } from '../symbolMapper';
 import type { RawFeedItem } from '../types';
@@ -81,7 +81,7 @@ export const bseCompanyKey = (body: string | null): string => normalizeTitle(bod
  * dissemination time (the live recency rule in article time) — a quarterly
  * recurrence of a templated title is a new event, not a duplicate.
  */
-export type BseCorpus = Map<string, DatedTitle[]>;
+export type BseCorpus = Map<string, DatedTitleIndex>;
 
 /**
  * Pure processing core (mirrors the GDELT one): identity check → per-company
@@ -120,11 +120,10 @@ export const processBseItems = (
     const companyKey = bseCompanyKey(item.body);
     let companyTitles = corpus.get(companyKey);
     if (!companyTitles) {
-      companyTitles = [];
+      companyTitles = new DatedTitleIndex(env.NEWS_DEDUPE_WINDOW_DAYS * 86_400_000);
       corpus.set(companyKey, companyTitles);
     }
-    const windowMs = env.NEWS_DEDUPE_WINDOW_DAYS * 86_400_000;
-    if (isDuplicateDatedTitle(titleNormalized, publishedAt.getTime(), companyTitles, windowMs)) {
+    if (companyTitles.hasDuplicate(titleNormalized, publishedAt.getTime())) {
       duplicates++;
       continue;
     }
@@ -142,7 +141,7 @@ export const processBseItems = (
       availableAt: new Date(publishedAt.getTime() + latencyMinutes * 60_000),
       origin: NewsOrigin.BSE_BACKFILL,
     });
-    companyTitles.push({ titleNormalized, publishedAtMs: publishedAt.getTime() });
+    companyTitles.add(titleNormalized, publishedAt.getTime());
     existingKeys.add(key);
     if (symbols.length > 0) mapped++;
     else unmatched++;
@@ -183,14 +182,15 @@ export const loadBseBackfillContext = async (
   });
   const corpus: BseCorpus = new Map();
   const existingKeys = new Set<string>();
+  const windowMs = env.NEWS_DEDUPE_WINDOW_DAYS * 86_400_000;
   for (const r of rows) {
     const companyKey = bseCompanyKey(r.body);
-    let list = corpus.get(companyKey);
-    if (!list) {
-      list = [];
-      corpus.set(companyKey, list);
+    let index = corpus.get(companyKey);
+    if (!index) {
+      index = new DatedTitleIndex(windowMs);
+      corpus.set(companyKey, index);
     }
-    list.push({ titleNormalized: r.titleNormalized, publishedAtMs: r.publishedAt.getTime() });
+    index.add(r.titleNormalized, r.publishedAt.getTime());
     existingKeys.add(r.url);
   }
   return { corpus, existingKeys };

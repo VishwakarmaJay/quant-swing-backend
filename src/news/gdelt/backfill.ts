@@ -5,7 +5,7 @@ import { NewsOrigin } from '@generated/prisma/enums';
 
 import { EQUITY_UNIVERSE } from '@/universe/equityUniverse';
 
-import { isDuplicateDatedTitle, normalizeTitle, type DatedTitle } from '../dedupe';
+import { DatedTitleIndex, normalizeTitle } from '../dedupe';
 import { mapArticleSymbols } from '../symbolMapper';
 import { GDELT_COVERAGE_START } from './gdeltClient';
 import { buildSymbolQuery, downloadWindowBatch, sliceDateRange, windowDays } from './download';
@@ -72,7 +72,7 @@ export type GdeltRow = {
   url: string;
   title: string;
   titleNormalized: string;
-  body: null;
+  body: string | null;
   symbols: string[];
   publishedAt: Date;
   fetchedAt: Date;
@@ -106,10 +106,9 @@ export type ProcessResult = {
 export const processGdeltRecords = (
   records: readonly GdeltRecord[],
   importedAt: Date,
-  corpus: DatedTitle[],
+  corpus: DatedTitleIndex,
   existingUrls: Set<string>,
   unmatchedSampleCap = 25,
-  dedupeWindowMs: number = env.NEWS_DEDUPE_WINDOW_DAYS * 86_400_000,
 ): ProcessResult => {
   const rows: GdeltRow[] = [];
   const unmatchedSample: string[] = [];
@@ -125,25 +124,25 @@ export const processGdeltRecords = (
     }
     const titleNormalized = normalizeTitle(record.title);
     if (!titleNormalized) continue;
-    if (isDuplicateDatedTitle(titleNormalized, record.publishedAt.getTime(), corpus, dedupeWindowMs)) {
+    if (corpus.hasDuplicate(titleNormalized, record.publishedAt.getTime())) {
       duplicates++;
       continue;
     }
 
-    const { symbols } = mapArticleSymbols(record.title);
+    const { symbols } = mapArticleSymbols(record.title, record.body ?? null);
     rows.push({
       source: GDELT_SOURCE,
       url: record.url,
       title: record.title,
       titleNormalized,
-      body: null,
+      body: record.body ?? null,
       symbols,
       publishedAt: record.publishedAt,
       fetchedAt: importedAt,
       availableAt: record.availableAt,
       origin: NewsOrigin.GDELT,
     });
-    corpus.push({ titleNormalized, publishedAtMs: record.publishedAt.getTime() });
+    corpus.add(titleNormalized, record.publishedAt.getTime());
     existingUrls.add(record.url);
     if (symbols.length > 0) {
       mapped++;
@@ -184,16 +183,16 @@ export type BackfillSummary = {
  * AROUND THEIR OWN TIME, not against today's fetch window (the live
  * `loadRecentTitles` recency rule transposed to archive time).
  */
-const loadBackfillContext = async (from: Date, to: Date): Promise<{ corpus: DatedTitle[]; existingUrls: Set<string> }> => {
+const loadBackfillContext = async (from: Date, to: Date): Promise<{ corpus: DatedTitleIndex; existingUrls: Set<string> }> => {
   const pad = env.NEWS_DEDUPE_WINDOW_DAYS * 86_400_000;
   const rows = await prisma.newsArticle.findMany({
     where: { publishedAt: { gte: new Date(from.getTime() - pad), lte: new Date(to.getTime() + pad) } },
     select: { titleNormalized: true, url: true, source: true, publishedAt: true },
   });
-  const corpus: DatedTitle[] = [];
+  const corpus = new DatedTitleIndex(env.NEWS_DEDUPE_WINDOW_DAYS * 86_400_000);
   const existingUrls = new Set<string>();
   for (const r of rows) {
-    corpus.push({ titleNormalized: r.titleNormalized, publishedAtMs: r.publishedAt.getTime() });
+    corpus.add(r.titleNormalized, r.publishedAt.getTime());
     if (r.source === GDELT_SOURCE) existingUrls.add(r.url);
   }
   return { corpus, existingUrls };

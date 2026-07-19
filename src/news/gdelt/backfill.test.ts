@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { NewsOrigin } from '@generated/prisma/enums';
 
-import { normalizeTitle } from '../dedupe';
+import { DatedTitleIndex, normalizeTitle } from '../dedupe';
 import { GDELT_SOURCE, processGdeltRecords } from './backfill';
 import type { GdeltRecord } from './parser';
 
@@ -14,13 +14,15 @@ const record = (over: Partial<GdeltRecord> & { url: string; title: string }): Gd
 });
 
 const IMPORTED_AT = new Date('2026-07-18T09:00:00Z');
+const DAY = 86_400_000;
+const newIndex = () => new DatedTitleIndex(3 * DAY);
 
 describe('processGdeltRecords — row construction', () => {
   test('stamps provenance and honest timestamps', () => {
     const result = processGdeltRecords(
       [record({ url: 'https://x.test/ril', title: 'Reliance Industries posts record quarterly profit' })],
       IMPORTED_AT,
-      [],
+      newIndex(),
       new Set(),
     );
     expect(result.rows).toHaveLength(1);
@@ -44,7 +46,7 @@ describe('processGdeltRecords — symbol mapping integration (real mapper + alia
         record({ url: 'https://x.test/3', title: 'Monsoon arrives early across the country' }),
       ],
       IMPORTED_AT,
-      [],
+      newIndex(),
       new Set(),
     );
     expect(result.rows[0]!.symbols).toEqual(['RELIANCE']);
@@ -59,7 +61,7 @@ describe('processGdeltRecords — symbol mapping integration (real mapper + alia
     const result = processGdeltRecords(
       [record({ url: 'https://x.test/sbilife', title: 'SBI Life reports strong premium growth' })],
       IMPORTED_AT,
-      [],
+      newIndex(),
       new Set(),
     );
     // "sbi" must NOT fire on "SBI Life" (SBILIFE is its own universe stock).
@@ -69,9 +71,8 @@ describe('processGdeltRecords — symbol mapping integration (real mapper + alia
 
 describe('processGdeltRecords — duplicate handling', () => {
   test('near-duplicate titles vs the corpus are skipped (Jaccard, shared code)', () => {
-    const corpus = [
-      { titleNormalized: normalizeTitle('Reliance Industries posts record quarterly profit for Q1'), publishedAtMs: new Date('2025-06-13T10:00:00Z').getTime() },
-    ];
+    const corpus = newIndex();
+    corpus.add(normalizeTitle('Reliance Industries posts record quarterly profit for Q1'), new Date('2025-06-13T10:00:00Z').getTime());
     const result = processGdeltRecords(
       [record({ url: 'https://x.test/dupe', title: 'Reliance Industries posts record quarterly profit in Q1' })],
       IMPORTED_AT,
@@ -89,7 +90,7 @@ describe('processGdeltRecords — duplicate handling', () => {
         record({ url: 'https://b.test/story', title: 'Tata Motors launches new EV platform in a partnership' }),
       ],
       IMPORTED_AT,
-      [],
+      newIndex(),
       new Set(),
     );
     expect(result.rows).toHaveLength(1);
@@ -103,7 +104,7 @@ describe('processGdeltRecords — duplicate handling', () => {
         record({ url: 'https://x.test/b', title: 'Infosys announces leadership change in cloud division' }),
       ],
       IMPORTED_AT,
-      [],
+      newIndex(),
       new Set(),
     );
     expect(result.rows).toHaveLength(2);
@@ -117,7 +118,7 @@ describe('processGdeltRecords — idempotency', () => {
   ];
 
   test('re-processing the same records with the post-run state creates zero rows', () => {
-    const corpus: { titleNormalized: string; publishedAtMs: number }[] = [];
+    const corpus = newIndex();
     const existingUrls = new Set<string>();
 
     const first = processGdeltRecords(records, IMPORTED_AT, corpus, existingUrls);
@@ -133,7 +134,7 @@ describe('processGdeltRecords — idempotency', () => {
 
   test('URL identity check precedes Jaccard (stable-identifier idempotency)', () => {
     const existingUrls = new Set(['https://x.test/1']);
-    const result = processGdeltRecords([records[0]!], IMPORTED_AT, [], existingUrls);
+    const result = processGdeltRecords([records[0]!], IMPORTED_AT, newIndex(), existingUrls);
     expect(result.alreadyStored).toBe(1);
     expect(result.duplicates).toBe(0);
     expect(result.rows).toHaveLength(0);

@@ -4,6 +4,7 @@ import { NewsOrigin } from '@generated/prisma/enums';
 
 import { normalizeTitle } from '../dedupe';
 import type { RawFeedItem } from '../types';
+import { DatedTitleIndex } from '../dedupe';
 import { bseCompanyKey, bseRowKey, processBseItems, BSE_SOURCE, type BseCorpus } from './backfill';
 import { buildScripAnnouncementsUrl, parseRowcnt, downloadScripWindow } from './download';
 
@@ -76,12 +77,9 @@ describe('processBseItems — idempotency and duplicate handling', () => {
 
   test('near-duplicate titles within the SAME company are dropped', () => {
     const company = bseCompanyKey('Reliance Industries Ltd — quarterly results');
-    const corpus: BseCorpus = new Map([
-      [
-        company,
-        [{ titleNormalized: normalizeTitle('Reliance reports record quarterly consolidated results March'), publishedAtMs: new Date('2025-03-27T10:00:00Z').getTime() }],
-      ],
-    ]);
+    const index = new DatedTitleIndex(3 * 86_400_000);
+    index.add(normalizeTitle('Reliance reports record quarterly consolidated results March'), new Date('2025-03-27T10:00:00Z').getTime());
+    const corpus: BseCorpus = new Map([[company, index]]);
     const result = processBseItems(
       [item({ title: 'Reliance reports record quarterly consolidated results for March', url: 'https://x.test/other.pdf' })],
       IMPORTED_AT,

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { isDuplicateTitle, jaccard, normalizeTitle, titleTokens } from './dedupe';
+import { DatedTitleIndex, isDuplicateTitle, jaccard, normalizeTitle, titleTokens } from './dedupe';
 
 describe('normalizeTitle', () => {
   test('lowercases, strips punctuation, collapses whitespace, keeps &', () => {
@@ -48,5 +48,52 @@ describe('isDuplicateTitle', () => {
   test('threshold is honoured', () => {
     // Small overlap should not dup at a high threshold.
     expect(isDuplicateTitle('Infosys signs cloud deal', corpus, 0.9)).toBe(false);
+  });
+});
+
+describe('DatedTitleIndex — time-windowed, day-bucketed dedup', () => {
+  const DAY = 86_400_000;
+  const at = (iso: string) => new Date(iso).getTime();
+
+  test('same title within the window is a duplicate; outside it is not', () => {
+    const idx = new DatedTitleIndex(3 * DAY);
+    idx.add(normalizeTitle('Board Meeting Intimation'), at('2025-01-15T10:00:00Z'));
+    // 1 day later → duplicate
+    expect(idx.hasDuplicate(normalizeTitle('Board Meeting Intimation'), at('2025-01-16T10:00:00Z'))).toBe(true);
+    // 3 months later → NOT a duplicate (a new event)
+    expect(idx.hasDuplicate(normalizeTitle('Board Meeting Intimation'), at('2025-04-15T10:00:00Z'))).toBe(false);
+  });
+
+  test('near-duplicate (Jaccard) within window is caught', () => {
+    const idx = new DatedTitleIndex(3 * DAY);
+    idx.add(normalizeTitle('Reliance posts record quarterly consolidated profit March'), at('2025-03-27T10:00:00Z'));
+    expect(idx.hasDuplicate(normalizeTitle('Reliance posts record quarterly consolidated profit for March'), at('2025-03-28T10:00:00Z'))).toBe(true);
+  });
+
+  test('bucket boundary: a duplicate straddling midnight across day buckets is still found', () => {
+    const idx = new DatedTitleIndex(1 * DAY);
+    idx.add(normalizeTitle('Allotment of NCDs'), at('2025-06-10T23:30:00Z'));
+    // next calendar day, 1h later — different day bucket, still within 1-day window
+    expect(idx.hasDuplicate(normalizeTitle('Allotment of NCDs'), at('2025-06-11T00:30:00Z'))).toBe(true);
+  });
+
+  test('equivalence with a brute-force windowed scan on a mixed corpus', () => {
+    const windowMs = 3 * DAY;
+    const idx = new DatedTitleIndex(windowMs);
+    const flat: { t: string; ms: number }[] = [];
+    const titles = ['alpha results q1', 'beta board meeting', 'alpha results q1', 'gamma dividend declared'];
+    let dupCount = 0;
+    for (let i = 0; i < 40; i++) {
+      const t = normalizeTitle(titles[i % titles.length]!);
+      const ms = at('2025-01-01T00:00:00Z') + i * 12 * 3600_000; // every 12h
+      const brute = flat.some((o) => Math.abs(o.ms - ms) <= windowMs && o.t === t);
+      const viaIndex = idx.hasDuplicate(t, ms);
+      expect(viaIndex).toBe(brute);
+      if (!viaIndex) {
+        idx.add(t, ms);
+        flat.push({ t, ms });
+      } else dupCount++;
+    }
+    expect(dupCount).toBeGreaterThan(0);
   });
 });

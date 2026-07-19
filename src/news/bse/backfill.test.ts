@@ -4,7 +4,7 @@ import { NewsOrigin } from '@generated/prisma/enums';
 
 import { normalizeTitle } from '../dedupe';
 import type { RawFeedItem } from '../types';
-import { bseRowKey, processBseItems, BSE_SOURCE } from './backfill';
+import { bseCompanyKey, bseRowKey, processBseItems, BSE_SOURCE, type BseCorpus } from './backfill';
 import { buildScripAnnouncementsUrl, parseRowcnt, downloadScripWindow } from './download';
 
 const IMPORTED_AT = new Date('2026-07-18T12:00:00Z');
@@ -18,7 +18,7 @@ const item = (over: Partial<RawFeedItem> & { title: string }): RawFeedItem => ({
 
 describe('processBseItems — row construction (timestamp reconstruction)', () => {
   test('availableAt = DissemDT + latency; provenance BSE_BACKFILL; source shared with live', () => {
-    const result = processBseItems([item({ title: 'Results for Q4' })], IMPORTED_AT, 30, new Set(), new Set());
+    const result = processBseItems([item({ title: 'Results for Q4' })], IMPORTED_AT, 30, new Map(), new Set());
     expect(result.rows).toHaveLength(1);
     const row = result.rows[0]!;
     expect(row.source).toBe(BSE_SOURCE);
@@ -32,7 +32,7 @@ describe('processBseItems — row construction (timestamp reconstruction)', () =
       [item({ title: 'No timestamp', publishedAt: null }), item({ title: 'Bad timestamp', publishedAt: 'garbage' })],
       IMPORTED_AT,
       30,
-      new Set(),
+      new Map(),
       new Set(),
     );
     expect(result.rows).toHaveLength(0);
@@ -45,7 +45,7 @@ describe('processBseItems — symbol mapping via SLONGNAME body (live parser con
       [item({ title: 'Intimation under Regulation 30 of SEBI LODR', body: 'Reliance Industries Ltd — disclosure' })],
       IMPORTED_AT,
       30,
-      new Set(),
+      new Map(),
       new Set(),
     );
     expect(result.rows[0]!.symbols).toEqual(['RELIANCE']);
@@ -62,7 +62,7 @@ describe('processBseItems — idempotency and duplicate handling', () => {
   });
 
   test('re-processing with post-run state creates zero rows (identity beats similarity)', () => {
-    const corpus = new Set<string>();
+    const corpus: BseCorpus = new Map();
     const keys = new Set<string>();
     const items = [item({ title: 'Reliance Industries allotment of NCDs tranche one' })];
 
@@ -74,10 +74,13 @@ describe('processBseItems — idempotency and duplicate handling', () => {
     expect(second.duplicates).toBe(0);
   });
 
-  test('near-duplicate titles vs corpus are dropped', () => {
-    const corpus = new Set([normalizeTitle('Tata Motors reports record commercial vehicle sales in March')]);
+  test('near-duplicate titles within the SAME company are dropped', () => {
+    const company = bseCompanyKey('Reliance Industries Ltd — quarterly results');
+    const corpus: BseCorpus = new Map([
+      [company, new Set([normalizeTitle('Reliance reports record quarterly consolidated results March')])],
+    ]);
     const result = processBseItems(
-      [item({ title: 'Tata Motors reports record commercial vehicle sales for March', url: 'https://x.test/other.pdf' })],
+      [item({ title: 'Reliance reports record quarterly consolidated results for March', url: 'https://x.test/other.pdf' })],
       IMPORTED_AT,
       30,
       corpus,
@@ -85,6 +88,32 @@ describe('processBseItems — idempotency and duplicate handling', () => {
     );
     expect(result.rows).toHaveLength(0);
     expect(result.duplicates).toBe(1);
+  });
+
+  test('IDENTICAL templated titles from DIFFERENT companies both survive (the 64% loss bug)', () => {
+    const corpus: BseCorpus = new Map();
+    const result = processBseItems(
+      [
+        item({
+          title: 'Financial Results for the quarter ended March 31',
+          url: 'https://x.test/godrej.pdf',
+          body: 'Godrej Consumer Products Ltd — results',
+        }),
+        item({
+          title: 'Financial Results for the quarter ended March 31',
+          url: 'https://x.test/hal.pdf',
+          body: 'Hindustan Aeronautics Ltd — results',
+        }),
+      ],
+      IMPORTED_AT,
+      30,
+      corpus,
+      new Set(),
+    );
+    expect(result.rows).toHaveLength(2);
+    expect(result.duplicates).toBe(0);
+    expect(result.rows[0]!.symbols).toEqual(['GODREJCP']);
+    expect(result.rows[1]!.symbols).toEqual(['HAL']);
   });
 });
 

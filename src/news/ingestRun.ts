@@ -28,12 +28,22 @@ export const FROZEN_AFTER_DAYS = 3;
 export type PreviousRunView = {
   perSource: Pick<SourceResult, 'source' | 'parsed' | 'error'>[];
   sentimentDegraded: boolean;
+  /** Alert lines the previous run already emitted (repeat suppression). */
+  alerts: string[];
 };
 
 export type DerivedAlerts = {
   /** ok | degraded | failed — failed means every source failed this run. */
   status: 'ok' | 'degraded' | 'failed';
+  /** Active alert conditions this run (stored on the row every run). */
   alerts: string[];
+  /**
+   * The subset of `alerts` to actually PAGE: conditions that were not already
+   * alerted on the previous run. A sustained outage pages once on onset, not
+   * every 15 minutes forever — alert fatigue is how alerts get ignored. The
+   * full condition history stays queryable via the stored `alerts` column.
+   */
+  newAlerts: string[];
 };
 
 /**
@@ -82,14 +92,17 @@ export const deriveIngestAlerts = (
         ? 'degraded'
         : 'ok';
 
-  return { status, alerts };
+  const previouslyAlerted = new Set(previous?.alerts ?? []);
+  const newAlerts = alerts.filter((a) => !previouslyAlerted.has(a));
+
+  return { status, alerts, newAlerts };
 };
 
-/** Formats the Telegram message for a run's alerts. */
+/** Formats the Telegram message for a run's newly-onset alerts. */
 export const formatIngestAlert = (derived: DerivedAlerts, summary: IngestSummary): string =>
   [
     `*News ingest ${derived.status.toUpperCase()}* (${summary.fetchedAt.toISOString().slice(0, 16)}Z)`,
-    ...derived.alerts.map((a) => `• ${a}`),
+    ...derived.newAlerts.map((a) => `• ${a}`),
     `totals: ${summary.totals.inserted} new / ${summary.totals.parsed} parsed`,
   ].join('\n');
 
@@ -102,12 +115,13 @@ export const recordIngestRun = async (summary: IngestSummary, startedAt: Date): 
     const prevRow = await prisma.ingestRun.findFirst({
       where: { module: INGEST_MODULE_NEWS },
       orderBy: { startedAt: 'desc' },
-      select: { perSource: true, totals: true },
+      select: { perSource: true, totals: true, alerts: true },
     });
     const previous: PreviousRunView | null = prevRow
       ? {
           perSource: (prevRow.perSource as PreviousRunView['perSource']) ?? [],
           sentimentDegraded: (prevRow.totals as { sentimentDegraded?: boolean })?.sentimentDegraded === true,
+          alerts: prevRow.alerts ?? [],
         }
       : null;
 
@@ -125,7 +139,7 @@ export const recordIngestRun = async (summary: IngestSummary, startedAt: Date): 
       },
     });
 
-    if (derived.alerts.length > 0) {
+    if (derived.newAlerts.length > 0) {
       await deliverAlert(formatIngestAlert(derived, summary));
     }
     return derived;

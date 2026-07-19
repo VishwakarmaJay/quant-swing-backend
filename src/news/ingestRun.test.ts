@@ -24,9 +24,10 @@ const summary = (perSource: SourceResult[], sentiment: IngestSummary['sentiment'
   sentiment,
 });
 
-const prev = (perSource: PreviousRunView['perSource'], sentimentDegraded = false): PreviousRunView => ({
+const prev = (perSource: PreviousRunView['perSource'], sentimentDegraded = false, alerts: string[] = []): PreviousRunView => ({
   perSource,
   sentimentDegraded,
+  alerts,
 });
 
 describe('deriveIngestAlerts — healthy run', () => {
@@ -93,6 +94,28 @@ describe('deriveIngestAlerts — two-consecutive rules (flap resistance)', () =>
   });
 });
 
+describe('deriveIngestAlerts — repeat suppression (page on onset, not every 15 min)', () => {
+  test('a persisting condition stays in alerts but leaves newAlerts', () => {
+    const current = summary([src({ source: 'ET_MARKETS' })], { degraded: true, scored: 0, modelVersion: null });
+    const first = deriveIngestAlerts(current, prev([{ source: 'ET_MARKETS', parsed: 50, error: null }], true), NOW);
+    expect(first.newAlerts).toHaveLength(1); // onset → page
+
+    const second = deriveIngestAlerts(
+      current,
+      prev([{ source: 'ET_MARKETS', parsed: 50, error: null }], true, first.alerts),
+      NOW,
+    );
+    expect(second.alerts).toHaveLength(1); // condition still recorded on the row
+    expect(second.newAlerts).toEqual([]); // …but no repeat page
+  });
+
+  test('a condition that clears and re-triggers pages again', () => {
+    const current = summary([src({ source: 'LIVEMINT', parsed: 35, newestItem: '2026-07-10T09:00:00Z' })]);
+    const reonset = deriveIngestAlerts(current, prev([{ source: 'LIVEMINT', parsed: 35, error: null }], false, []), NOW);
+    expect(reonset.newAlerts).toHaveLength(1);
+  });
+});
+
 describe('deriveIngestAlerts — FROZEN detection (immediate)', () => {
   test('a feed with healthy counts but stale dates alerts on the first sighting', () => {
     const d = deriveIngestAlerts(
@@ -134,7 +157,8 @@ describe('deriveIngestAlerts — status roll-up', () => {
 describe('formatIngestAlert', () => {
   test('compact markdown with status, bullets, totals', () => {
     const s = summary([src({ source: 'LIVEMINT', error: 'fetch failed' })]);
-    const msg = formatIngestAlert({ status: 'degraded', alerts: ['❌ LIVEMINT: fetch failed — second consecutive run'] }, s);
+    const alerts = ['❌ LIVEMINT: fetch failed — second consecutive run'];
+    const msg = formatIngestAlert({ status: 'degraded', alerts, newAlerts: alerts }, s);
     expect(msg).toContain('*News ingest DEGRADED*');
     expect(msg).toContain('• ❌ LIVEMINT');
     expect(msg).toContain('totals: 5 new / 100 parsed');

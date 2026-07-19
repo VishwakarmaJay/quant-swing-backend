@@ -65,17 +65,32 @@ export type ProcessBseResult = {
 };
 
 /**
- * Pure processing core (mirrors the GDELT one): identity check → Jaccard
- * dedup → symbol mapping (title + SLONGNAME-prepended body) → persistable
- * rows. Items without a parseable dissemination time are skipped — no honest
- * `availableAt` can be reconstructed for them. Mutates `corpus`/`existingKeys`
- * so later windows and symbols in the same run see accepted rows.
+ * Company namespace for BSE dedupe: filings carry templated titles ("Financial
+ * Results for the quarter ended …") where the company lives ONLY in the
+ * SLONGNAME body prefix. Title-only dedupe therefore collapses DIFFERENT
+ * companies' filings — validation on the first full run measured 64% of
+ * downloads eaten, some symbols retaining 5%. Filings dedupe **within their
+ * company only** (and never against media titles — the exchange filing is
+ * canonical, per the architecture review's cluster rule).
+ */
+export const bseCompanyKey = (body: string | null): string => normalizeTitle(body?.split(' — ')[0] ?? '');
+
+/** Per-company normalized-title corpus for filing dedupe. */
+export type BseCorpus = Map<string, Set<string>>;
+
+/**
+ * Pure processing core (mirrors the GDELT one): identity check → per-company
+ * Jaccard dedup → symbol mapping (title + SLONGNAME-prepended body) →
+ * persistable rows. Items without a parseable dissemination time are skipped —
+ * no honest `availableAt` can be reconstructed for them. Mutates
+ * `corpus`/`existingKeys` so later windows and symbols in the same run see
+ * accepted rows.
  */
 export const processBseItems = (
   items: readonly RawFeedItem[],
   importedAt: Date,
   latencyMinutes: number,
-  corpus: Set<string>,
+  corpus: BseCorpus,
   existingKeys: Set<string>,
 ): ProcessBseResult => {
   const rows: BseRow[] = [];
@@ -97,7 +112,13 @@ export const processBseItems = (
       alreadyStored++;
       continue;
     }
-    if (isDuplicateTitle(titleNormalized, corpus)) {
+    const companyKey = bseCompanyKey(item.body);
+    let companyTitles = corpus.get(companyKey);
+    if (!companyTitles) {
+      companyTitles = new Set();
+      corpus.set(companyKey, companyTitles);
+    }
+    if (isDuplicateTitle(titleNormalized, companyTitles)) {
       duplicates++;
       continue;
     }
@@ -115,7 +136,7 @@ export const processBseItems = (
       availableAt: new Date(publishedAt.getTime() + latencyMinutes * 60_000),
       origin: NewsOrigin.BSE_BACKFILL,
     });
-    corpus.add(titleNormalized);
+    companyTitles.add(titleNormalized);
     existingKeys.add(key);
     if (symbols.length > 0) mapped++;
     else unmatched++;
@@ -138,23 +159,33 @@ export const loadScripCodes = async (): Promise<Record<string, string>> => {
 
 /**
  * Dedup corpus + identity keys for the backfill range (article-time
- * neighbourhood, same rule as the GDELT backfill): normalized titles across
- * all sources, and existing BSE (source,url) keys.
+ * neighbourhood): per-company normalized titles from existing BSE rows
+ * (filings dedupe within their company only — see `bseCompanyKey`), and
+ * existing BSE (source,url) keys.
  */
 export const loadBseBackfillContext = async (
   from: Date,
   to: Date,
-): Promise<{ corpus: Set<string>; existingKeys: Set<string> }> => {
+): Promise<{ corpus: BseCorpus; existingKeys: Set<string> }> => {
   const pad = env.NEWS_DEDUPE_WINDOW_DAYS * 86_400_000;
   const rows = await prisma.newsArticle.findMany({
-    where: { publishedAt: { gte: new Date(from.getTime() - pad), lte: new Date(to.getTime() + pad) } },
-    select: { titleNormalized: true, url: true, source: true },
+    where: {
+      source: BSE_SOURCE,
+      publishedAt: { gte: new Date(from.getTime() - pad), lte: new Date(to.getTime() + pad) },
+    },
+    select: { titleNormalized: true, url: true, body: true },
   });
-  const corpus = new Set<string>();
+  const corpus: BseCorpus = new Map();
   const existingKeys = new Set<string>();
   for (const r of rows) {
-    corpus.add(r.titleNormalized);
-    if (r.source === BSE_SOURCE) existingKeys.add(r.url);
+    const companyKey = bseCompanyKey(r.body);
+    let set = corpus.get(companyKey);
+    if (!set) {
+      set = new Set();
+      corpus.set(companyKey, set);
+    }
+    set.add(r.titleNormalized);
+    existingKeys.add(r.url);
   }
   return { corpus, existingKeys };
 };
@@ -166,7 +197,7 @@ export type BseSymbolBackfillOptions = {
   to: Date;
   dryRun?: boolean;
   importedAt: Date;
-  corpus: Set<string>;
+  corpus: BseCorpus;
   existingKeys: Set<string>;
 };
 

@@ -1,3 +1,4 @@
+import { env } from '@config/env';
 import { prisma } from '@services/prisma';
 
 import { scoreSentiment, sentimentHealth } from './sentimentClient';
@@ -13,7 +14,10 @@ import { scoreSentiment, sentimentHealth } from './sentimentClient';
  * from absent to boilerplate (v1 limitation, documented).
  */
 
-const BATCH = 64;
+// Headlines per sidecar request. Env-tunable: on a small/CPU-throttled box a
+// 64-headline batch can exceed SENTIMENT_TIMEOUT_MS and stall the catch-up —
+// shrink the batch instead of inflating the timeout.
+const BATCH = env.SENTIMENT_BATCH_SIZE;
 
 export type ScoredArticle = { id: string; title: string; score: number; label: string };
 export type ScoreRunSummary = {

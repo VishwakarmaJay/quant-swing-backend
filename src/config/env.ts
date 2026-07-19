@@ -87,6 +87,8 @@ const EnvSchema = z.object({
   SENTIMENT_SIDECAR_URL: z.string().min(1).default('http://127.0.0.1:8001'),
   /** Per-request timeout (ms) for sidecar calls (ADR-0006: 5s). */
   SENTIMENT_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
+  /** Headlines per sidecar /score request (shrink on CPU-constrained boxes). */
+  SENTIMENT_BATCH_SIZE: z.coerce.number().int().positive().default(64),
 
   // ---- Fundamentals (ROADMAP B4; point-in-time data + weekly snapshot clock) ----
   /** How often the fundamentals snapshot cron runs (default 7 days). */

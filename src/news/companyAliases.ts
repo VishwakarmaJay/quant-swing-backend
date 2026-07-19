@@ -45,7 +45,7 @@ export const COMPANY_ALIASES: Record<string, string[]> = {
   MUTHOOTFIN: ['muthoot finance'],
   LICHSGFIN: ['lic housing finance'],
   PFC: ['power finance corporation'],
-  RECLTD: ['rec limited', 'rural electrification'],
+  RECLTD: ['rec limited', 'rec ltd', 'rural electrification'],
   IRFC: ['indian railway finance', 'irfc'],
   SBICARD: ['sbi card', 'sbi cards'],
   HDFCAMC: ['hdfc amc', 'hdfc asset management'],
@@ -63,7 +63,7 @@ export const COMPANY_ALIASES: Record<string, string[]> = {
   HCLTECH: ['hcl technologies', 'hcltech'],
   WIPRO: ['wipro'],
   TECHM: ['tech mahindra'],
-  LTM: ['ltimindtree', 'l&t infotech', 'lti mindtree'],
+  LTM: ['ltimindtree', 'l&t infotech', 'lti mindtree', 'ltm ltd'],
   PERSISTENT: ['persistent systems'],
   COFORGE: ['coforge'],
   MPHASIS: ['mphasis'],
@@ -71,8 +71,8 @@ export const COMPANY_ALIASES: Record<string, string[]> = {
 
   // ---- Auto ----
   MARUTI: ['maruti suzuki', 'maruti'],
-  TMCV: ['tata motors commercial', 'tml commercial vehicles'],
-  TMPV: ['tata motors passenger', 'tml passenger vehicles'],
+  TMCV: ['tata motors commercial', 'tml commercial vehicles', 'tata motors'],
+  TMPV: ['tata motors passenger', 'tml passenger vehicles', 'tata motors'],
   'M&M': ['mahindra & mahindra', 'm&m'],
   'BAJAJ-AUTO': ['bajaj auto'],
   EICHERMOT: ['eicher motors', 'royal enfield'],
@@ -88,15 +88,15 @@ export const COMPANY_ALIASES: Record<string, string[]> = {
   BOSCHLTD: ['bosch'],
 
   // ---- Pharma / Healthcare ----
-  SUNPHARMA: ['sun pharma'],
-  DRREDDY: ["dr reddy", "dr. reddy", "dr reddy's"],
+  SUNPHARMA: ['sun pharma', 'sun pharmaceutical'],
+  DRREDDY: ["dr reddy", "dr. reddy", "dr reddy's", "dr reddys"],
   CIPLA: ['cipla'],
-  DIVISLAB: ["divi's laboratories", 'divis lab'],
+  DIVISLAB: ["divi's laboratories", 'divis lab', 'divis laboratories'],
   APOLLOHOSP: ['apollo hospitals'],
   MAXHEALTH: ['max healthcare'],
   LUPIN: ['lupin'],
   AUROPHARMA: ['aurobindo pharma'],
-  TORNTPHARM: ['torrent pharma'],
+  TORNTPHARM: ['torrent pharma', 'torrent pharmaceuticals'],
   ZYDUSLIFE: ['zydus lifesciences', 'zydus life'],
   BIOCON: ['biocon'],
   ALKEM: ['alkem laboratories', 'alkem lab'],
@@ -150,7 +150,7 @@ export const COMPANY_ALIASES: Record<string, string[]> = {
   ULTRACEMCO: ['ultratech cement', 'ultratech'],
   GRASIM: ['grasim'],
   SHREECEM: ['shree cement'],
-  AMBUJACEM: ['ambuja cement'],
+  AMBUJACEM: ['ambuja cement', 'ambuja cements'],
   DALBHARAT: ['dalmia bharat'],
 
   // ---- Infra / Capital Goods ----
@@ -216,7 +216,7 @@ export const COMPANY_ALIASES: Record<string, string[]> = {
 
   // ---- New-Age Platforms ----
   ZOMATO: ['eternal ltd', 'eternal limited', 'zomato'],
-  PAYTM: ['paytm', 'one97 communications'],
+  PAYTM: ['paytm', 'one97 communications', 'one 97 communications'],
   NYKAA: ['nykaa', 'fsn e-commerce'],
   POLICYBZR: ['policybazaar', 'pb fintech'],
   DELHIVERY: ['delhivery'],

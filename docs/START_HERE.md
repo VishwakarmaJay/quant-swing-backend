@@ -16,7 +16,7 @@ decision support, not an execution bot.
 - Live at `git@github.com:VishwakarmaJay/quant-swing-backend` (pushed over HTTPS via `gh`).
 - Frontend is a separate repo (`quant-swing-frontend`).
 
-## Current state (Phases 1–4 + the Part-B research program complete; B9 is next)
+## Current state (Phases 1–4 + the Part-B research program complete through B9)
 
 The **entire signal pipeline runs end-to-end, is backtested, and is deployed**:
 
@@ -33,24 +33,26 @@ OHLCV → DataQuality → 8 factors → regime → strategy (+ BULL pullback ent
 - **Phase 3** ✅ decision layer: regime, strategy, signal math, portfolio, persistence, delivery
 - **Phase 4** ✅ backtesting: replay engine, trade simulator, metrics, Nifty benchmark, sweep
 - **Part B** ✅ portfolio-level backtest · news archive + GDELT/BSE backfills · point-in-time
-  fundamentals · FinBERT sidecar · embargoed walk-forward · deployed on AWS
+  fundamentals · FinBERT sidecar · embargoed + anchored walk-forward · deployed on AWS
+- **B9** ✅ joint selection → **one best strategy**: `pullback+srs0.25+ff50+sf50-novol`
+  (both floor levers in, volume out), selected on all 4 coverage-era folds × both tiers
 
-**358 tests pass**, `bun run typecheck` clean.
+**364 tests pass**, `bun run typecheck` clean.
 
-## ⚠️ The one thing you must know: still NO out-of-sample edge
+## ⚠️ The one thing you must know: still NO out-of-sample edge (but the gap is closing)
 
-The research program has removed roughly a third of the per-trade loss and validated it
-out-of-sample — but never crossed into profit:
+The research program has removed ~92% of the per-trade loss and, for the first time,
+produced **positive absolute portfolio returns** — but the benchmark gate is still failed:
 
-- **Signal edge (deep 5.5yr window, production config):** 4,394 trades, PF **0.94**,
-  −0.097%/trade vs Nifty +42.9%.
-- **Portfolio level — the decisive gate:** OOS the book lost **−12.7%** (best config) vs
-  Nifty **−4.4%**. Portfolio truth is *worse* than signal truth, because a 2-slot book
-  takes only ~15% of signals and compounds the drift.
+- **Signal edge (B9 stack, coverage-era OOS):** −0.04%/trade, PF 0.97 vs baseline
+  −0.47/0.73 — near-breakeven, not positive.
+- **Portfolio level — the decisive gate (B9):** FULL +22.8% / OOS +24.8% (maxDD −11%!)
+  but vs Nifty +42.9% / +34.4%; and on the honest COVERAGE era (where the config was
+  validated and the floors live): **−6.5% vs Nifty +0.8% → gate FAILED**. B1's earlier
+  reading was −12.7% vs −4.4% — the gap narrowed, the verdict didn't change.
 
 **Do NOT proceed to Phase 5 / B10 (paper trading)** — its gate is "beat Nifty
-risk-adjusted, net of costs, out-of-sample," which is currently failed by a wide margin.
-See `PORTFOLIO_BACKTEST.md` and `SYSTEM.md` §13.
+risk-adjusted, net of costs, out-of-sample." See `B9_RERUN.md` and `SYSTEM.md` §13.
 
 ## What to do next
 
@@ -62,12 +64,15 @@ summary. In short:
    (+0.11 exp on the strong-evidence tier — first full-window breakeven crossing) but
    walk-forward-validated on only 1 coverage-capable fold → held observational.
    See `SENTIMENT_FACTOR.md` §4a.
-2. **B9 — Phase 6 rerun (now unblocked, the next task).** Joint config selection across
-   all measured levers — must include the `ff50+sf50` stack, a coverage-era fold design,
-   and the portfolio-level gate (`backtest:portfolio`). Prune what doesn't contribute
-   (volume is the standing suspect).
-3. **Slot-allocation research** — B1 showed *which* 15% of signals you take matters as much
-   as the signals; today they're ranked by a score with ρ≈0.
+2. ~~**B9 — Phase 6 rerun**~~ ✅ **done (2026-07-20)**: `pullback+srs0.25+ff50+sf50-novol`
+   selected on **all 4 coverage-era folds × both tiers** (volume is out); first positive
+   absolute portfolio returns (OOS +24.8%, maxDD −11%) — but on its validated era it still
+   trails a flat Nifty (−6.5% vs +0.8%) → **B10 gate still failed**. See `B9_RERUN.md`.
+   ⚙️ Operator decision open: adopt the stack as production config (it dominates current
+   production everywhere measured).
+3. **Slot-allocation research — the largest unworked lever.** The 2-slot book takes ~14%
+   of signals, picked by a ρ≈0 composite ranking; measuring better slot-pickers (and the
+   `maxOpenPositions` dose) through `backtest:portfolio` is the next frontier.
 
 > Two levers are validated and already in production (SRS 0.25 + BULL pullback entry) —
 > they are the least-bad config, **not** an edge. Plan narrative: `HANDOFF_NEXT_STEPS.md`.
@@ -103,7 +108,7 @@ bun run backtest:run          # signal-edge replay vs Nifty
 bun run backtest:portfolio    # portfolio-level "beat Nifty" gate ← the decisive one
 bun run backtest:phase6       # embargoed walk-forward (OOS)
 
-bun test                      # 358 tests
+bun test                      # 364 tests
 bun run typecheck
 ```
 

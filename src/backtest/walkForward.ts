@@ -50,6 +50,38 @@ export const makeExpandingFolds = (
   return folds;
 };
 
+/**
+ * Anchored-era folds (B9): like `makeExpandingFolds`, but the FIRST test window
+ * starts at `firstTestIndex` instead of being derived from the span. Why: the
+ * news/fundamentals archives only cover the tail of the deep OHLCV window
+ * (backfills start 2024-01/2025-01 vs candles from 2021), so deep-window folds
+ * leave archive-dependent levers expressible on only the last fold — a
+ * structurally unfair test (B7 Phase 2 finding). Anchoring the test era inside
+ * the covered range gives those levers a multi-fold test while train windows
+ * still expand from `warmup` (all history usable for selection, embargoed).
+ * Test windows split [firstTestIndex, total) evenly and stay contiguous, so the
+ * OOS concatenation is clean.
+ */
+export const makeAnchoredFolds = (
+  warmup: number,
+  firstTestIndex: number,
+  total: number,
+  nFolds: number,
+  embargoDays = 0,
+): Fold[] => {
+  const span = total - firstTestIndex;
+  const testSize = Math.floor(span / nFolds);
+  if (testSize <= 0 || nFolds < 1 || firstTestIndex <= warmup + embargoDays) return [];
+  const folds: Fold[] = [];
+  for (let i = 0; i < nFolds; i++) {
+    const testFrom = firstTestIndex + testSize * i;
+    const testTo = i === nFolds - 1 ? total : firstTestIndex + testSize * (i + 1);
+    const trainTo = Math.max(warmup, testFrom - embargoDays);
+    folds.push({ trainFrom: warmup, trainTo, testFrom, testTo });
+  }
+  return folds;
+};
+
 /** Pick the label with the highest metric value (first wins ties). */
 export const pickBest = (scored: { label: string; value: number }[]): string => {
   let best = scored[0];

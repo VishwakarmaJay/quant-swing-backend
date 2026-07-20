@@ -1,5 +1,13 @@
 # Step 1 — Factor & Gate Attribution (findings)
 
+> **[LIVING HARNESS]** The script has grown since this record: `backtest:attribution
+> [live|live+bse|all]` now also runs fundamental (§2d/2e — [`FUNDAMENTAL_FACTOR.md`](./FUNDAMENTAL_FACTOR.md))
+> and sentiment (2f/2g — [`SENTIMENT_FACTOR.md`](./SENTIMENT_FACTOR.md) §4a) selection
+> tests, per news-origin tier. Two of this doc's calls have since been settled by B9:
+> **volume is pruned** (in every jointly-selected winner) and orthogonal tail-trim levers
+> (ff50/sf50) are validated — [`B9_RERUN.md`](./B9_RERUN.md). The findings below are the
+> original 981-trade record.
+
 > **Run it:** `bun run backtest:attribution` (read-only; needs the ~2yr backfill).
 > **Code:** [`src/backtest/attribution.ts`](../src/backtest/attribution.ts) (pure stats, unit-tested)
 > + [`src/scripts/runAttribution.ts`](../src/scripts/runAttribution.ts) (report).

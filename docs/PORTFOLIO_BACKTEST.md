@@ -1,5 +1,11 @@
 # B1 — Portfolio-Level Backtest (the fair "beat Nifty" gate)
 
+> **[GATE READING UPDATED — B9, 2026-07-20]** The simulator now also runs the B9 stack and
+> a COVERAGE window (`backtest:portfolio [tier]`); current gate reading lives in
+> [`B9_RERUN.md`](./B9_RERUN.md) §3 (still failed, gap narrowed: −6.5% vs Nifty +0.8% on
+> the validated era; first positive absolute returns on FULL/OOS). The numbers below are
+> the original 2-year B1 record.
+
 > **Run it:** `bun run backtest:portfolio` (read-only; needs the ~2yr backfill).
 > **Code:** [`src/backtest/portfolioSimulator.ts`](../src/backtest/portfolioSimulator.ts)
 > (pure, 8 unit tests) + [`src/scripts/runPortfolioBacktest.ts`](../src/scripts/runPortfolioBacktest.ts).

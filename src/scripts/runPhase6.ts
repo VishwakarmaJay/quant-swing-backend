@@ -2,6 +2,7 @@ import {
   benchmarkReturn,
   computeMetrics,
   loadCandleStore,
+  makeAnchoredFolds,
   makeExpandingFolds,
   runWalkForward,
   SENTIMENT_ORIGIN_TIERS,
@@ -17,11 +18,18 @@ import { prisma } from '@services/prisma';
 /**
  * Phase 6 — combine the measured levers and validate walk-forward. Read-only.
  *
- *   bun run backtest:phase6 [live|live+bse|all]
+ *   bun run backtest:phase6 [live|live+bse|all] [--from YYYY-MM-DD] [--folds N]
  *
  * The optional origin-tier argument (B7 Phase 2, default `all`) restricts which
  * news origins feed the SentimentFactor for any sentiment candidates in the
  * grid; non-sentiment candidates are tier-independent.
+ *
+ * `--from` (B9) anchors the FIRST test window at that date (coverage-era fold
+ * design): deep-window folds leave archive-dependent levers (ff/sf floors)
+ * expressible on only the last fold because the archives start 2024-01/2025-01.
+ * Anchoring the test era inside coverage gives them a fair multi-fold test;
+ * train still expands from warmup over all history. `--folds` (default 3;
+ * 4 recommended with --from) sets the fold count.
  *
  * The two robust *relative* levers found so far — sector-relative RS in the
  * composite (Step 3) and the BULL pullback+resumption entry (Step 4b) — were
@@ -33,7 +41,6 @@ import { prisma } from '@services/prisma';
  */
 
 const WARMUP = 205;
-const N_FOLDS = 3;
 /** B8.3: train ends this many trading days before each test window — purges
  * trades whose exits (7-day time-stop etc.) would resolve inside the test. */
 const EMBARGO_DAYS = 10;
@@ -44,13 +51,24 @@ const EMBARGO_DAYS = 10;
 // Sentiment factor floor (B7 Phase 2 lever — same story: the 2f bucket blend was
 // rejected, the 2g floor showed a concave dose–response peaking at 50 with the
 // effect STRONGER on the live+bse tier than with GDELT added).
-const withSrs = (w: number, fundamentalFloor?: number, sentimentFactorFloor?: number) =>
-  new WeightedStrategy({
+// dropVolume (B9): volume has been the standing suspect since Step-1 attribution
+// (mildly harmful, dropping it helped) — tested jointly here for the first time.
+const withSrs = (
+  w: number,
+  opts: { fundamentalFloor?: number; sentimentFactorFloor?: number; dropVolume?: boolean } = {},
+) => {
+  const weights: Record<string, number> = {
+    ...DEFAULT_STRATEGY_CONFIG.technicalFactorWeights,
+    sectorRelativeStrength: w,
+  };
+  if (opts.dropVolume) delete weights.volume; // technical composite renormalizes over present factors
+  return new WeightedStrategy({
     ...DEFAULT_STRATEGY_CONFIG,
-    technicalFactorWeights: { ...DEFAULT_STRATEGY_CONFIG.technicalFactorWeights, sectorRelativeStrength: w },
-    ...(fundamentalFloor != null ? { fundamentalFloor } : {}),
-    ...(sentimentFactorFloor != null ? { sentimentFactorFloor } : {}),
+    technicalFactorWeights: weights,
+    ...(opts.fundamentalFloor != null ? { fundamentalFloor: opts.fundamentalFloor } : {}),
+    ...(opts.sentimentFactorFloor != null ? { sentimentFactorFloor: opts.sentimentFactorFloor } : {}),
   });
+};
 const pullbackV2 = {
   rsiMin: 40,
   rsiMax: 55,
@@ -66,9 +84,12 @@ const padE = (s: string | number, w: number) => String(s).padEnd(w);
 const pad = (s: string | number, w: number) => String(s).padStart(w);
 
 const run = async () => {
-  const tier = process.argv[2] ?? 'all';
-  if (!(tier in SENTIMENT_ORIGIN_TIERS)) {
-    console.error(`Unknown origin tier '${tier}' — use one of: ${Object.keys(SENTIMENT_ORIGIN_TIERS).join(' | ')}`);
+  const args = process.argv.slice(2);
+  const tier = args.find((a) => !a.startsWith('--')) ?? 'all';
+  const fromArg = args.includes('--from') ? args[args.indexOf('--from') + 1] : undefined;
+  const nFolds = args.includes('--folds') ? Number(args[args.indexOf('--folds') + 1]) : 3;
+  if (!(tier in SENTIMENT_ORIGIN_TIERS) || !Number.isInteger(nFolds) || nFolds < 1) {
+    console.error(`Usage: backtest:phase6 [${Object.keys(SENTIMENT_ORIGIN_TIERS).join('|')}] [--from YYYY-MM-DD] [--folds N]`);
     process.exitCode = 1;
     return;
   }
@@ -77,23 +98,35 @@ const run = async () => {
   const total = store.tradingDates.length;
   console.log(`Universe ${store.instruments.length} stocks, ${total} trading days (tier ${tier}).\n`);
 
-  // Candidate grid: the two incumbent levers × the B5 fundamental floor × the
-  // B7 sentiment floor (only the 2g-favoured doses, 48/50, earn a slot).
+  // The B9 joint grid: incumbents as controls, each validated floor alone, the
+  // fold-3 stack, and volume-pruned variants. Dose-neighbours (ff45/sf48) served
+  // their purpose in B5/B7 attribution and are dropped to limit selection churn.
   const candidates: WFCandidate[] = [
     { label: 'baseline', strategy: withSrs(0) },
     { label: 'srs0.25', strategy: withSrs(0.25) },
     { label: 'pullback+srs0.25', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25)) },
-    { label: 'ff50', strategy: withSrs(0, 50) },
-    { label: 'pullback+srs0.25+ff45', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, 45)) },
-    { label: 'pullback+srs0.25+ff50', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, 50)) },
-    { label: 'pullback+srs0.25+sf48', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, undefined, 48)) },
-    { label: 'pullback+srs0.25+sf50', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, undefined, 50)) },
-    { label: 'pullback+srs0.25+ff50+sf50', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, 50, 50)) },
+    { label: 'pullback+srs0.25+ff50', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, { fundamentalFloor: 50 })) },
+    { label: 'pullback+srs0.25+sf50', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, { sentimentFactorFloor: 50 })) },
+    { label: 'pullback+srs0.25+ff50+sf50', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, { fundamentalFloor: 50, sentimentFactorFloor: 50 })) },
+    { label: 'pullback+srs0.25-novol', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, { dropVolume: true })) },
+    { label: 'pullback+srs0.25+ff50+sf50-novol', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, { fundamentalFloor: 50, sentimentFactorFloor: 50, dropVolume: true })) },
   ];
 
-  const folds = makeExpandingFolds(WARMUP, total, N_FOLDS, EMBARGO_DAYS);
+  let folds;
+  if (fromArg != null) {
+    const anchor = store.tradingDates.findIndex((d) => d >= fromArg);
+    if (anchor < 0) {
+      console.error(`--from ${fromArg} is beyond the stored range (${store.tradingDates.at(-1)}).`);
+      process.exitCode = 1;
+      return;
+    }
+    folds = makeAnchoredFolds(WARMUP, anchor, total, nFolds, EMBARGO_DAYS);
+    console.log(`Fold design: ANCHORED — test era ${store.tradingDates[anchor]}→end (coverage-era, B9).`);
+  } else {
+    folds = makeExpandingFolds(WARMUP, total, nFolds, EMBARGO_DAYS);
+  }
   console.log(
-    `Walk-forward: ${folds.length} expanding folds (embargo ${EMBARGO_DAYS}d), ${candidates.length} candidates each.`,
+    `Walk-forward: ${folds.length} folds (embargo ${EMBARGO_DAYS}d), ${candidates.length} candidates each.`,
   );
   console.log('Replaying (this runs the pipeline many times)…\n');
 

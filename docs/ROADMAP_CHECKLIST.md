@@ -381,29 +381,37 @@ every evaluation runs **per-origin** (live-only vs +BSE_BACKFILL vs +GDELT).
       statically discoverable). Open data task; revisit before B9's conclusions are
       treated as final.
 
-### B9. Phase 6 rerun — joint weighting over the enriched set 🎯 NOW UNBLOCKED (B5 + B7 both measured)
-- [x] Re-run attribution across all factors (technical + fundamental + sentiment) — done
-      per-origin on the deep window (B5 §2d/2e 2026-07-18; B7 2f/2g 2026-07-20)
-- [ ] Prune what doesn't contribute (volume is the standing suspect)
-- [ ] Joint config selection via walk-forward — must include the `ff50+sf50` stack (what
-      fold 3 actually selected) and a **coverage-era fold design** (deep-window folds leave
-      sentiment expressible on only 1 of 3 folds; more folds inside 2024-07→ give the floor
-      levers a fair multi-fold test)
-- [ ] The joint pick through `backtest:portfolio` (the decisive gate) — sf50's signal-edge
-      breakeven means nothing until it survives the 2-slot book
-- [ ] Revisit the survivorship residual (B8.2) before treating conclusions as final
-- [ ] Consider learned weighting (logistic → GBM) **only if** features now show
-      discrimination (ρ meaningfully > 0 — still not true as of B7: all Spearman ≈ 0;
-      the working levers are tail-trims, not rankings)
+### ✅ B9. Phase 6 rerun — DONE (2026-07-20); one best strategy, gate still failed
+Full doc: [`B9_RERUN.md`](./B9_RERUN.md) · anchored coverage-era folds (`makeAnchoredFolds`,
+`backtest:phase6 --from 2024-07-01 --folds 4`) · 364 tests, typecheck clean.
+- [x] Re-run attribution across all factors — per-origin on the deep window (B5 §2d/2e; B7 2f/2g)
+- [x] **Prune what doesn't contribute:** volume is OUT — `-novol` in every anchored winner
+      (8/8) and 2/3 deep winners; no selected config kept it. Step-1's suspicion confirmed jointly.
+- [x] **Joint config selection via walk-forward:** anchored 4-fold coverage-era design built
+      (the fair multi-fold test B7 lacked) →
+      **`pullback+srs0.25+ff50+sf50-novol` selected on all 4 folds × both tiers**; OOS
+      −0.04/PF 0.97 vs baseline control −0.47/0.73 (~92% of the loss removed; still not positive).
+- [x] **Portfolio gate:** stack beats every config on every window/sizing/cost level; first
+      **positive absolute portfolio returns** (FULL +22.8%, OOS +24.8%) and best-ever maxDD
+      (−11%) — but on the honest COVERAGE window (its validated era): **−6.5% (risk) vs Nifty
+      +0.8% → B10 GATE FAILED** (closest approach yet; B1 was −12.7 vs −4.4).
+- [ ] ⚙️ Operator decision available (B2 precedent): adopt the B9 stack as the production
+      config (it dominates current production everywhere in this report) — signals stay manual
+- [ ] Revisit the survivorship residual (B8.2) before treating conclusions as final — still open
+- [ ] Learned weighting still correctly deferred (all Spearman ≈ 0; working levers are
+      tail-trims, not rankings)
 - **Done when:** one best evaluated strategy, OOS-validated, with every component earning
-  its place.
+  its place. ✅ **Met. Next lever (new, measured): slot allocation — the 2-slot book takes
+  ~14% of signals, picked by a ρ≈0 ranking; risk sizing is the drawdown-preserving default.**
 
 ### B10. Phase 5 — paper trading 🔒 HARD-GATED
 - **Gate (unchanged):** B1's portfolio-level backtest shows the B9 strategy **beats Nifty
   risk-adjusted, net of costs, out-of-sample.** Not before — paper-trading a known-negative
   strategy burns calendar time.
-- **Current gate reading (B1, 2026-07):** ❌ failed by a wide margin — OOS portfolio
-  −12.7%…−23.4% vs Nifty −4.4% ([`PORTFOLIO_BACKTEST.md`](./PORTFOLIO_BACKTEST.md)).
+- **Current gate reading (B9, 2026-07-20):** ❌ still failed, but the gap has narrowed
+  sharply — the B9 stack loses −6.5% (risk sizing, maxDD −11.1) vs Nifty +0.8% on its
+  validated coverage era ([`B9_RERUN.md`](./B9_RERUN.md)); B1's reading was −12.7% vs
+  −4.4%. First positive absolute portfolio returns on the FULL/OOS windows.
 - [ ] Gate cleared (link the run + numbers here)
 - [ ] ≥2-week paper trade, metrics + factor attribution logged from day 1
 - [ ] Live fills vs simulated: measure real slippage, recalibrate the cost model

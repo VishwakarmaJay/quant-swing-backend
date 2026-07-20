@@ -3,6 +3,7 @@ import {
   generateRawSignals,
   loadCandleStore,
   makeExpandingFolds,
+  SENTIMENT_ORIGIN_TIERS,
   simulatePortfolio,
   DEFAULT_PORTFOLIO_SIM_CONFIG,
   type CandleStore,
@@ -29,13 +30,26 @@ import { prisma } from '@services/prisma';
  */
 
 const WARMUP = 205;
+/** First test date of the B9 anchored (coverage-era) walk-forward — the era its
+ * selected stack was validated on; the portfolio gate must read the same era. */
+const COVERAGE_FROM = '2024-07-01';
 
-const withSrs = (w: number, fundamentalFloor?: number): WeightedStrategy =>
-  new WeightedStrategy({
+const withSrs = (
+  w: number,
+  opts: { fundamentalFloor?: number; sentimentFactorFloor?: number; dropVolume?: boolean } = {},
+): WeightedStrategy => {
+  const weights: Record<string, number> = {
+    ...DEFAULT_STRATEGY_CONFIG.technicalFactorWeights,
+    sectorRelativeStrength: w,
+  };
+  if (opts.dropVolume) delete weights.volume; // composite renormalizes over present factors
+  return new WeightedStrategy({
     ...DEFAULT_STRATEGY_CONFIG,
-    technicalFactorWeights: { ...DEFAULT_STRATEGY_CONFIG.technicalFactorWeights, sectorRelativeStrength: w },
-    ...(fundamentalFloor != null ? { fundamentalFloor } : {}),
+    technicalFactorWeights: weights,
+    ...(opts.fundamentalFloor != null ? { fundamentalFloor: opts.fundamentalFloor } : {}),
+    ...(opts.sentimentFactorFloor != null ? { sentimentFactorFloor: opts.sentimentFactorFloor } : {}),
   });
+};
 const pullbackV2 = {
   rsiMin: 40,
   rsiMax: 55,
@@ -52,25 +66,44 @@ const padE = (s: string | number, w: number) => String(s).padEnd(w);
 const pad = (s: string | number, w: number) => String(s).padStart(w);
 
 const run = async () => {
-  console.log('Loading candles…');
-  const store: CandleStore = await loadCandleStore();
+  const tier = process.argv[2] ?? 'all';
+  if (!(tier in SENTIMENT_ORIGIN_TIERS)) {
+    console.error(`Unknown origin tier '${tier}' — use one of: ${Object.keys(SENTIMENT_ORIGIN_TIERS).join(' | ')}`);
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`Loading candles… (sentiment origin tier: ${tier})`);
+  const store: CandleStore = await loadCandleStore({ sentimentOrigins: SENTIMENT_ORIGIN_TIERS[tier] });
   const total = store.tradingDates.length;
   const oosFrom = makeExpandingFolds(WARMUP, total, 3)[0]!.testFrom; // Phase-6 OOS start
-  console.log(`Universe ${store.instruments.length} stocks, ${total} trading days.`);
+  const coverageFrom = store.tradingDates.findIndex((d) => d >= COVERAGE_FROM);
+  console.log(`Universe ${store.instruments.length} stocks, ${total} trading days (tier ${tier}).`);
   console.log(
     `Windows: FULL ${store.tradingDates[WARMUP]}→${store.tradingDates[total - 1]} · ` +
-      `OOS ${store.tradingDates[oosFrom]}→${store.tradingDates[total - 1]} (Phase-6 test stretch)\n`,
+      `OOS ${store.tradingDates[oosFrom]}→${store.tradingDates[total - 1]} (Phase-6 test stretch) · ` +
+      `COVERAGE ${store.tradingDates[coverageFrom]}→${store.tradingDates[total - 1]} (B9 anchored era)\n`,
   );
 
   const strategies: { key: string; label: string; strategy: Strategy }[] = [
     { key: 'baseline', label: 'baseline (production)', strategy: new WeightedStrategy() },
     { key: 'combined', label: 'combined (pullback+srs)', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25)) },
     // B5: the walk-forward-favoured fundamental floor on top of the combined config.
-    { key: 'combinedFf', label: 'combined+ff50', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, 50)) },
+    { key: 'combinedFf', label: 'combined+ff50', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, { fundamentalFloor: 50 })) },
+    // B9: the stack the anchored walk-forward selected on ALL 4 coverage-era
+    // folds × both tiers — both floors + volume pruned over the combined config.
+    {
+      key: 'b9stack',
+      label: 'b9 stack (ff50+sf50-novol)',
+      strategy: new BullPullbackStrategy(
+        pullbackV2,
+        withSrs(0.25, { fundamentalFloor: 50, sentimentFactorFloor: 50, dropVolume: true }),
+      ),
+    },
   ];
   const windows = [
     { key: 'FULL', fromIndex: WARMUP },
     { key: 'OOS', fromIndex: oosFrom },
+    { key: 'COVERAGE', fromIndex: coverageFrom },
   ];
   const sizings: SizingMode[] = ['flat', 'conviction', 'risk'];
 
@@ -125,9 +158,11 @@ const run = async () => {
     }
   }
 
-  // ── Cost-sensitivity stress: 2× slippage + commissions on the OOS window.
-  const oosW = windows[1]!;
-  console.log(`\n=== COST SENSITIVITY (OOS window, 2× slippage + commissions) ===`);
+  // ── Cost-sensitivity stress: 2× slippage + commissions on the COVERAGE
+  // window — the era the B9 stack was walk-forward-validated on, i.e. the
+  // window the current gate decision actually reads.
+  const oosW = windows[2]!;
+  console.log(`\n=== COST SENSITIVITY (COVERAGE window, 2× slippage + commissions) ===`);
   console.log(header);
   const ranks: Record<1 | 2, Record<string, number>> = { 1: {}, 2: {} };
   for (const costMult of [1, 2] as const) {
@@ -158,6 +193,13 @@ const run = async () => {
     ffFlip
       ? `  ⚠️ RANKING FLIP at 2× costs — the combined/combined+ff50 ordering is cost-fragile.`
       : `  Ranking stable at 2× costs (combined+ff50 ${ranks[2].combinedFf! > ranks[2].combined! ? 'still beats' : 'still trails'} combined).`,
+  );
+  const stackFlip =
+    Math.sign(ranks[1].b9stack! - ranks[1].combined!) !== Math.sign(ranks[2].b9stack! - ranks[2].combined!);
+  console.log(
+    stackFlip
+      ? `  ⚠️ RANKING FLIP at 2× costs — the combined/b9-stack ordering is cost-fragile.`
+      : `  Ranking stable at 2× costs (b9 stack ${ranks[2].b9stack! > ranks[2].combined! ? 'still beats' : 'still trails'} combined).`,
   );
 
   console.log(

@@ -1,7 +1,7 @@
 # QuantSwing — Complete Reference (zero → current)
 
 > **One file, everything:** what the system is, every formula actually implemented in `src/`
-> (indicators, all 6 factors, regime, strategy, signal math, portfolio, backtest, research
+> (indicators, the factor layer, regime, strategy, signal math, portfolio, backtest, research
 > harnesses), every measured finding (Steps 1–6), and every known limitation.
 > Verified against source at 149-test / typecheck-clean state. Companions:
 > [`SYSTEM.md`](./SYSTEM.md) (as-built narrative), [`ATTRIBUTION.md`](./ATTRIBUTION.md),
@@ -16,7 +16,7 @@
 2. [The pipeline](#2-the-pipeline)
 3. [Data foundation & data-quality math](#3-data-foundation--data-quality-math)
 4. [Indicator math (in-house)](#4-indicator-math-in-house)
-5. [The factor layer — contracts + all 6 factors](#5-the-factor-layer)
+5. [The factor layer — contracts + factors](#5-the-factor-layer) *(Fundamental/Sentiment math: their own docs)*
 6. [Golden determinism gate](#6-golden-determinism-gate)
 7. [Market regime math](#7-market-regime-math)
 8. [Strategy math (WeightedStrategy)](#8-strategy-math-weightedstrategy)
@@ -46,8 +46,8 @@ RabbitMQ (jobs). All indicator math is in-house so it can be golden-tested byte-
 
 **Status:** Phases 1–4 complete + the Part-B research program (attribution, regime
 experiments, walk-forward, portfolio backtest, news archive + backfills, fundamentals,
-FinBERT, Fundamental + Sentiment factors) — B1–B8 done, B9 next. **358 tests, typecheck
-clean.** The strategy has been improved from clearly losing to near-breakeven **but has no
+FinBERT, Fundamental + Sentiment factors) — **B1–B9 done** ([`B9_RERUN.md`](./B9_RERUN.md)).
+**364 tests, typecheck clean.** The strategy has been improved from clearly losing to near-breakeven **but has no
 positive out-of-sample edge yet** — Phase 5 (paper trading) is gated (§15, §17).
 
 ## 2. The pipeline
@@ -377,10 +377,18 @@ Gate "R:R ≥ x" from the spec is realized downstream by signal math (§10, `rr-
   (built for leave-one-out ablation, §14).
 - `regimeGateOverrides: { [regime]: { rsiMin?, rsiMax?, minSectorRs?, skip? } }` — per-regime
   tightening (built for the regime-conditioned entry experiments).
+- `fundamentalFloor?: number` (B5) / `sentimentFactorFloor?: number` (B7) — add a
+  `fundamental-floor` / `sentiment-factor-floor` gate that rejects a factor score below
+  the floor, reading the result straight off the bundle while the bucket stays inactive.
+  A missing factor result rejects (unavailable ≠ pass); the thin-coverage neutral-50
+  passes any floor ≤ 50. Both at 50, with volume pruned, form the B9-selected stack
+  ([`B9_RERUN.md`](./B9_RERUN.md)) — validated, unadopted.
 
 ## 9. Experimental: BullPullbackStrategy
 
-**Not wired to production.** Delegates byte-for-byte to the base strategy in every regime
+**[UPDATED — B2]** ~~Not wired to production.~~ **In production since B2** — the v2
+variant (histogram-rising resumption) wraps the SRS-weighted composite in
+`createProductionStrategy()`. Delegates byte-for-byte to the base strategy in every regime
 except BULL; in BULL it replaces the buy-strength decision with a **pullback** entry:
 
 ```
@@ -562,6 +570,16 @@ expectancy (finite, unlike PF which can be ∞), then measure the selection on t
 window. Concatenate all test trades → the honest out-of-sample result. Control: baseline
 strategy held fixed over the same test windows.
 
+**[B8.3]** `embargoDays`: train ends that many trading days before its test window, so a
+train-end signal's exits can't resolve inside the test (selection leakage).
+
+**[B9]** `makeAnchoredFolds(warmup, firstTestIndex, total, nFolds, embargo)`: the first
+test window is anchored at a chosen date and [firstTestIndex, total) splits evenly into
+nFolds; train still expands from warmup. Why: archive-dependent levers (ff/sf floors) are
+inert before the archives begin (2024-01/2025-01), so deep-window folds under-test them —
+anchoring the test era inside coverage is the fair design
+(`backtest:phase6 [tier] --from 2024-07-01 --folds 4`).
+
 ## 15. Findings timeline
 
 Backtest window: 167 stocks × 544 trading days ≈ 2 years, **981 baseline trades**.
@@ -610,17 +628,37 @@ folds** (stable). Out-of-sample concatenated: **combined −0.12 / PF 0.91 vs ba
 PF 0.78** — robustly better (≈⅓ of the loss removed), **but still negative**. ML weighting
 deliberately deferred (ρ≈0 features + overfit risk). **Phase 5 stays gated.**
 
-**Net effect of the program:** baseline PF 0.78–0.86 → combined, OOS-validated PF **0.91**.
-Real, durable improvement; **no positive edge yet.**
+**B5 — FundamentalFactor (2026-07-18):** bucket blend **rejected** (monotone-harmful with
+dose); **floor gate validated** (concave, peak 50: +0.07 exp) — the information is in the
+low-fundamental tail. Held observational. → `FUNDAMENTAL_FACTOR.md`
+
+**B7 — SentimentFactor Phase 2 (2026-07-20, deep window, per-origin):** same shape,
+stronger dose — blend rejected; **floor 50 = +0.11 exp on the strong-evidence tier
+(live+bse), first full-window breakeven crossing (+0.01/PF 1.01)**; effect *stronger* on
+exchange-timestamped evidence than with GDELT added (anti-artifact ordering); `live` tier
+= clean null control (0% coverage, floors provably inert). → `SENTIMENT_FACTOR.md` §4a
+
+**B9 — joint rerun (2026-07-20):** anchored coverage-era folds (2024-07→, 4 folds) →
+**`pullback+srs0.25+ff50+sf50-novol` selected on all 4 folds × both tiers** (first uniform
+selection; volume pruned everywhere it could be). Signal-edge OOS −0.04/PF 0.97 vs baseline
+−0.47/0.73. Portfolio gate: first **positive absolute returns** (FULL +22.8%, OOS +24.8%,
+maxDD −11%) but **still trails Nifty on the validated coverage era (−6.5% vs +0.8%) — B10
+stays gated.** New largest lever: slot allocation. → `B9_RERUN.md`
+
+**Net effect of the program:** baseline (deep window) PF 0.94 signal-edge / deeply negative
+portfolio → one jointly-selected strategy at signal-edge PF 0.97 OOS and the first positive
+absolute portfolio returns. Real, durable, honestly-measured improvement; **no
+benchmark-beating edge yet.**
 
 ## 16. Limitations
 
 The complete honest list, grouped. (1–6 are structural to the current data; 7–12 are method
 caveats; 13–17 are engineering/scope.)
 
-1. **No positive out-of-sample edge.** The central limitation. OOS expectancy −0.12, PF 0.91.
-   The system is a working signal *factory* whose current signals still lose slightly.
-   Phase 5 (paper trading) is correctly gated until a backtest clears "beat Nifty".
+1. **No benchmark-beating out-of-sample edge.** The central limitation. **[UPDATED — B9]**
+   Best jointly-selected strategy: signal-edge OOS −0.04/PF 0.97; portfolio positive in
+   absolute terms but trailing Nifty on its validated era (−6.5% vs +0.8%). Phase 5
+   (paper trading) stays correctly gated until the portfolio gate clears "beat Nifty".
 2. **Technicals-only in the DECISION path — the orthogonal buckets are empty.**
    **[UPDATED — B5/B7]** Sentiment + Fundamental factors are now ~~not built~~ **built and
    computed**, but held observational (empty buckets), so the composite is still the
@@ -677,10 +715,11 @@ caveats; 13–17 are engineering/scope.)
     HIGH_VOL — its PF 5.49 is noise, not signal).
 15. **Sector granularity:** 23 committed sector labels; some sectors have few members (SRS
     goes neutral below 3 peers); sector assignments are static (no reclassification history).
-16. **Experimental components are not production-wired:** BullPullbackStrategy, SRS weight,
-    and regime overrides all live behind default-off research knobs. The nightly Telegram run
-    still emits the *baseline* strategy's signals — i.e., production currently runs the
-    known-no-edge config (safe only because orders are manual and Phase 5 is gated).
+16. **Research levers vs production config:** ~~production runs the baseline~~ **[STALE —
+    fixed by B2]** production runs `pullback+srs0.25` (`createProductionStrategy()`). The
+    B9-validated additions (ff50 + sf50 floors, volume pruned) remain research levers —
+    adopting the B9 stack into production is an **open operator decision** (it dominates
+    current production on every window/sizing/cost level measured, `B9_RERUN.md` §4).
 17. **Operational gaps vs spec (documented drift):** no intraday thesis checks or pre-market
     job; `snapshotJson` stores the approved signal, not the full factor bundle;
     `instrumentMasterVersion` is best-effort. *(The "no FinBERT sidecar" item was resolved
@@ -689,26 +728,35 @@ caveats; 13–17 are engineering/scope.)
 ## 17. Current state & what's next
 
 **State:** a complete, reproducible, honestly-measured research platform. **[UPDATED
-2026-07-19]** 358 tests + golden gate green. Two OOS-validated relative levers (SRS
-selection, BULL pullback+resumption) combine to PF 0.91 vs baseline 0.78 — near-breakeven,
-not yet profitable. Since the original writing: B4/B5 fundamentals + factor done, B6 FinBERT
-sidecar done, B8 robustness (deep OHLCV, VIX, embargo) done, **B3.5/B3.6 news backfills
-loaded + precision-audited** (GDELT media + BSE filings, ~2.5yr), and the whole stack is
-**deployed on AWS** (`DEPLOYMENT_AWS.md`). Master tracker: `ROADMAP_CHECKLIST.md`.
+2026-07-20]** 364 tests + golden gate green; whole stack deployed on AWS
+(`DEPLOYMENT_AWS.md`). The Part-B program is **complete through B9**
+([`B9_RERUN.md`](./B9_RERUN.md)): both orthogonal factors measured (bucket blends
+rejected; floor gates validated — the information lives in the negative tails), volume
+pruned on joint evidence, and **one best evaluated strategy** —
+`pullback + srs0.25 + ff50 + sf50 − volume` — selected on all 4 coverage-era
+walk-forward folds × both origin tiers. Portfolio level: first **positive absolute
+returns** (OOS +24.8%, maxDD −11%) — **but still trails Nifty on its validated era
+(−6.5% vs +0.8%) → the B10 gate remains failed.** Master tracker:
+`ROADMAP_CHECKLIST.md`.
 
-**Highest-leverage next move:**
-1. **B7 — SentimentFactor**, now data-unblocked by the backfills: aggregation → observational
-   → embargoed walk-forward, split per-origin (live/BSE strong-evidence vs GDELT). Then B9
-   (joint rerun) → B10 gate re-read. Earlier "source fundamentals / start the news clock"
-   moves are **done** (B4/B5, B3/B3.5/B3.6).
-4. Historical-constituent data to kill survivorship bias (§16.7) — harder, lower priority.
-5. Only after new orthogonal signal exists: revisit learned weighting through the
-   walk-forward harness (§16.6, §16.11).
+**Highest-leverage next moves:**
+1. **Slot-allocation research** — the largest unworked lever: the 2-slot book takes ~14%
+   of signals, picked by a ρ≈0 composite ranking; measure better slot-pickers and the
+   `maxOpenPositions` dose through `backtest:portfolio`.
+2. ⚙️ **Operator decision:** adopt the B9 stack as production config (B2 precedent).
+3. Historical-constituent data to kill survivorship bias (§16.7) — open residual;
+   re-attempt before treating B9's numbers as final.
+4. Let the live archive age — sentiment's strong-evidence tier grows daily; re-run the
+   anchored walk-forward as coverage deepens.
+5. Only if features ever show discrimination (every Spearman is still ≈0): revisit
+   learned weighting through the walk-forward harness (§16.6, §16.11).
 
 **Phase 5 (paper trading) stays gated** until a portfolio-level backtest beats Nifty
 risk-adjusted, net of costs, out-of-sample.
 
 ---
 
-*Every formula in this file was verified against `src/` at the 149-test state. If code and
-this file ever disagree, the code + golden fixture are the truth — update this file.*
+*Every formula in this file was verified against `src/` at the 149-test state (§§1–14) and
+maintained forward; findings/limitations/state are current as of the 364-test state. If
+code and this file ever disagree, the code + golden fixture are the truth — update this
+file.*

@@ -6,8 +6,10 @@
 > selection delta measured in the project (+0.11 exp on the strong-evidence tier, first
 > full-window breakeven crossing) — but walk-forward-validated on only **one
 > coverage-capable fold** (+0.14 / PF 1.12 unseen). Treatment: the `ff50` precedent —
-> observational until B9, re-measure as coverage accrues. Results: §4a. Nothing changes
-> trading behaviour; the frozen baseline stays byte-identical.
+> observational. Results: §4a. **[B9, same day]** the anchored walk-forward then selected
+> sf50 inside the joint best strategy on all 4 coverage-era folds × both tiers
+> ([`B9_RERUN.md`](./B9_RERUN.md)); production adoption remains an open operator decision.
+> Nothing here changes trading behaviour; the frozen baseline stays byte-identical.
 
 ---
 
@@ -141,8 +143,11 @@ tuned on 2025-era data).
    accrues or a coverage-era fold design is run (B9 task).
 3. **Held OBSERVATIONAL** (the `ff50` precedent): `sentimentFactorFloor` exists as a
    validated research lever; absent from default/production config; `weightsVersion`
-   untouched. B9 makes the joint call — and must re-test the `ff50+sf50` stack, which is
-   what fold 3 actually selected.
+   untouched. **[B9 UPDATE, 2026-07-20]** The joint call was made: the anchored
+   coverage-era walk-forward selected `pullback+srs0.25+ff50+sf50-novol` on **all 4
+   folds × both tiers** — sf50 earned its place in the one best evaluated strategy
+   ([`B9_RERUN.md`](./B9_RERUN.md)). Production adoption remains an open operator
+   decision; the B10 gate is still failed.
 4. Caveats: coverage grows through the window (floor inert early, active late — fold-1
    train is nearly sentiment-blind); headline-level FinBERT; survivorship; signal-edge
    units (portfolio-level truth still pending in B9 via `backtest:portfolio`).

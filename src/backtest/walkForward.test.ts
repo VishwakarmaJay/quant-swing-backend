@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { makeExpandingFolds, pickBest } from './walkForward';
+import { makeAnchoredFolds, makeExpandingFolds, pickBest } from './walkForward';
 
 describe('makeExpandingFolds', () => {
   test('produces contiguous test windows covering the OOS stretch, with expanding train', () => {
@@ -38,6 +38,25 @@ describe('makeExpandingFolds', () => {
       expect(embargoed[i]!.testFrom).toBe(plain[i]!.testFrom);
       expect(embargoed[i]!.testTo).toBe(plain[i]!.testTo);
     }
+  });
+
+  test('anchored folds (B9): test era starts at the anchor, train still expands from warmup', () => {
+    const folds = makeAnchoredFolds(205, 700, 1000, 4, 10);
+    expect(folds).toHaveLength(4);
+    // First test window starts exactly at the anchor; windows are contiguous to the end.
+    expect(folds[0]!.testFrom).toBe(700);
+    for (let i = 1; i < 4; i++) expect(folds[i]!.testFrom).toBe(folds[i - 1]!.testTo);
+    expect(folds[3]!.testTo).toBe(1000);
+    for (const f of folds) {
+      expect(f.trainFrom).toBe(205); // all history usable for selection
+      expect(f.trainTo).toBe(f.testFrom - 10); // embargo respected
+    }
+  });
+
+  test('anchored folds: degenerate inputs yield no folds', () => {
+    expect(makeAnchoredFolds(205, 998, 1000, 4)).toEqual([]); // span 2 → testSize 0
+    expect(makeAnchoredFolds(205, 1000, 700, 3)).toEqual([]); // anchor beyond total
+    expect(makeAnchoredFolds(205, 210, 1000, 3, 10)).toEqual([]); // anchor inside warmup+embargo
   });
 
   test('embargo never pushes train below the warmup start', () => {

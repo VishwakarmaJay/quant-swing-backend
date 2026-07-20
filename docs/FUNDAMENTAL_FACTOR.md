@@ -3,6 +3,9 @@
 > **Status:** built + integrated **observationally** (baseline byte-identical). The
 > composite **bucket path is rejected on evidence**; the **floor gate** is the measured
 > lever, OOS-favoured but **not graduated to production** (operator decision, B2 precedent).
+> **[B9 UPDATE, 2026-07-20]** ff50 earned its place in the jointly-selected best strategy
+> (`pullback+srs0.25+ff50+sf50-novol`, all 4 coverage-era folds × both tiers —
+> [`B9_RERUN.md`](./B9_RERUN.md)); production adoption still an open operator decision.
 > **Run the measurements:** `bun run backtest:attribution` (§2d/2e) · `bun run backtest:phase6` ·
 > `bun run backtest:portfolio`. Tracker: [`ROADMAP_CHECKLIST.md`](./ROADMAP_CHECKLIST.md) B5.
 

@@ -39,6 +39,7 @@ export {
 } from './attribution';
 export {
   makeExpandingFolds,
+  makeAnchoredFolds,
   pickBest,
   runWalkForward,
   type Fold,

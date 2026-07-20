@@ -1,5 +1,10 @@
 # Phase 6 — combine + walk-forward evaluation
 
+> **[SUPERSEDED for current state — B9, 2026-07-20]** This doc records the original 2-year
+> 2×2-grid run. The definitive joint evaluation (anchored coverage-era folds, 8-candidate
+> grid incl. both floors + volume pruning, portfolio gate) is [`B9_RERUN.md`](./B9_RERUN.md).
+> The numbers below remain the honest record of what was known at the time.
+
 > **Run it:** `bun run backtest:phase6` (read-only; needs the ~2yr backfill).
 > **Harness:** `src/backtest/walkForward.ts` (reusable) + `src/scripts/runPhase6.ts`.
 

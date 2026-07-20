@@ -11,6 +11,7 @@ export { computeMetrics, type BacktestMetrics } from './metrics';
 export {
   loadCandleStore,
   loadNewsBySymbol,
+  SENTIMENT_ORIGIN_TIERS,
   benchmarkReturn,
   type CandleStore,
   type UniverseInstrument,

@@ -155,6 +155,22 @@ export class WeightedStrategy implements Strategy {
       });
     }
 
+    // Sentiment factor floor (B7 Phase 2) only when the config sets one. Reads
+    // the factor result straight off the bundle — works while the bucket stays
+    // inactive (the fundamentalFloor mechanism; distinct from gate 7 below,
+    // which reads the bucket score).
+    if (cfg.sentimentFactorFloor != null) {
+      const sent = bundle.results.sentiment?.score ?? null;
+      gates.push({
+        name: 'sentiment-factor-floor',
+        passed: sent != null && sent >= cfg.sentimentFactorFloor,
+        detail:
+          sent == null
+            ? 'sentiment unavailable'
+            : `sentiment ${round(sent, 2)} vs floor ${cfg.sentimentFactorFloor}`,
+      });
+    }
+
     // Gate 7 (sentiment floor) only when a SentimentFactor is present.
     if (sentimentScore != null) {
       gates.push({

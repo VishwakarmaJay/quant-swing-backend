@@ -4,6 +4,7 @@ import {
   loadCandleStore,
   makeExpandingFolds,
   runWalkForward,
+  SENTIMENT_ORIGIN_TIERS,
   simulateSignalsPaired,
   generateRawSignals,
   type CandleStore,
@@ -16,7 +17,11 @@ import { prisma } from '@services/prisma';
 /**
  * Phase 6 — combine the measured levers and validate walk-forward. Read-only.
  *
- *   bun run backtest:phase6
+ *   bun run backtest:phase6 [live|live+bse|all]
+ *
+ * The optional origin-tier argument (B7 Phase 2, default `all`) restricts which
+ * news origins feed the SentimentFactor for any sentiment candidates in the
+ * grid; non-sentiment candidates are tier-independent.
  *
  * The two robust *relative* levers found so far — sector-relative RS in the
  * composite (Step 3) and the BULL pullback+resumption entry (Step 4b) — were
@@ -57,10 +62,16 @@ const padE = (s: string | number, w: number) => String(s).padEnd(w);
 const pad = (s: string | number, w: number) => String(s).padStart(w);
 
 const run = async () => {
-  console.log('Loading candles…');
-  const store: CandleStore = await loadCandleStore();
+  const tier = process.argv[2] ?? 'all';
+  if (!(tier in SENTIMENT_ORIGIN_TIERS)) {
+    console.error(`Unknown origin tier '${tier}' — use one of: ${Object.keys(SENTIMENT_ORIGIN_TIERS).join(' | ')}`);
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`Loading candles… (sentiment origin tier: ${tier})`);
+  const store: CandleStore = await loadCandleStore({ sentimentOrigins: SENTIMENT_ORIGIN_TIERS[tier] });
   const total = store.tradingDates.length;
-  console.log(`Universe ${store.instruments.length} stocks, ${total} trading days.\n`);
+  console.log(`Universe ${store.instruments.length} stocks, ${total} trading days (tier ${tier}).\n`);
 
   // Candidate grid: the two incumbent levers × the B5 fundamental floor.
   const candidates: WFCandidate[] = [

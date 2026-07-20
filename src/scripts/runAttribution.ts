@@ -4,6 +4,7 @@ import {
   generateRawSignals,
   loadCandleStore,
   metricsByRegime,
+  SENTIMENT_ORIGIN_TIERS,
   simulateSignalsPaired,
   type BacktestMetrics,
   type CandleStore,
@@ -15,12 +16,17 @@ import { prisma } from '@services/prisma';
  * Factor & gate attribution (HANDOFF Step 1). Read-only. Measures which entry
  * component is responsible for the missing edge, using the Phase-4 harness:
  *
- *   bun run backtest:attribution
+ *   bun run backtest:attribution [live|live+bse|all]
  *
  * 1. Conditioning: reproduce the live signal set once, correlate each signal's
  *    factor/composite/agreement scores with the trade's realised net return.
  * 2. Leave-one-out ablation: disable each gate, and drop each factor from the
  *    composite, one at a time; re-measure vs baseline.
+ *
+ * The optional origin-tier argument (B7 Phase 2, default `all`) restricts which
+ * news origins feed the SentimentFactor — run all three tiers so sentiment
+ * conclusions can be validated on the strongest availability evidence
+ * (SENTIMENT_FACTOR.md §4). Non-sentiment sections are tier-independent.
  *
  * NOTE: statistical strength scales with the backfilled window. For the full
  * ~981-trade picture, backfill first: `bun run backfill:ohlcv all 800`.
@@ -62,6 +68,26 @@ const withFundamentalBucket = (lambda: number): WeightedStrategy => {
   });
 };
 
+/**
+ * Activates the sentiment bucket at λ × the spec's regime weights (B7 Phase 2
+ * selection test — the 2d pattern). With fundamental still absent the weights
+ * renormalize over {technical, sentiment}, so e.g. HIGH_VOL λ=1 gives sentiment
+ * 0.45/0.85 ≈ 53% of the composite.
+ */
+const withSentimentBucket = (lambda: number): WeightedStrategy => {
+  const regimeWeights = Object.fromEntries(
+    Object.entries(DEFAULT_STRATEGY_CONFIG.regimeWeights).map(([regime, w]) => [
+      regime,
+      { ...w, sentiment: Number((w.sentiment * lambda).toFixed(4)) },
+    ]),
+  ) as StrategyConfig['regimeWeights'];
+  return new WeightedStrategy({
+    ...DEFAULT_STRATEGY_CONFIG,
+    regimeWeights,
+    buckets: { ...DEFAULT_STRATEGY_CONFIG.buckets, sentiment: ['sentiment'] },
+  });
+};
+
 const dropFactorWeights = (drop: string): Record<string, number> => {
   const w: Record<string, number> = {};
   for (const [k, v] of Object.entries(DEFAULT_STRATEGY_CONFIG.technicalFactorWeights)) {
@@ -71,9 +97,19 @@ const dropFactorWeights = (drop: string): Record<string, number> => {
 };
 
 const run = async () => {
-  console.log('Loading candles…');
-  const store = await loadCandleStore();
-  console.log(`Universe ${store.instruments.length} stocks, ${store.tradingDates.length} trading days.\n`);
+  const tier = process.argv[2] ?? 'all';
+  if (!(tier in SENTIMENT_ORIGIN_TIERS)) {
+    console.error(`Unknown origin tier '${tier}' — use one of: ${Object.keys(SENTIMENT_ORIGIN_TIERS).join(' | ')}`);
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`Loading candles… (sentiment origin tier: ${tier})`);
+  const store = await loadCandleStore({ sentimentOrigins: SENTIMENT_ORIGIN_TIERS[tier] });
+  const articleCount = [...store.newsBySymbol.values()].reduce((n, a) => n + a.length, 0);
+  console.log(
+    `Universe ${store.instruments.length} stocks, ${store.tradingDates.length} trading days; ` +
+      `${articleCount} scored articles across ${store.newsBySymbol.size} symbols (tier ${tier}).\n`,
+  );
 
   // ── Baseline: the exact live signal set, enriched with decision context ──
   console.log('Replaying pipeline (baseline, no lookahead)…');
@@ -88,6 +124,17 @@ const run = async () => {
     console.log('\n  No trades — backfill more history (`bun run backfill:ohlcv all 800`) and retry.');
     return;
   }
+
+  // Sentiment coverage on the baseline set: the factor returns exactly 50 when
+  // no articles are in-window (thin-coverage-neutral), so score ≠ 50 ≈ informed.
+  const sentInformed = basePairs.filter((p) => {
+    const s = p.signal.factorScores.sentiment;
+    return s != null && s !== 50;
+  }).length;
+  console.log(
+    `  Sentiment coverage: ${sentInformed}/${basePairs.length} trades ` +
+      `(${((100 * sentInformed) / basePairs.length).toFixed(1)}%) carry an informed (≠ neutral-50) score [tier ${tier}].`,
+  );
 
   // ── 1. Conditioning: does any score discriminate winners from losers? ──
   console.log(`\n=== 1. CONDITIONING (Spearman of score vs net return; terciles low→high) ===`);
@@ -181,10 +228,43 @@ const run = async () => {
     );
   }
 
+  // ── 2f. ACTIVATE the sentiment bucket (B7 Phase 2 selection test) ──
+  // The 2d pattern: conditioning is range-restricted, so the honest question is
+  // whether sentiment-informed SELECTION picks a better trade set. λ scales the
+  // spec's regime weight matrix. Run per-tier (script arg) — reconstructed
+  // availability (GDELT/BSE_BACKFILL) is weaker evidence than live capture.
+  console.log(`\n=== 2f. ACTIVATE sentiment bucket at λ × spec regime weights (Δ vs baseline) [tier ${tier}] ===`);
+  console.log(`  Earns its bucket if activating RAISES expectancy / PF (picks better stocks).`);
+  console.log(`  ${padE('sent λ', 20)} ${pad('signals', 8)} ${pad('win%', 7)} ${pad('exp%', 8)} ${pad('PF', 6)}  ${pad('Δexp', 8)} ${pad('Δsignals', 9)}`);
+  for (const lambda of [0.1, 0.25, 0.5, 1.0]) {
+    const v = runVariant(store, `λ=${lambda}`, withSentimentBucket(lambda));
+    const dExp = v.metrics.expectancyPct - baseM.expectancyPct;
+    console.log(
+      `  ${padE(`λ=${lambda}`, 20)} ${pad(v.signalCount, 8)} ${pad(v.metrics.winRatePct, 7)} ${pad(pct(v.metrics.expectancyPct), 8)} ${pad(v.metrics.profitFactor, 6)}  ${pad(pct(dExp), 8)} ${pad(v.signalCount - baseSignals.length >= 0 ? '+' + (v.signalCount - baseSignals.length) : v.signalCount - baseSignals.length, 9)}`,
+    );
+  }
+
+  // ── 2g. Sentiment FACTOR-FLOOR gate (B7 Phase 2) — the B5 tail-trim mechanism ──
+  // 2f blends the score into the composite (re-ranks everything); this instead
+  // just refuses the actively-negative tail. Floors ≤ 50 keep uncovered names
+  // (thin coverage → neutral 50); 55 additionally demands positive sentiment.
+  console.log(`\n=== 2g. SENTIMENT FLOOR gate (reject sentiment < floor; Δ vs baseline) [tier ${tier}] ===`);
+  console.log(`  Earns a floor if trimming the negative-sentiment tail RAISES expectancy / PF.`);
+  console.log(`  ${padE('floor', 20)} ${pad('signals', 8)} ${pad('win%', 7)} ${pad('exp%', 8)} ${pad('PF', 6)}  ${pad('Δexp', 8)} ${pad('Δsignals', 9)}`);
+  for (const floor of [40, 45, 48, 50, 55]) {
+    const v = runVariant(store, `floor=${floor}`, new WeightedStrategy({ ...DEFAULT_STRATEGY_CONFIG, sentimentFactorFloor: floor }));
+    const dExp = v.metrics.expectancyPct - baseM.expectancyPct;
+    console.log(
+      `  ${padE(`floor=${floor}`, 20)} ${pad(v.signalCount, 8)} ${pad(v.metrics.winRatePct, 7)} ${pad(pct(v.metrics.expectancyPct), 8)} ${pad(v.metrics.profitFactor, 6)}  ${pad(pct(dExp), 8)} ${pad(v.signalCount - baseSignals.length >= 0 ? '+' + (v.signalCount - baseSignals.length) : v.signalCount - baseSignals.length, 9)}`,
+    );
+  }
+
   console.log(
-    `\n  ⚠️ Technicals-only, survivorship bias (today's constituents), signal-edge (no 2-position cap).` +
+    `\n  ⚠️ Survivorship bias (today's constituents), signal-edge (no 2-position cap).` +
       `\n     Conditioning is range-restricted (all trades already cleared the gates) — it measures` +
-      `\n     marginal discrimination WITHIN the selected set, not standalone factor power.`,
+      `\n     marginal discrimination WITHIN the selected set, not standalone factor power.` +
+      `\n     Sentiment (2f/2g): backfilled origins carry RECONSTRUCTED availableAt — validate any` +
+      `\n     positive result on the live/live+bse tiers before believing it (SENTIMENT_FACTOR.md §4).`,
   );
 };
 

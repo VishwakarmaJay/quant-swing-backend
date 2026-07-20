@@ -43,6 +43,17 @@ export type StrategyConfig = {
    */
   fundamentalFloor?: number;
   /**
+   * Optional floor on the SentimentFactor's score (B7 Phase 2). When set, adds
+   * a `sentiment-factor-floor` gate that reads the factor result directly from
+   * the bundle (independent of bucket activation — the `fundamentalFloor`
+   * mechanism). NOT the same lever as `sentimentFloor`, which is gate 7 on the
+   * *bucket* score and fires only when the sentiment bucket is active. With the
+   * thin-coverage-neutral convention (no articles → 50), a floor ≤ 50 trims only
+   * the actively-negative tail and keeps uncovered names. Absent in the
+   * default/production config → baseline byte-identical.
+   */
+  sentimentFactorFloor?: number;
+  /**
    * Per-regime entry tightening (default: none). Lets a regime demand stricter
    * conditions than the base gates — the mechanism for testing regime-conditioned
    * entries (Step-1 finding: BULL is the loss sink). Absent in production config

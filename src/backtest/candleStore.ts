@@ -45,6 +45,19 @@ export type CandleStore = {
 };
 
 /**
+ * The B7 per-origin evaluation tiers, ordered strongest→weakest availability
+ * evidence: live capture (`fetchedAt`) > BSE backfill (exchange `DissemDT` +
+ * margin) > GDELT (crawl-time reconstruction). `all` = no filter. Every
+ * sentiment measurement runs per-tier so conclusions can rest on the most
+ * trustworthy `availableAt` (SENTIMENT_FACTOR.md §4).
+ */
+export const SENTIMENT_ORIGIN_TIERS: Record<string, readonly string[] | undefined> = {
+  live: ['LIVE_RSS', 'LIVE_BSE'],
+  'live+bse': ['LIVE_RSS', 'LIVE_BSE', 'BSE_BACKFILL'],
+  all: undefined,
+};
+
+/**
  * Loads the FinBERT-scored news archive into per-symbol arrays (ascending by
  * availability). Optional `origins` filter for the B7 per-origin evaluation
  * (live-only vs +BSE_BACKFILL vs +GDELT); omit for all origins.

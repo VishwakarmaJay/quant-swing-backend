@@ -205,3 +205,45 @@ describe('SentimentFactor is observational (B7)', () => {
     expect(e.compositeScore).toBe(expected);
   });
 });
+
+describe('factor-floor gates (bucket-independent research levers)', () => {
+  const withFactor = (name: 'fundamental' | 'sentiment', score: number): FeatureBundle => {
+    const plain = makeBundle();
+    return { ...plain, results: { ...plain.results, [name]: fr(score) } };
+  };
+
+  test('fundamentalFloor rejects the low-fundamental tail while the bucket stays inactive', () => {
+    const s = new WeightedStrategy({ ...DEFAULT_STRATEGY_CONFIG, fundamentalFloor: 50 });
+    const low = s.evaluate(withFactor('fundamental', 42), MarketRegime.BULL);
+    expect(low.passed).toBe(false);
+    expect(low.rejectionReason).toBe('fundamental-floor');
+    const ok = s.evaluate(withFactor('fundamental', 50), MarketRegime.BULL);
+    expect(ok.passed).toBe(true);
+    expect(ok.fundamentalScore).toBeNull(); // bucket still inactive — gate read the bundle
+  });
+
+  test('sentimentFactorFloor rejects the negative-sentiment tail while the bucket stays inactive', () => {
+    const s = new WeightedStrategy({ ...DEFAULT_STRATEGY_CONFIG, sentimentFactorFloor: 45 });
+    const low = s.evaluate(withFactor('sentiment', 30), MarketRegime.BULL);
+    expect(low.passed).toBe(false);
+    expect(low.rejectionReason).toBe('sentiment-factor-floor');
+    // Thin-coverage-neutral (exactly 50) must PASS any floor ≤ 50 — uncovered
+    // names are "no information", not bearish silence.
+    const neutral = s.evaluate(withFactor('sentiment', 50), MarketRegime.BULL);
+    expect(neutral.passed).toBe(true);
+    expect(neutral.sentimentScore).toBeNull(); // bucket inactive — gate read the bundle
+  });
+
+  test('a floor config with the factor missing from the bundle rejects (unavailable ≠ pass)', () => {
+    const s = new WeightedStrategy({ ...DEFAULT_STRATEGY_CONFIG, sentimentFactorFloor: 45 });
+    const e = s.evaluate(makeBundle(), MarketRegime.BULL);
+    expect(e.passed).toBe(false);
+    expect(e.rejectionReason).toBe('sentiment-factor-floor');
+  });
+
+  test('absent floors leave the baseline byte-identical (the observational guarantee)', () => {
+    const base = strategy.evaluate(withFactor('sentiment', 12), MarketRegime.BULL);
+    expect(base.passed).toBe(true); // score 12 would fail any floor — no floor set, no gate
+    expect(base.rejectionReason).toBeNull();
+  });
+});

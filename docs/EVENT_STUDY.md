@@ -123,8 +123,14 @@ event, not what a strategy would have earned. Cells with n < 30 are dropped rath
 reported. Extractor `ev-1.0.0`: changing the rule pack changes the version, and any study
 should be re-run rather than compared across versions.
 
-*Engineering note: the first run of this study reported zero observations — a symbol-join
-failure (news symbols are canonical, instrument symbols carry `-EQ`) that produced empty
-tables indistinguishable from "no events qualified". The script now hard-fails on zero
-measured observations, because a silent false negative is the most dangerous possible
-output of a research harness.*
+*Engineering note (fixed 2026-07-20): the first run reported zero observations — a
+symbol-join failure (news symbols are canonical, instrument symbols carry a `-EQ` series
+suffix) that produced empty tables indistinguishable from "no events qualified". Root
+cause was not the typo but the **convention having no home**: the same strip was
+copy-pasted as an inline regex at nine call sites, so the tenth omitted it. Fixed
+properly — `canonicalSymbol` / `byCanonicalSymbol` (`src/universe/symbols.ts`, +8 tests)
+is now the single home for the rule, all nine sites call it, zero inline regexes remain,
+and `byCanonicalSymbol` reports key collisions instead of silently dropping rows. The
+study additionally hard-fails on zero measured observations. Re-run after the refactor:
+byte-identical results. A silent false negative is the most dangerous output a research
+harness can produce.*

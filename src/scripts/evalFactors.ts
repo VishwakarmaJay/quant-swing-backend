@@ -7,6 +7,7 @@ import {
   loadSectorPeerReturns,
 } from '@/factors';
 import { prisma } from '@services/prisma';
+import { canonicalSymbol } from '@/universe/symbols';
 
 /**
  * Evaluate the registered factors across a universe and print a compact,
@@ -72,7 +73,7 @@ const run = async () => {
     if (!ctx) continue;
     const bundle = buildFeatureBundle(ctx, factors);
     rows.push({
-      symbol: inst.symbol.replace(/-EQ$/, ''),
+      symbol: canonicalSymbol(inst.symbol),
       sector: inst.sector ?? '—',
       trend: bundle.results.trend?.score ?? NaN,
       momentum: bundle.results.momentum?.score ?? NaN,

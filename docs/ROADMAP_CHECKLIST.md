@@ -456,9 +456,100 @@ B11 named the right tail as the frontier; this tests whether event typing finds 
 - [x] **EARNINGS_RESULT is flat at every horizon** — the sharpest statement yet of the
       free-data ceiling: we can type *that* results were filed, not *whether they
       surprised*. Surprise needs consensus estimates (paid). No PEAD without it.
+- [x] **Hardened the join convention** (the bug this study nearly shipped as a finding):
+      `canonicalSymbol`/`byCanonicalSymbol` (`src/universe/symbols.ts`, +8 tests) replaces
+      **nine** copy-pasted `-EQ` regexes; collisions are reported, not silently dropped;
+      the study hard-fails on zero observations. Post-refactor re-run: byte-identical.
 - **Done when:** event types are measured for right-tail contribution. ✅ **Met — negative.
   Nothing graduates to a factor. Remaining free-data right-tail ideas: delivery %
   (NSE bhavcopy, untouched) and de-confounding INSIDER_PLEDGE.**
+
+### ✅ B13. Delivery % (NSE bhavcopy) — DONE (2026-07-20); no right tail, no factor built
+Full doc: [`DELIVERY_STUDY.md`](./DELIVERY_STUDY.md) · `bun run bhavcopy:download` +
+`bun run delivery:study [horizon]` · 445 tests. The last untouched high-ranked free source.
+- [x] **Archive acquired — and it is backtestable TODAY** (unlike sentiment): NSE serves
+      the full bhavcopy back past 2021. **1,433 files, 2021-01→2026-07, 227,493 universe
+      delivery rows.** Parser +15 tests (leading-space padding, CRLF, `-` placeholders,
+      out-of-range rejection, `BAJAJ-AUTO` never truncated); downloader caches, resumes,
+      and **validates before caching** so a WAF HTML page can't poison the cache as an
+      empty trading day.
+- [x] **Three signals with the control and confound built in first:** raw LEVEL (control),
+      SURGE vs own 20d baseline (the accumulation hypothesis), SURGE conditioned on volume
+      also rising (the confound check). Cross-sectional deciles PER DAY; entry next bar.
+- [x] **Result — pre-registered bar NOT met.** Surge is coherently monotone and builds with
+      horizon (D10−D1 mean +0.15 at 5d, +0.28 at 10d) but **p90 spread ≈ 0 — no right
+      tail** — the effect is ≈ trading cost (0.25% round trip), and the **confound check
+      FAILED** (requiring volume up left it unchanged ⇒ mechanism is probably not
+      accumulation). **No factor, schema or cron built.**
+- [x] **Control worked and found something else:** delivery LEVEL has no return signal but
+      a tight monotone relationship to p90/p10 — it is a clean **volatility/liquidity
+      proxy**, potentially a sizing/eligibility input, never alpha.
+- **Done when:** delivery's right-tail contribution is measured. ✅ **Met — negative.**
+- ⚠️ **META-FINDING (B5/B7 + B11 + B12 + B13):** four independent methods now agree —
+      every lever found trims the LEFT tail; **nothing identifies large winners.** With
+      B12's structural result (we can type *that* results filed, never *whether they
+      surprised* — needs paid estimates), the evidence says a **2–7 day horizon on
+      large-cap Indian equities with free data may not contain an exploitable right tail.**
+      The honest options are structural, not incremental: (1) longer horizon — every drift
+      signal found peaks at 10d; (2) mid/small-cap universe; (3) buy estimates data;
+      (4) accept the system as decision support. See `DELIVERY_STUDY.md` §4.
+
+### ✅ B14. Longer horizon (the option-1 test) — DONE (2026-07-20); confirmed at signal level, killed at portfolio level
+Full doc: [`HORIZON_STUDY.md`](./HORIZON_STUDY.md) · `bun run backtest:horizon` +
+`backtest:horizon:portfolio` · 448 tests.
+- [x] **Found and fixed a trap that would have produced a false negative:** thesis-break
+      (`2 closes < EMA20 || MACD flip`) is a *7-day* thesis, so raising `timeStopDays`
+      alone leaves holds **unchanged** (45d time stop → 8.6d actual hold). Now config
+      (`closesBelowEmaExit`, `macdFlipExit`); defaults reproduce all prior results exactly;
+      +3 tests pin the trap; the sweep prints "naive" control rows so it stays visible.
+- [x] **Signal edge: monotone improvement and the right tail finally appears** —
+      7d PF 1.07/exp +0.10/p90 +5.30 → 90d PF **1.42**/exp **+1.12**/p90 **+16.68**, win
+      rate falling 41.9%→26.0% (trend-following signature). The 7-day exit had been
+      amputating the tail four studies went looking for.
+- [x] **…but the portfolio gate refutes it.** Signal-edge is ABSOLUTE return, so a 20-day
+      hold mechanically collects ~+0.5% of beta (Nifty +42.9% over the window) vs ~+0.09%
+      for a 3-day hold. Same-units test: **every variant loses to a flat Nifty on the
+      validated coverage era** (best −7.89% vs +0.80%). The one FULL-window "winner"
+      (60d/flat +52.2% vs +42.9%) runs **87% exposure with −46.6% drawdown** and reverses
+      to **−30.6%** on coverage — leveraged beta, not alpha.
+- [x] ⛔ **RETRACTED same day by the walk-forward** (`backtest:horizon:wf`, 4 anchored
+      folds, embargo 60d). The draft claimed `30d scaled + risk` was a relative lever;
+      OOS the ordering is **exactly inverted and monotone** — 7d incumbent −0.09/PF 0.94
+      is BEST, 30d −0.63/0.75, 60d −0.79/0.72. The selection mechanism was itself fooled:
+      `60d trend-only` was picked on all 4 train windows and lost on all 4 test windows.
+      The portfolio "advantage" was **trading less** (80 trades vs 192), not trading
+      better. Refined mechanism: the gain is **regime-specific beta** — it exists in the
+      2021–24 bull tape and reverses in the flat coverage era. **The 7d exit is
+      vindicated; nothing from B14 is adopted.** (Harness gap closed en route:
+      `WFCandidate` can now vary exits, not just entries.)
+- **Done when:** the longer-horizon hypothesis is measured at portfolio level. ✅ **Met.**
+- ⚠️ **FIFTH consecutive negative on "beat the benchmark"** (B5/B7 · B11 · B12 · B13 · B14).
+      Durable finding to carry forward: **if the program continues, continue at ~30 days
+      with risk sizing, not 7 days.** Remaining structural options unchanged:
+      mid/small-cap universe · paid consensus estimates · accept as decision support.
+
+### ✅ B15. Consolidation (the "wait 6 months" decision's prerequisites) — IN PROGRESS
+Direction chosen 2026-07-20: stop hunting edge, keep the archives accruing, revisit ~Jan
+2027 when the live-only sentiment tier becomes backtestable. That plan is only as good as
+the archive's survival and integrity, so these come first.
+- [x] **Horizon finding walk-forward-validated → RETRACTED** (see B14). Closed a harness
+      gap en route: `WFCandidate` can now carry exit config, so exits are OOS-testable.
+- [x] 🚨 **ARCHIVE BACKUPS — found MISSING, now automated.** There were **no backups at
+      all** (no crontab, no backups dir) protecting 278 MB of irreplaceable data. Daily
+      cron installed with a completeness guard, 14-day retention, and **both** custom and
+      portable plain-SQL formats (the box is pg16; pg15 tooling cannot read custom dumps —
+      hit for real). **Restore verified by actually restoring**: 30 benign role-GRANT
+      errors, zero data errors, all 173,168 articles / 227,001 candles / 1,984 quarters
+      intact. → [`DEPLOYMENT_AWS.md`](./DEPLOYMENT_AWS.md) §5
+- [ ] ⚠️ **Offsite copy** — backups still sit on the same EBS volume as the DB (protects
+      corruption, not volume loss). S3 via instance IAM role, or scheduled EBS snapshots.
+      **Highest-value remaining ops task given the 6-month plan.**
+- [ ] `aliasVersion` stamping + raw-capture layer (architecture-review debt) — the archive
+      is not yet held to the reproducibility standard the factor pipeline meets, and
+      `symbols[]` has already been retroactively rewritten once (24,671 tags).
+- [ ] De-confound `INSIDER_PLEDGE` (split scheduled trading-window notices from real
+      SAST/PIT filings) — rescues or honestly kills B12's strongest cell.
+- [ ] One more attempt at historical index-constituent data (survivorship residual).
 
 ### B10. Phase 5 — paper trading 🔒 HARD-GATED
 - **Gate (unchanged):** B1's portfolio-level backtest shows the B9 strategy **beats Nifty

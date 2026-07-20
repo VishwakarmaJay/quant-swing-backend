@@ -76,7 +76,9 @@ const cfg = (over: Partial<PortfolioSimConfig> = {}): PortfolioSimConfig => ({
   killSwitchDailyLossPct: 0,
   ...over,
 });
-const noSlip = { simulatorConfig: { slippageBps: 0, costPctPerSide: 0, timeStopDays: 7, emaPeriod: 20 } };
+const noSlip = {
+  simulatorConfig: { slippageBps: 0, costPctPerSide: 0, timeStopDays: 7, emaPeriod: 20, closesBelowEmaExit: 2, macdFlipExit: true },
+};
 
 describe('simulatePortfolio', () => {
   test('flat sizing: takes a winning trade and books the arithmetic exactly', () => {

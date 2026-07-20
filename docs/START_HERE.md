@@ -37,7 +37,7 @@ OHLCV → DataQuality → 8 factors → regime → strategy (+ BULL pullback ent
 - **B9** ✅ joint selection → **one best strategy**: `pullback+srs0.25+ff50+sf50-novol`
   (both floor levers in, volume out), selected on all 4 coverage-era folds × both tiers
 
-**416 tests pass**, `bun run typecheck` clean.
+**448 tests pass**, `bun run typecheck` clean.
 
 ## ⚠️ The one thing you must know: still NO out-of-sample edge (but the gap is closing)
 
@@ -85,11 +85,35 @@ summary. In short:
 5. ⚙️ **Operator decision TAKEN (2026-07-20):** production sizing switched conviction →
    **risk** (`PORTFOLIO_SIZING_MODE`), because conviction sized capital ∝ a composite
    measured at worse-than-random. Live sizing now matches the backtested model.
-6. **What's left for the right tail:** delivery % (NSE bhavcopy — the one high-ranked free
-   source still untouched) and de-confounding INSIDER_PLEDGE. If those come back flat too,
-   the honest conclusion is that this horizon + universe + free data may not contain an
-   exploitable right tail — and the real options become a different horizon, a different
-   universe, or paid data.
+6. ~~**Delivery % (NSE bhavcopy)**~~ ✅ **done (2026-07-20)** — **also negative**, and it
+   was the last untouched high-ranked free source. 5.5yr archive acquired (backtestable
+   today, no clock); delivery *surge* is monotone and builds with horizon but its **p90
+   spread is ≈ 0 (no right tail)**, the effect ≈ trading costs, and the volume confound
+   check failed. No factor built. Byproduct: delivery *level* is a clean volatility proxy.
+   See `DELIVERY_STUDY.md`.
+
+## ⚠️ Read this before planning more research
+
+**Four independent methods now agree** (B5/B7 factor floors · B11 slot allocation ·
+B12 event typing · B13 delivery %): every lever found **trims the left tail**; *nothing
+identifies large winners*. B12 additionally showed we can type *that* results were filed
+but never *whether they surprised* — surprise needs paid consensus estimates.
+
+⇒ **A 2–7 day horizon on large-cap Indian equities with free data may not contain an
+exploitable right tail.** Option (1), a longer horizon, has since been **tested and also
+failed the gate** ([`HORIZON_STUDY.md`](./HORIZON_STUDY.md)): the right tail *does* appear
+with room to run (p90 +5.3 → +16.7, PF 1.07 → 1.42) but most of that is **market beta**,
+and every variant still loses to a flat Nifty on the validated era. That is **five**
+independent negatives.
+
+⚠️ The horizon work produced **no** durable configuration: a ~30-day claim was made and
+then **retracted the same day** when the walk-forward inverted it (7d incumbent is best
+OOS; longer is monotonically worse — the gain was regime-specific beta). **Keep the 7-day
+exit.** Remaining structural options: **(2)** mid/small-cap universe (untested, most plausible
+free-data avenue left), **(3)** buy consensus estimates (unlocks the PEAD effect B12 proved
+we structurally cannot see), **(4)** accept the system as decision support — a legitimate
+end state. Full argument: [`DELIVERY_STUDY.md`](./DELIVERY_STUDY.md) §4 +
+[`HORIZON_STUDY.md`](./HORIZON_STUDY.md) §6.
 
 > Production runs the full B9 stack (SRS 0.25 + BULL pullback entry + both floors at 50 +
 > volume pruned) — the best *validated* config, **not** an edge. Plan narrative:
@@ -127,7 +151,7 @@ bun run backtest:portfolio    # portfolio-level "beat Nifty" gate ← the decisi
 bun run backtest:phase6       # embargoed walk-forward (OOS)
 bun run backtest:slots        # slot-allocation rank keys vs a random control
 
-bun test                      # 416 tests
+bun test                      # 448 tests
 bun run typecheck
 ```
 

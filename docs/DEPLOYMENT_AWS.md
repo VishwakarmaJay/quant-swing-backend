@@ -123,19 +123,52 @@ cd ~/quantswing && docker compose build backend && docker compose up -d backend
 New Prisma migrations apply automatically at backend start (`prisma migrate deploy`
 is the container command). Watch logs: `docker compose logs -f backend`.
 
-## 5. Backups — the archive is the asset
+## 5. Backups — the archive is the asset ✅ AUTOMATED (2026-07-20)
 
-The news archive + fundamentals history cannot be re-fetched honestly. Cron a dump
-(on the box) and copy it off:
+The news archive + fundamentals history **cannot be re-fetched honestly** — live-captured
+`fetchedAt`/`availableAt` is unreproducible after the fact — so this is the one piece of
+state whose loss is permanent. Until 2026-07-20 there were **no backups at all** (no
+crontab, no backups dir); it was found and fixed while planning a 6-month archive-accrual
+period that entirely depends on this data surviving.
 
+**What runs now** — `~/quantswing/backup-archive.sh`, cron `30 20 * * *` UTC (02:00 IST,
+after the 17:00 IST signal run):
+
+| output | purpose |
+|---|---|
+| `~/backups/quant-YYYY-MM-DD.dump` | custom format, **14 daily** retained |
+| `~/backups/quant-latest.sql.gz` | plain SQL, overwritten daily — **portable** |
+| `~/backups/backup.log` | one line per run, OK/FAIL + size |
+
+Three deliberate properties:
+1. **Completeness guard.** The dump is written to `.partial` and only promoted if it
+   exceeds 10 MB. A truncated dump that overwrites a good one is worse than no backup.
+2. **Both formats.** The custom format is only readable by `pg_restore` ≥ the writing
+   server (box is **pg16**; a workstation on pg15 gets `unsupported version (1.15)` — this
+   was hit for real). The plain-SQL copy restores anywhere.
+3. **Retention, not just a single file** — protects against a corruption that is only
+   noticed days later.
+
+### Restore (verified 2026-07-20, not just documented)
 ```bash
-docker compose exec -T postgres pg_dump -U quant -d quant --format=custom > ~/backups/quant-$(date +%F).dump
-# pull to the workstation:
-scp -i ~/.ssh/quantswing-key.pem ubuntu@<IP>:~/backups/quant-<date>.dump .
+scp -i ~/.ssh/quantswing-key.pem ubuntu@<IP>:~/backups/quant-latest.sql.gz .
+createdb quant_restore && gunzip -c quant-latest.sql.gz | psql "<url>/quant_restore"
 ```
+A clean restore emits exactly **30 `role "quant" does not exist` errors** — GRANT
+statements for a role absent on the restore host. **These are benign; zero data errors.**
+Verified counts after restore: 173,168 articles (100% scored, 138,267 mapped),
+227,001 candles, 1,984 fundamental quarters, all four origins intact.
 
-Restore = §3 step 4. EBS snapshots of the volume are a coarser second layer
-(`aws ec2 create-snapshot --volume-id <vol>`).
+### ⚠️ Residual risk — still single-location
+Backups live on the **same EBS volume** as the database. This protects against DB
+corruption, a bad migration, or an accidental drop — **not** against volume loss or
+instance termination. Closing that needs one of:
+- `aws ec2 create-snapshot` on a schedule (coarse, no extra moving parts), or
+- S3 upload via an instance IAM role (proper offsite; ~50 MB/day, pennies/month), or
+- a periodic `scp` pull to the workstation (manual, so it will drift).
+
+A copy was pulled to the workstation on 2026-07-20 as an interim baseline. **Given the
+6-month accrual plan, wiring S3 or EBS snapshots is the highest-value remaining ops task.**
 
 ## 6. Health / verification checklist
 

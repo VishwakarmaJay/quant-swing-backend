@@ -19,6 +19,7 @@ import { WeightedStrategy, type Strategy, type StrategyEvaluation } from '@/stra
 
 import type { CandleStore } from './candleStore';
 import { DEFAULT_SIMULATOR_CONFIG, simulateTrade, type ClosedTrade, type SimulatorConfig } from './tradeSimulator';
+import { canonicalSymbol } from '@/universe/symbols';
 
 /**
  * Backtest replay (docs BacktestEngine). Signal generation is separated from
@@ -110,7 +111,7 @@ export const generateRawSignals = (store: CandleStore, opts: BacktestOptions = {
       }
       // Fundamental pre-pass: as-of snapshot (announcement-dated, no lookahead)
       // + this stock's valid P/E into its sector bucket for the value ranking.
-      const quarters = store.fundamentalsBySymbol.get(inst.symbol.replace(/-EQ$/, ''));
+      const quarters = store.fundamentalsBySymbol.get(canonicalSymbol(inst.symbol));
       if (quarters?.length) {
         const snap = fundamentalsAsOf(quarters, slice[slice.length - 1]!.close, asOf);
         fundamentalsById.set(inst.id, snap);
@@ -131,7 +132,7 @@ export const generateRawSignals = (store: CandleStore, opts: BacktestOptions = {
     for (const inst of store.instruments) {
       const slice = slices.get(inst.id);
       if (!slice) continue;
-      const symbol = inst.symbol.replace(/-EQ$/, '');
+      const symbol = canonicalSymbol(inst.symbol);
 
       // B8.2: honour as-of universe membership — a stock that left the
       // universe stops signalling from its exit date (survivorship stopper).

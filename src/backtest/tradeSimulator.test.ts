@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import dayjs from 'dayjs';
 
 import type { Candle } from '@/ohlcv';
-import { simulateTrade } from './tradeSimulator';
+import { DEFAULT_SIMULATOR_CONFIG, simulateTrade } from './tradeSimulator';
 
 /** Candle with explicit OHLC; index `i` = calendar day offset from 2026-01-01. */
 const c = (i: number, o: number, h: number, l: number, cl: number): Candle => ({
@@ -63,5 +63,47 @@ describe('simulateTrade', () => {
   test('is deterministic', () => {
     const candles = [...warmup(), c(205, 100, 110, 99.9, 108)];
     expect(simulateTrade(candles, 204, levels, meta)).toEqual(simulateTrade(candles, 204, levels, meta));
+  });
+});
+
+/**
+ * B14 — horizon-scoped exits. The thesis-break rule ("2 closes below EMA20, or a
+ * MACD histogram flip") is a 7-day thesis. These tests pin the trap that motivated
+ * making it configurable: raising `timeStopDays` ALONE does not lengthen holds,
+ * because thesis-break becomes the binding exit — which would make a long-horizon
+ * sweep report "no improvement" for entirely the wrong reason.
+ */
+describe('thesis-break is horizon-scoped (B14)', () => {
+  /** A slow grind lower: never hits the stop, but dips below its own EMA20. */
+  const grind = Array.from({ length: 60 }, (_, i) => c(205 + i, 100 - i * 0.12, 100.1 - i * 0.12, 99.4 - i * 0.12, 99.6 - i * 0.12));
+  const wide = { stopLoss: 80, target1: 140, target2: 160 }; // deliberately unreachable
+
+  test('raising ONLY the time stop does not extend the hold — thesis-break binds', () => {
+    const candles = [...warmup(), ...grind];
+    const short = simulateTrade(candles, 204, wide, meta, { ...DEFAULT_SIMULATOR_CONFIG, timeStopDays: 7 })!;
+    const long = simulateTrade(candles, 204, wide, meta, { ...DEFAULT_SIMULATOR_CONFIG, timeStopDays: 45 })!;
+
+    expect(long.finalReason).toBe('thesis-break');
+    // The 45-day time stop bought nothing: the trade still exits on the thesis rule.
+    expect(long.holdingDays).toBe(short.holdingDays);
+  });
+
+  test('relaxing the thesis rule alongside the time stop actually lengthens the hold', () => {
+    const candles = [...warmup(), ...grind];
+    const bound = simulateTrade(candles, 204, wide, meta, { ...DEFAULT_SIMULATOR_CONFIG, timeStopDays: 45 })!;
+    const relaxed = simulateTrade(candles, 204, wide, meta, {
+      ...DEFAULT_SIMULATOR_CONFIG,
+      timeStopDays: 45,
+      emaPeriod: 50, // a longer-horizon trend reference
+      closesBelowEmaExit: 5,
+      macdFlipExit: false,
+    })!;
+    expect(relaxed.holdingDays).toBeGreaterThan(bound.holdingDays);
+  });
+
+  test('the extracted defaults reproduce the historical rule exactly', () => {
+    expect(DEFAULT_SIMULATOR_CONFIG.closesBelowEmaExit).toBe(2);
+    expect(DEFAULT_SIMULATOR_CONFIG.macdFlipExit).toBe(true);
+    expect(DEFAULT_SIMULATOR_CONFIG.emaPeriod).toBe(20);
   });
 });

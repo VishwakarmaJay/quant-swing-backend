@@ -9,6 +9,7 @@ import { NewsOrigin } from '@generated/prisma/enums';
 import { lookbackReturnPct } from './indicators';
 import { DEFAULT_SECTOR_RS_CONFIG } from './sectorRelativeStrengthFactor';
 import type { SentimentArticleInput, StockContext } from './types';
+import { canonicalSymbol } from '@/universe/symbols';
 
 /** The market benchmark used for relative strength. */
 export const BENCHMARK_ID = 'NSE:Nifty 50';
@@ -115,7 +116,7 @@ export const loadFundamentalInputs = async (asOf: Date = new Date()): Promise<Fu
   const bySymbol = new Map<string, FundamentalSnapshotAsOf>();
   const pesBySector = new Map<string, number[]>();
   for (const inst of instruments) {
-    const symbol = inst.symbol.replace(/-EQ$/, '');
+    const symbol = canonicalSymbol(inst.symbol);
     const snap = fundamentalsAsOf(quarters.get(symbol) ?? [], closeById.get(inst.id) ?? null, asOfIso);
     bySymbol.set(symbol, snap);
     if (inst.sector && snap.pe !== null) {
@@ -228,7 +229,7 @@ export const buildStockContext = async (
         }
       : null;
 
-  const canonical = instrument.symbol.replace(/-EQ$/, '');
+  const canonical = canonicalSymbol(instrument.symbol);
   const snap = opts?.fundamentalInputs?.bySymbol.get(canonical);
   const fundamentals = snap
     ? {

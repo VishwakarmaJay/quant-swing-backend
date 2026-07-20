@@ -671,6 +671,8 @@ roundTripCostPct 0.25%, size-reduction 3–6% ATR × 0.75.
 | `backtest:portfolio [tier]` | **Portfolio-level backtest — the fair "beat Nifty" gate**, incl. the B9 stack + COVERAGE window ([`B9_RERUN.md`](./B9_RERUN.md)) |
 | `backtest:slots [tier]` | Slot-allocation rank keys + slots dose vs a seeded random control ([`SLOT_ALLOCATION.md`](./SLOT_ALLOCATION.md)) |
 | `events:study [horizon]` | Event typing + forward-excess study by event type ([`EVENT_STUDY.md`](./EVENT_STUDY.md)) |
+| `bhavcopy:download` / `delivery:study` | NSE delivery-% archive + cross-sectional decile study ([`DELIVERY_STUDY.md`](./DELIVERY_STUDY.md)) |
+| `backtest:horizon` / `:horizon:portfolio` | Holding-horizon sweep + its beta-inclusive portfolio gate ([`HORIZON_STUDY.md`](./HORIZON_STUDY.md)) |
 | `news:ingest` | Manual news-archive ingest + report (also the 15-min cron) ([`NEWS_SCRAPER.md`](./NEWS_SCRAPER.md)) |
 | `news:gal:download` / `news:gal:import` | GDELT bulk media backfill — download on a workstation, import on the DB host ([`GDELT_BACKFILL.md`](./GDELT_BACKFILL.md)) |
 | `news:backfill` / `news:backfill:universe` | GDELT DOC API backfill (throttled; targeted top-ups only) |
@@ -679,7 +681,7 @@ roundTripCostPct 0.25%, size-reduction 3–6% ATR × 0.75.
 | `sentiment:score` | FinBERT scoring catch-up (`--rescore` on model bumps) |
 | `fundamentals:backfill` / `:snapshot` / `:retry` | Point-in-time fundamentals history + weekly snapshotter (B4) |
 | `golden:snapshot` / `golden:update` | Refresh / re-baseline the golden fixture |
-| `test`, `typecheck` | **416 tests**; strict tsc |
+| `test`, `typecheck` | **448 tests**; strict tsc |
 
 **Cron schedule** (RabbitMQ-backed, IST):
 | Time | Job |
@@ -797,4 +799,4 @@ to the same reproducibility standard as the *factor pipeline*
 
 *§§1–12 were written at the completion of Phase 4 and remain the exact implementation in
 `src/`; §13 and the config/script tables are maintained forward. Covered by the
-**416-test** suite + the golden determinism gate.*
+**448-test** suite + the golden determinism gate.*

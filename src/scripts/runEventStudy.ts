@@ -1,6 +1,7 @@
 import { loadCandleStore, type CandleStore } from '@/backtest';
 import { classifyEvent, EXTRACTOR_VERSION, type EventType } from '@/events/classify';
 import { cellStats, HORIZONS, measureEvent, type Horizon } from '@/events/eventStudy';
+import { byCanonicalSymbol } from '@/universe/symbols';
 import { prisma } from '@services/prisma';
 
 /**
@@ -36,11 +37,12 @@ const run = async () => {
   console.log(`Loading candles… (extractor ${EXTRACTOR_VERSION})`);
   const store: CandleStore = await loadCandleStore();
   const benchByDate = new Map((store.benchmark ?? []).map((c) => [c.tradeDate, c.close]));
-  // News symbols are canonical (BAJAJ-AUTO); instrument symbols carry the
-  // exchange suffix (ABB-EQ). Same normalization the live sentiment pre-pass
-  // uses (`factors/context.ts`).
+  // News symbols are canonical (BAJAJ-AUTO); instrument symbols carry the series
+  // suffix (ABB-EQ). `byCanonicalSymbol` is the single home for that join rule.
+  const { map: instBySymbol, collisions } = byCanonicalSymbol(store.instruments, (i) => i.symbol);
+  if (collisions.length) console.warn(`  ⚠️ canonical-symbol collisions: ${collisions.join(', ')}`);
   const seriesBySymbol = new Map(
-    store.instruments.map((i) => [i.symbol.replace(/-EQ$/, ''), store.seriesById.get(i.id) ?? []]),
+    [...instBySymbol].map(([sym, inst]) => [sym, store.seriesById.get(inst.id) ?? []]),
   );
   console.log(`Universe ${store.instruments.length} stocks · benchmark ${benchByDate.size} days.`);
 

@@ -2,6 +2,7 @@ import type { Strategy } from '@/strategy';
 
 import { generateRawSignals, simulateSignalsPaired, type SignalTrade } from './backtestEngine';
 import type { CandleStore } from './candleStore';
+import type { SimulatorConfig } from './tradeSimulator';
 import { computeMetrics, type BacktestMetrics } from './metrics';
 
 /**
@@ -89,7 +90,19 @@ export const pickBest = (scored: { label: string; value: number }[]): string => 
   return best?.label ?? '';
 };
 
-export type WFCandidate = { label: string; strategy: Strategy };
+/**
+ * A walk-forward candidate. `strategy` selects the ENTRIES; the optional
+ * `simulatorConfig`/`targetRr` select the EXITS (B14) — without them the harness
+ * could only validate entry choices, so the horizon finding had no way to earn
+ * out-of-sample evidence. Omitted fields fall back to the simulator defaults, so
+ * every previously published walk-forward result is unaffected.
+ */
+export type WFCandidate = {
+  label: string;
+  strategy: Strategy;
+  simulatorConfig?: SimulatorConfig;
+  targetRr?: [number, number];
+};
 
 export type FoldResult = {
   fold: Fold;
@@ -105,8 +118,11 @@ export type WalkForwardResult = {
   oosMetrics: BacktestMetrics;
 };
 
-const windowMetrics = (store: CandleStore, strategy: Strategy, from: number, to: number): SignalTrade[] =>
-  simulateSignalsPaired(store, generateRawSignals(store, { strategy, fromIndex: from, toIndex: to }));
+const windowMetrics = (store: CandleStore, c: WFCandidate, from: number, to: number): SignalTrade[] =>
+  simulateSignalsPaired(store, generateRawSignals(store, { strategy: c.strategy, fromIndex: from, toIndex: to }), {
+    ...(c.simulatorConfig ? { simulatorConfig: c.simulatorConfig } : {}),
+    ...(c.targetRr ? { targetRr: c.targetRr } : {}),
+  });
 
 /**
  * For each fold: score every candidate on the train window, select the best by
@@ -128,7 +144,7 @@ export const runWalkForward = (
     onFold?.(i, folds.length);
     const trainExpectancy: Record<string, number> = {};
     const scored = candidates.map((c) => {
-      const trainPairs = windowMetrics(store, c.strategy, fold.trainFrom, fold.trainTo);
+      const trainPairs = windowMetrics(store, c, fold.trainFrom, fold.trainTo);
       const m = computeMetrics(trainPairs.map((p) => p.trade));
       trainExpectancy[c.label] = m.expectancyPct;
       return { label: c.label, value: selectBy(m) };
@@ -136,7 +152,7 @@ export const runWalkForward = (
 
     const selected = pickBest(scored);
     const chosen = candidates.find((c) => c.label === selected)!;
-    const testPairs = windowMetrics(store, chosen.strategy, fold.testFrom, fold.testTo);
+    const testPairs = windowMetrics(store, chosen, fold.testFrom, fold.testTo);
     oosPairs.push(...testPairs);
 
     foldResults.push({

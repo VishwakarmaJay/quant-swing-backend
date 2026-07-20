@@ -53,7 +53,12 @@ export type SimulatorConfig = {
   slippageBps: number;
   costPctPerSide: number;
   timeStopDays: number;
+  /** Thesis-break trend reference. Scale with the horizon (20 ≈ 7d, 50 ≈ 30d+). */
   emaPeriod: number;
+  /** Consecutive closes below `emaPeriod` that break the thesis (B14: was a hard 2). */
+  closesBelowEmaExit: number;
+  /** Whether a MACD histogram flip alone breaks the thesis (B14: was always on). */
+  macdFlipExit: boolean;
 };
 
 export const DEFAULT_SIMULATOR_CONFIG: SimulatorConfig = {
@@ -61,6 +66,10 @@ export const DEFAULT_SIMULATOR_CONFIG: SimulatorConfig = {
   costPctPerSide: 0.05, // 0.05% each side (≈0.10% round trip)
   timeStopDays: 7,
   emaPeriod: 20,
+  // The historical exit rule, now explicit rather than hardcoded — every
+  // published result to date was produced with exactly these values.
+  closesBelowEmaExit: 2,
+  macdFlipExit: true,
 };
 
 export const simulateTrade = (
@@ -128,11 +137,19 @@ export const simulateTrade = (
     }
 
     // 5. Thesis break (sentiment omitted — no historical archive).
+    //
+    // NOTE (B14): this rule is horizon-scoped. "2 closes below EMA20, or a MACD
+    // histogram flip" is a 7-day thesis; over a 30–60 day hold virtually every
+    // name trips it, so it — not `timeStopDays` — becomes the binding exit.
+    // Raising the time stop without relaxing this would silently leave holding
+    // periods unchanged and report "longer horizons don't help" for the wrong
+    // reason. Both knobs are therefore config, and a long-horizon variant must
+    // scale them together (e.g. EMA50 + 3 closes, or macdFlipExit off).
     const ema = emaLatest(closes.slice(0, i + 1), config.emaPeriod);
     closesBelowEma = ema !== null && c.close < ema ? closesBelowEma + 1 : 0;
-    const macd = macdLatest(closes.slice(0, i + 1), 12, 26, 9);
-    const macdFlip = entryHistPositive && macd !== null && macd.histogram < 0;
-    if (closesBelowEma >= 2 || macdFlip) {
+    const macd = config.macdFlipExit ? macdLatest(closes.slice(0, i + 1), 12, 26, 9) : null;
+    const macdFlip = config.macdFlipExit && entryHistPositive && macd !== null && macd.histogram < 0;
+    if (closesBelowEma >= config.closesBelowEmaExit || macdFlip) {
       sell(i, c.close, remaining, 'thesis-break');
       break;
     }

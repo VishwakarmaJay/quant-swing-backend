@@ -21,6 +21,7 @@ import { createProductionStrategy } from '@/strategy';
 import { prisma } from '@services/prisma';
 
 import { computeRunVersions, type RunVersions } from './versions';
+import { canonicalSymbol } from '@/universe/symbols';
 
 export type PipelineRejection = {
   instrumentId: string;
@@ -77,7 +78,7 @@ export const runPipeline = async (
   const instrumentIdBySymbol = new Map<string, string>();
 
   for (const inst of instruments) {
-    const symbol = inst.symbol.replace(/-EQ$/, '');
+    const symbol = canonicalSymbol(inst.symbol);
     instrumentIdBySymbol.set(symbol, inst.id);
 
     const ctx = await buildStockContext(inst.id, asOf, {

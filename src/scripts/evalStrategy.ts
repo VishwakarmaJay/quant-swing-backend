@@ -11,6 +11,7 @@ import { detectMarketRegime } from '@/regime';
 import { computeSignalLevels, DEFAULT_SIGNAL_MATH_CONFIG, type SignalLevels } from '@/signal';
 import { WeightedStrategy, type StrategyEvaluation } from '@/strategy';
 import { prisma } from '@services/prisma';
+import { canonicalSymbol } from '@/universe/symbols';
 
 /**
  * Full decision pipeline over the equity universe: regime → factors →
@@ -71,7 +72,7 @@ const run = async () => {
   for (const e of signals) {
     const l = e.levels!;
     console.log(
-      `  ${e.symbol.replace(/-EQ$/, '').padEnd(12)} ${(e.sector ?? '—').slice(0, 18).padEnd(18)} ` +
+      `  ${canonicalSymbol(e.symbol).padEnd(12)} ${(e.sector ?? '—').slice(0, 18).padEnd(18)} ` +
         `${String(e.compositeScore).padStart(5)} ${String(l.entry).padStart(8)} ${String(l.stopLoss).padStart(7)} ` +
         `${String(l.target1).padStart(7)} ${String(l.target2).padStart(7)} ${String(l.rrToResistance ?? '∞').padStart(5)}`,
     );
@@ -81,7 +82,7 @@ const run = async () => {
   const portfolioConfig = portfolioConfigFromEnv();
   const pm = new PortfolioManager(portfolioConfig);
   const candidates: PortfolioCandidate[] = signals.map((e) => ({
-    symbol: e.symbol.replace(/-EQ$/, ''),
+    symbol: canonicalSymbol(e.symbol),
     sector: e.sector,
     regime: regime.regime,
     compositeScore: e.compositeScore,

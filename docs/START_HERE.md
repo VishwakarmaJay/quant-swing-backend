@@ -57,13 +57,15 @@ See `PORTFOLIO_BACKTEST.md` and `SYSTEM.md` §13.
 The master tracker is [`ROADMAP_CHECKLIST.md`](./ROADMAP_CHECKLIST.md) — trust it over this
 summary. In short:
 
-1. **B7 Phase 2 — measure sentiment.** The factor is built and observational; run
-   attribution + embargoed walk-forward, **per-origin** (live-only vs +BSE_BACKFILL vs
-   +GDELT) so any edge rests on the most trustworthy `availableAt` tier. Run it on a
-   workstation — the VM is CPU-credit-throttled.
-2. **B9 — Phase 6 rerun.** Joint weighting across the enriched factor set; prune what
-   doesn't contribute (volume is the standing suspect); decide the fundamental floor and
-   the sentiment bucket on walk-forward evidence.
+1. ~~**B7 Phase 2 — measure sentiment**~~ ✅ **done (2026-07-20)**: bucket blend rejected;
+   the `sentimentFactorFloor: 50` gate is the strongest selection lever measured yet
+   (+0.11 exp on the strong-evidence tier — first full-window breakeven crossing) but
+   walk-forward-validated on only 1 coverage-capable fold → held observational.
+   See `SENTIMENT_FACTOR.md` §4a.
+2. **B9 — Phase 6 rerun (now unblocked, the next task).** Joint config selection across
+   all measured levers — must include the `ff50+sf50` stack, a coverage-era fold design,
+   and the portfolio-level gate (`backtest:portfolio`). Prune what doesn't contribute
+   (volume is the standing suspect).
 3. **Slot-allocation research** — B1 showed *which* 15% of signals you take matters as much
    as the signals; today they're ranked by a score with ρ≈0.
 

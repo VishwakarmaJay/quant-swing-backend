@@ -313,7 +313,7 @@ scorer `src/news/scoreArticles.ts` + `bun run sentiment:score` · migration `b6_
       correctly neutral. Known miss: "shares tank as SEBI opens probe" scored weakly
       positive — headline-level FinBERT limitation, noted for B7's aggregation design.
 
-### B7. SentimentFactor — 🟢 PHASE 1 BUILT (2026-07-19, observational); Phase 2 (measurement) next
+### ✅ B7. SentimentFactor — MEASURED (Phase 2, 2026-07-20); floor favoured, held observational for B9
 Full doc: [`SENTIMENT_FACTOR.md`](./SENTIMENT_FACTOR.md). Data-unblocked by B3.5/B3.6 (GDELT
 media 2025-01→ + BSE filings 2024-01→, ~2.5yr, provenance-tagged, precision-audited) — no
 longer calendar-blocked to Jan 2027. Backfilled rows carry *reconstructed* `availableAt`, so
@@ -327,12 +327,28 @@ every evaluation runs **per-origin** (live-only vs +BSE_BACKFILL vs +GDELT).
       flipped `buckets.sentiment` `['sentiment']`→`[]` so composite/golden/backtest stay
       **byte-identical** (regression test pins it; gate 7 stays dormant). Golden re-baselined
       (neutral 50 on candle-only fixtures). 358 tests pass, typecheck clean.
-- [ ] **Phase 2 (after overnight scoring):** attribution + selection, then embargoed
-      walk-forward, **each split per-origin**; run on the workstation (backtests are CPU-heavy
-      — VM is credit-throttled).
+- [x] **Phase 2 measurement (2026-07-20, deep 5.5yr window, per-origin)** — full results in
+      [`SENTIMENT_FACTOR.md`](./SENTIMENT_FACTOR.md) §4a. Harness extended (per-origin CLI on
+      attribution/phase6, `SENTIMENT_ORIGIN_TIERS`, `sentimentFactorFloor` gate + tests,
+      sentiment conditioning; 362 tests). Findings: **live tier = clean null control** (0%
+      coverage, floors provably inert); **bucket blend REJECTED** (2f — monotone-decaying,
+      plus neutral-50 dilution contaminates the test); **floor gate is the mechanism** (2g —
+      concave, peak 50: **+0.11 exp on live+bse → +0.01/PF 1.01, first full-window breakeven
+      crossing**; +0.07 with GDELT added — stronger on stronger evidence, anti-artifact
+      ordering); conditioning terciles show the B5 tail pattern (low −0.33 → high +0.07).
+- [x] **Embargoed walk-forward** (grid + sf48/sf50/ff50+sf50, both informative tiers):
+      deep-window folds put folds 1–2 before the archive exists, so sentiment was expressible
+      only on fold 3 — where **`pullback+srs0.25+ff50+sf50` was selected and delivered
+      +0.14/PF 1.12 unseen** (identical on both tiers). OOS concat +0.15/1.10 vs control
+      −0.04/0.97, but picks churn 3-configs/3-folds (B5 caveat: partly selection noise).
+      Honest evidence class: **selected on 1 of 1 coverage-capable folds** — "≥2/3 folds" was
+      structurally unmeetable, not failed.
 - **Done when:** sentiment's marginal OOS contribution is measured on the walk-forward,
   validated on the live/BSE (strong-evidence) subset; bucket activated (or rejected) on that
-  evidence in B9.
+  evidence in B9. ✅ **Measured: bucket rejected; `sentimentFactorFloor: 50` validated-but-
+  observational (ff50 precedent, production untouched). B9 must (a) re-test the ff50+sf50
+  stack fold-3 actually picked, (b) add a coverage-era fold design, (c) run it through
+  `backtest:portfolio`.**
 
 ### ✅ B8. Robustness upgrades — DONE (2026-07-18; one honest residual) 🧰
 - [x] **B8.1 Deep backfill:** `backfill:ohlcv all 2000` → **1,356 candles/instrument
@@ -365,11 +381,20 @@ every evaluation runs **per-origin** (live-only vs +BSE_BACKFILL vs +GDELT).
       statically discoverable). Open data task; revisit before B9's conclusions are
       treated as final.
 
-### B9. Phase 6 rerun — joint weighting over the enriched set 🎯 after B5 (and B7)
-- [ ] Re-run attribution across all factors (technical + fundamental [+ sentiment])
+### B9. Phase 6 rerun — joint weighting over the enriched set 🎯 NOW UNBLOCKED (B5 + B7 both measured)
+- [x] Re-run attribution across all factors (technical + fundamental + sentiment) — done
+      per-origin on the deep window (B5 §2d/2e 2026-07-18; B7 2f/2g 2026-07-20)
 - [ ] Prune what doesn't contribute (volume is the standing suspect)
-- [ ] Joint config selection via walk-forward; consider learned weighting (logistic → GBM)
-      **only if** features now show discrimination (ρ meaningfully > 0)
+- [ ] Joint config selection via walk-forward — must include the `ff50+sf50` stack (what
+      fold 3 actually selected) and a **coverage-era fold design** (deep-window folds leave
+      sentiment expressible on only 1 of 3 folds; more folds inside 2024-07→ give the floor
+      levers a fair multi-fold test)
+- [ ] The joint pick through `backtest:portfolio` (the decisive gate) — sf50's signal-edge
+      breakeven means nothing until it survives the 2-slot book
+- [ ] Revisit the survivorship residual (B8.2) before treating conclusions as final
+- [ ] Consider learned weighting (logistic → GBM) **only if** features now show
+      discrimination (ρ meaningfully > 0 — still not true as of B7: all Spearman ≈ 0;
+      the working levers are tail-trims, not rankings)
 - **Done when:** one best evaluated strategy, OOS-validated, with every component earning
   its place.
 

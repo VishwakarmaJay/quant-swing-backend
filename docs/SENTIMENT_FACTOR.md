@@ -1,11 +1,13 @@
-# SentimentFactor (B7) — build + evaluation plan
+# SentimentFactor (B7) — build + measurement
 
-> **Status (2026-07-19):** 🟢 **Phase 1 built — code complete, OBSERVATIONAL.** The factor
-> computes into every FeatureBundle but the frozen baseline keeps `buckets.sentiment: []`,
-> so live signals and the golden/backtest baselines are **byte-identical**. Phase 2
-> (attribution + walk-forward measurement) runs once overnight FinBERT scoring completes.
-> Nothing here changes trading behaviour until the bucket is activated on walk-forward
-> evidence (B9).
+> **Status (2026-07-20):** ✅ **Phase 2 MEASURED — floor mechanism favoured, held
+> observational.** The bucket blend is **rejected on evidence** (2f, mirrors B5); the
+> **`sentimentFactorFloor: 50` gate is the working mechanism** — the strongest single-lever
+> selection delta measured in the project (+0.11 exp on the strong-evidence tier, first
+> full-window breakeven crossing) — but walk-forward-validated on only **one
+> coverage-capable fold** (+0.14 / PF 1.12 unseen). Treatment: the `ff50` precedent —
+> observational until B9, re-measure as coverage accrues. Results: §4a. Nothing changes
+> trading behaviour; the frozen baseline stays byte-identical.
 
 ---
 
@@ -65,6 +67,85 @@ Enforced in two mirrored places, both keyed on `availableAt`:
    `loadCandleStore({ sentimentOrigins })` / `loadNewsBySymbol(origins)` gate this.
 4. **Activation** is the explicit config lever `buckets.sentiment: ['sentiment']` — set only
    on that evidence (B9), exactly how the SRS weight and the fundamental floor graduated.
+
+## 4a. Phase 2 RESULTS (measured 2026-07-20, deep 5.5yr window, 4,394-trade baseline)
+
+Run on the workstation (VM is credit-throttled), archive synced from the box
+(172,867 rows, 100% FinBERT-scored). All three tiers reproduce the documented B8.1
+deep-window baseline exactly (4,394 trades, −0.10%/trade, PF 0.94).
+
+### Coverage per tier — and a clean null control
+| tier | scored articles | trades with informed (≠ 50) score |
+|---|---|---|
+| `live` | 206 | **0.0%** — null control |
+| `live+bse` | 58,266 | 48.0% |
+| `all` (+GDELT) | 162,381 | 48.6% |
+
+The `live` tier proved the mechanism inert without data: floors ≤ 50 changed **nothing**
+(Δ exactly 0, 0 signals dropped). Any effect on the other tiers is therefore data, not
+gate mechanics. GDELT's 104k rows add only ~0.6pp of trade coverage over BSE alone.
+
+### Conditioning — the B5 tail pattern again
+Spearman ≈ 0 (like every factor), but the `live+bse` terciles rise monotonically:
+low **−0.33/PF 0.81** → mid −0.03/0.98 → high **+0.07/1.05**. The information lives in
+the negative tail, not the ranking.
+
+### 2f — bucket blend: REJECTED (the B5 verdict repeats)
+λ = 0.1 → +0.01/+0.02 exp; decays monotonically to −0.05/−0.06 by λ = 0.5. No interior
+peak. The null control also showed the test is contaminated by neutral-50 dilution
+(activating the bucket re-ranks the composite even with zero informed scores), so even
+the λ=0.1 blip is not trustworthy. `buckets.sentiment` stays `[]`.
+
+### 2g — floor gate: the working mechanism
+Reject `sentiment < floor`, keeping neutral/uncovered names (thin coverage ≠ bearish):
+
+| floor | `live+bse` Δexp | → exp/PF | `all` Δexp |
+|---|---|---|---|
+| 40 | +0.02 | | +0.03 |
+| 45 | +0.02 | | +0.02 |
+| 48 | +0.04 | | +0.03 |
+| **50** | **+0.11** | **+0.01 / PF 1.01** | +0.07 |
+| 55 | −0.20 (−90% signals) | | −0.24 |
+
+Concave, interior peak at 50 — the ATTRIBUTION.md signature of real signal, and the
+**largest single-lever selection delta measured in the project** (fundamental's floor:
++0.07 on the 2yr window). `sf50` is the first configuration to cross full-window
+breakeven. **Per-origin ordering passes the artifact test in the right direction:** the
+effect is *stronger* on exchange-timestamped evidence (+0.11) than with GDELT's
+reconstructed availability added (+0.07) — a lookahead artifact would show the opposite.
+
+### Embargoed walk-forward (`backtest:phase6`, grid + sf48/sf50/ff50+sf50)
+Folds now span the deep window — and that matters: folds 1–2 test windows largely
+**predate the news archive** (backfills start 2024-01/2025-01), so the sentiment lever
+was structurally invisible to them. Selection (identical on both tiers):
+
+| test window | selected | test exp | PF |
+|---|---|---|---|
+| 2023-01→2024-03 | baseline | +0.46 | 1.36 |
+| 2024-03→2025-05 | ff50 | −0.46 | 0.77 |
+| 2025-05→2026-07 | **pullback+srs0.25+ff50+sf50** | **+0.14** | **1.12** |
+
+Concatenated OOS: selected +0.15/PF 1.10 vs baseline control −0.04/0.97 — but per-fold
+picks churn (3 configs / 3 folds), so read part of that spread as selection noise (the
+B5 caveat). The honest sentiment statement: **selected on 1 of 1 coverage-capable folds,
++0.14/PF 1.12 on unseen data** — the pre-registered "≥2 of 3 folds" bar was unmeetable
+by construction, not failed. Also noteworthy: on this deeper window the *incumbent*
+story churns too (plain baseline won the 2023 bull-tape fold — the incumbents were
+tuned on 2025-era data).
+
+### Verdict
+1. **Bucket blend rejected; floor mechanism favoured** — B5's shape, stronger dose.
+2. **Evidence class: promising, not proven.** Selection-test strength + tier-robustness
+   + one clean OOS fold ≠ the multi-fold validation SRS/pullback earned. Coverage only
+   spans ~2.5yr of a 5.5yr window; the walk-forward can't say more until either coverage
+   accrues or a coverage-era fold design is run (B9 task).
+3. **Held OBSERVATIONAL** (the `ff50` precedent): `sentimentFactorFloor` exists as a
+   validated research lever; absent from default/production config; `weightsVersion`
+   untouched. B9 makes the joint call — and must re-test the `ff50+sf50` stack, which is
+   what fold 3 actually selected.
+4. Caveats: coverage grows through the window (floor inert early, active late — fold-1
+   train is nearly sentiment-blind); headline-level FinBERT; survivorship; signal-edge
+   units (portfolio-level truth still pending in B9 via `backtest:portfolio`).
 
 ## 5. Limitations
 

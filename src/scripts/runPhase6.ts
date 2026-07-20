@@ -41,11 +41,15 @@ const EMBARGO_DAYS = 10;
 // SRS weight into the composite (Step-3 lever). Pullback+resumption BULL entry (Step-4b lever).
 // Fundamental floor gate (B5 lever — the attribution-selected mechanism; the
 // bucket-blend path was measured harmful at every λ and is not a candidate).
-const withSrs = (w: number, fundamentalFloor?: number) =>
+// Sentiment factor floor (B7 Phase 2 lever — same story: the 2f bucket blend was
+// rejected, the 2g floor showed a concave dose–response peaking at 50 with the
+// effect STRONGER on the live+bse tier than with GDELT added).
+const withSrs = (w: number, fundamentalFloor?: number, sentimentFactorFloor?: number) =>
   new WeightedStrategy({
     ...DEFAULT_STRATEGY_CONFIG,
     technicalFactorWeights: { ...DEFAULT_STRATEGY_CONFIG.technicalFactorWeights, sectorRelativeStrength: w },
     ...(fundamentalFloor != null ? { fundamentalFloor } : {}),
+    ...(sentimentFactorFloor != null ? { sentimentFactorFloor } : {}),
   });
 const pullbackV2 = {
   rsiMin: 40,
@@ -73,7 +77,8 @@ const run = async () => {
   const total = store.tradingDates.length;
   console.log(`Universe ${store.instruments.length} stocks, ${total} trading days (tier ${tier}).\n`);
 
-  // Candidate grid: the two incumbent levers × the B5 fundamental floor.
+  // Candidate grid: the two incumbent levers × the B5 fundamental floor × the
+  // B7 sentiment floor (only the 2g-favoured doses, 48/50, earn a slot).
   const candidates: WFCandidate[] = [
     { label: 'baseline', strategy: withSrs(0) },
     { label: 'srs0.25', strategy: withSrs(0.25) },
@@ -81,6 +86,9 @@ const run = async () => {
     { label: 'ff50', strategy: withSrs(0, 50) },
     { label: 'pullback+srs0.25+ff45', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, 45)) },
     { label: 'pullback+srs0.25+ff50', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, 50)) },
+    { label: 'pullback+srs0.25+sf48', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, undefined, 48)) },
+    { label: 'pullback+srs0.25+sf50', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, undefined, 50)) },
+    { label: 'pullback+srs0.25+ff50+sf50', strategy: new BullPullbackStrategy(pullbackV2, withSrs(0.25, 50, 50)) },
   ];
 
   const folds = makeExpandingFolds(WARMUP, total, N_FOLDS, EMBARGO_DAYS);

@@ -51,14 +51,18 @@ export const computeRunVersions = async (): Promise<RunVersions> => {
     fundamental: DEFAULT_FUNDAMENTAL_CONFIG,
   })}`;
 
-  // Stamps the *production* config that actually ships (ROADMAP B2), including the
-  // graduated BULL pullback entry — so a stored signal names the exact live config.
+  // Stamps the *production* config that actually ships (ROADMAP B2; B9 stack since
+  // 2026-07-20), including the graduated BULL pullback entry and the floor gates —
+  // so a stored signal names the exact live config. Any behavioural knob added to
+  // production MUST be added here (reproducibility creed).
   const weightsVersion = `w-${shortHash({
     regimeWeights: PRODUCTION_STRATEGY_CONFIG.regimeWeights,
     technicalFactorWeights: PRODUCTION_STRATEGY_CONFIG.technicalFactorWeights,
     baseThreshold: PRODUCTION_STRATEGY_CONFIG.baseThreshold,
     regimeThresholdAdj: PRODUCTION_STRATEGY_CONFIG.regimeThresholdAdj,
     bullPullback: PRODUCTION_BULL_PULLBACK_CONFIG,
+    fundamentalFloor: PRODUCTION_STRATEGY_CONFIG.fundamentalFloor ?? null,
+    sentimentFactorFloor: PRODUCTION_STRATEGY_CONFIG.sentimentFactorFloor ?? null,
   })}`;
 
   // Best-effort instrument-master version: universe size + latest sync date.

@@ -383,7 +383,7 @@ every evaluation runs **per-origin** (live-only vs +BSE_BACKFILL vs +GDELT).
 
 ### ✅ B9. Phase 6 rerun — DONE (2026-07-20); one best strategy, gate still failed
 Full doc: [`B9_RERUN.md`](./B9_RERUN.md) · anchored coverage-era folds (`makeAnchoredFolds`,
-`backtest:phase6 --from 2024-07-01 --folds 4`) · 364 tests, typecheck clean.
+`backtest:phase6 --from 2024-07-01 --folds 4`) · 369 tests, typecheck clean.
 - [x] Re-run attribution across all factors — per-origin on the deep window (B5 §2d/2e; B7 2f/2g)
 - [x] **Prune what doesn't contribute:** volume is OUT — `-novol` in every anchored winner
       (8/8) and 2/3 deep winners; no selected config kept it. Step-1's suspicion confirmed jointly.
@@ -395,8 +395,12 @@ Full doc: [`B9_RERUN.md`](./B9_RERUN.md) · anchored coverage-era folds (`makeAn
       **positive absolute portfolio returns** (FULL +22.8%, OOS +24.8%) and best-ever maxDD
       (−11%) — but on the honest COVERAGE window (its validated era): **−6.5% (risk) vs Nifty
       +0.8% → B10 GATE FAILED** (closest approach yet; B1 was −12.7 vs −4.4).
-- [ ] ⚙️ Operator decision available (B2 precedent): adopt the B9 stack as the production
-      config (it dominates current production everywhere in this report) — signals stay manual
+- [x] ⚙️ **Operator decision (2026-07-20): B9 stack ADOPTED into production.**
+      `createProductionStrategy()` now runs `pullback+srs0.25+ff50+sf50-novol`;
+      `weightsVersion` re-stamped `w-6edfeb770e4a` → **`w-68f83d8edbf9`** (floors now in the
+      hash — any behavioural knob added to production must be); +5 pin tests
+      (`productionStrategy.test.ts`), 369/369 pass; frozen research baseline untouched.
+      Signals stay manual; B10 stays gated.
 - [ ] Revisit the survivorship residual (B8.2) before treating conclusions as final — still open
 - [ ] Learned weighting still correctly deferred (all Spearman ≈ 0; working levers are
       tail-trims, not rankings)

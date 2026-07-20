@@ -393,15 +393,18 @@ nightly run does *not* use `DEFAULT_STRATEGY_CONFIG`:
 
 | | `DEFAULT_STRATEGY_CONFIG` | `createProductionStrategy()` |
 |---|---|---|
-| Role | **frozen research baseline** — the control every attribution / regime / phase6 / portfolio experiment measures against | **what `signals:run` delivers to Telegram** |
-| Technical weights | trend .35 · momentum .30 · relativeStrength .25 · volume .10 | + **sectorRelativeStrength 0.25** |
+| Role | **frozen research baseline** — the control every attribution / regime / phase6 / portfolio experiment measures against | **what `signals:run` delivers to Telegram** (the B9 stack, adopted 2026-07-20) |
+| Technical weights | trend .35 · momentum .30 · relativeStrength .25 · volume .10 | trend .35 · momentum .30 · relativeStrength .25 · **sectorRelativeStrength .25 · volume REMOVED** (B9 pruning) |
+| Floor gates | none | **fundamentalFloor 50 + sentimentFactorFloor 50** (tail-trims off the bundle; buckets stay dormant) |
 | BULL entry | buy-strength (WeightedStrategy everywhere) | **BullPullbackStrategy** — pullback + resumption in BULL, delegates to WeightedStrategy off-BULL (RSI 40–55, dip ≤2% above EMA20, stack intact, MACD histogram rising) |
-| `weightsVersion` | `w-fd0e1dec2aa9` | `w-6edfeb770e4a` |
+| `weightsVersion` | `w-fd0e1dec2aa9` | **`w-68f83d8edbf9`** (was `w-6edfeb770e4a` pre-B9) |
 
 The baseline is deliberately **kept frozen** so the research controls stay intact and
-comparable across the whole program; production carries the `pullback+srs0.25` config that
-`backtest:phase6` selected on all three walk-forward folds. Code:
-`src/strategy/productionStrategy.ts`, wired into `runPipeline`.
+comparable across the whole program; production carries the B9 stack
+(`pullback+srs0.25+ff50+sf50-novol`) that the anchored walk-forward selected on all 4
+coverage-era folds × both tiers ([`B9_RERUN.md`](./B9_RERUN.md)). Code:
+`src/strategy/productionStrategy.ts` (pinned by `productionStrategy.test.ts`), wired into
+`runPipeline`.
 
 ⚠️ This is **not** an edge — it is the least-bad validated config. Orders remain manual and
 Phase 5 stays gated (§13).
@@ -674,7 +677,7 @@ roundTripCostPct 0.25%, size-reduction 3–6% ATR × 0.75.
 | `sentiment:score` | FinBERT scoring catch-up (`--rescore` on model bumps) |
 | `fundamentals:backfill` / `:snapshot` / `:retry` | Point-in-time fundamentals history + weekly snapshotter (B4) |
 | `golden:snapshot` / `golden:update` | Refresh / re-baseline the golden fixture |
-| `test`, `typecheck` | **364 tests**; strict tsc |
+| `test`, `typecheck` | **369 tests**; strict tsc |
 
 **Cron schedule** (RabbitMQ-backed, IST):
 | Time | Job |
@@ -766,8 +769,9 @@ one strategy survived joint selection:
 - **The largest unworked lever is slot allocation:** the 2-slot book takes ~14% of
   signals, picked by a ρ≈0 composite ranking. Risk sizing is the standing
   capital-preservation default (best drawdowns everywhere measured).
-- ⚙️ **Open operator decision (B2 precedent):** production still runs `pullback+srs0.25`;
-  the B9 stack dominates it on every window/sizing/cost level measured.
+- ⚙️ **Operator decision taken (2026-07-20):** the B9 stack is now the production config
+  (`w-68f83d8edbf9`) — it dominated the prior production config on every window/sizing/cost
+  level measured.
 
 ### The honest bottom line
 A complete, reproducible signal factory; an honest measurement stack (attribution,
@@ -791,4 +795,4 @@ to the same reproducibility standard as the *factor pipeline*
 
 *§§1–12 were written at the completion of Phase 4 and remain the exact implementation in
 `src/`; §13 and the config/script tables are maintained forward. Covered by the
-**364-test** suite + the golden determinism gate.*
+**369-test** suite + the golden determinism gate.*

@@ -37,7 +37,7 @@ OHLCV → DataQuality → 8 factors → regime → strategy (+ BULL pullback ent
 - **B9** ✅ joint selection → **one best strategy**: `pullback+srs0.25+ff50+sf50-novol`
   (both floor levers in, volume out), selected on all 4 coverage-era folds × both tiers
 
-**364 tests pass**, `bun run typecheck` clean.
+**369 tests pass**, `bun run typecheck` clean.
 
 ## ⚠️ The one thing you must know: still NO out-of-sample edge (but the gap is closing)
 
@@ -68,14 +68,15 @@ summary. In short:
    selected on **all 4 coverage-era folds × both tiers** (volume is out); first positive
    absolute portfolio returns (OOS +24.8%, maxDD −11%) — but on its validated era it still
    trails a flat Nifty (−6.5% vs +0.8%) → **B10 gate still failed**. See `B9_RERUN.md`.
-   ⚙️ Operator decision open: adopt the stack as production config (it dominates current
-   production everywhere measured).
+   ⚙️ Operator decision taken (2026-07-20): **the stack IS the production config**
+   (`w-68f83d8edbf9`, pinned by tests).
 3. **Slot-allocation research — the largest unworked lever.** The 2-slot book takes ~14%
    of signals, picked by a ρ≈0 composite ranking; measuring better slot-pickers (and the
    `maxOpenPositions` dose) through `backtest:portfolio` is the next frontier.
 
-> Two levers are validated and already in production (SRS 0.25 + BULL pullback entry) —
-> they are the least-bad config, **not** an edge. Plan narrative: `HANDOFF_NEXT_STEPS.md`.
+> Production runs the full B9 stack (SRS 0.25 + BULL pullback entry + both floors at 50 +
+> volume pruned) — the best *validated* config, **not** an edge. Plan narrative:
+> `HANDOFF_NEXT_STEPS.md`.
 
 ## Where to look
 
@@ -108,7 +109,7 @@ bun run backtest:run          # signal-edge replay vs Nifty
 bun run backtest:portfolio    # portfolio-level "beat Nifty" gate ← the decisive one
 bun run backtest:phase6       # embargoed walk-forward (OOS)
 
-bun test                      # 364 tests
+bun test                      # 369 tests
 bun run typecheck
 ```
 

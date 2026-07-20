@@ -3,32 +3,43 @@ import { DEFAULT_STRATEGY_CONFIG, type StrategyConfig } from './types';
 import { WeightedStrategy } from './weightedStrategy';
 
 /**
- * The graduated production strategy (ROADMAP B2). `DEFAULT_STRATEGY_CONFIG` is
- * deliberately the *frozen research baseline* — every backtest control
- * (attribution, regime, phase6, portfolio) reads it as `baseline`/`withSrs(0)`,
- * so it must not drift. Production instead runs the OOS-validated `combined`
- * config: the two robust relative levers found in the research program, wired
- * together exactly as `backtest:phase6` selected them on all 3 walk-forward
- * folds (`pullback+srs0.25`) and as `backtest:portfolio` evaluated them.
+ * The graduated production strategy (ROADMAP B2, upgraded to the B9 stack by
+ * operator decision 2026-07-20). `DEFAULT_STRATEGY_CONFIG` is deliberately the
+ * *frozen research baseline* — every backtest control (attribution, regime,
+ * phase6, portfolio) reads it as `baseline`/`withSrs(0)`, so it must not drift.
+ * Production instead runs the jointly-selected B9 stack, exactly as the
+ * anchored walk-forward selected it on ALL 4 coverage-era folds × both origin
+ * tiers and as `backtest:portfolio` evaluated it (B9_RERUN.md):
  *
- * Honesty note: this is a *less-negative*, not a profitable, strategy (OOS
- * PF 0.91, expectancy −0.12%/trade). Orders stay manual and Phase 5 remains
- * hard-gated (B10) — B2 only graduates the nightly signals off the known-worst
- * baseline onto the validated config.
- *
- * Levers:
- *  - Sector-relative RS added to the technical composite at weight 0.25 (Step 3).
+ *  - Sector-relative RS in the composite at weight 0.25 (Step 3).
  *  - BULL pullback + resumption entry (Step 4b-v2) — off-BULL it delegates
  *    byte-for-byte to the WeightedStrategy, so only the BULL entry changes.
+ *  - Fundamental floor 50 (B5) + sentiment factor floor 50 (B7) — tail-trim
+ *    gates read straight off the bundle (buckets stay empty/dormant).
+ *  - Volume REMOVED from the composite (B9 joint pruning — `-novol` was in
+ *    every selected winner; the factor is still computed/observational).
+ *
+ * Honesty note: this is the *least-negative validated* config, not a profitable
+ * one (coverage-era portfolio −6.5% vs Nifty +0.8% — B10 stays hard-gated).
+ * Orders remain manual decision support.
  */
 
-/** WeightedStrategy config for production: baseline + SRS at composite weight 0.25. */
-export const PRODUCTION_STRATEGY_CONFIG: StrategyConfig = {
-  ...DEFAULT_STRATEGY_CONFIG,
-  technicalFactorWeights: {
+/** Production technical weights: SRS 0.25 in, volume out (composite renormalizes). */
+const PRODUCTION_TECHNICAL_WEIGHTS: Record<string, number> = (() => {
+  const w: Record<string, number> = {
     ...DEFAULT_STRATEGY_CONFIG.technicalFactorWeights,
     sectorRelativeStrength: 0.25,
-  },
+  };
+  delete w.volume;
+  return w;
+})();
+
+/** WeightedStrategy config for production: the B9 stack over the frozen baseline. */
+export const PRODUCTION_STRATEGY_CONFIG: StrategyConfig = {
+  ...DEFAULT_STRATEGY_CONFIG,
+  technicalFactorWeights: PRODUCTION_TECHNICAL_WEIGHTS,
+  fundamentalFloor: 50,
+  sentimentFactorFloor: 50,
 };
 
 /**

@@ -77,10 +77,10 @@ One ₹2L book, 2-slot cap, 1-per-sector, kill switch; FULL / OOS(2023-01→) /
    removal). Uniform across folds, tiers, and fold designs.
 2. **B10 stays hard-gated.** Negative return on the validated era vs a flat benchmark.
    The remaining gap at portfolio level: roughly 4–10pp/yr depending on window.
-3. **Operator decision available (B2 precedent):** production currently runs
-   `pullback+srs0.25` (with volume, no floors). The B9 stack beats it on every window ×
-   sizing × cost level in this report. Wiring it into `createProductionStrategy()` is an
-   operator call — signals remain manual decision support either way.
+3. **Operator decision — TAKEN (2026-07-20): the stack is production.** It beat the prior
+   production config on every window × sizing × cost level in this report;
+   `createProductionStrategy()` now builds it, `weightsVersion` → **`w-68f83d8edbf9`**,
+   pinned by `productionStrategy.test.ts`. Signals remain manual decision support.
 4. **Where the remaining gap points:** the 2-slot book takes ~14% of signals
    (position-limit skips ≈ 709/178 taken on coverage), still ranked by a composite with
    ρ≈0. **Slot allocation is now the largest unworked lever**, ahead of any new factor.

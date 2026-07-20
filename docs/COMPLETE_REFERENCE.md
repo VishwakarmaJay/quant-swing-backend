@@ -47,7 +47,7 @@ RabbitMQ (jobs). All indicator math is in-house so it can be golden-tested byte-
 **Status:** Phases 1–4 complete + the Part-B research program (attribution, regime
 experiments, walk-forward, portfolio backtest, news archive + backfills, fundamentals,
 FinBERT, Fundamental + Sentiment factors) — **B1–B9 done** ([`B9_RERUN.md`](./B9_RERUN.md)).
-**364 tests, typecheck clean.** The strategy has been improved from clearly losing to near-breakeven **but has no
+**369 tests, typecheck clean.** The strategy has been improved from clearly losing to near-breakeven **but has no
 positive out-of-sample edge yet** — Phase 5 (paper trading) is gated (§15, §17).
 
 ## 2. The pipeline
@@ -382,7 +382,8 @@ Gate "R:R ≥ x" from the spec is realized downstream by signal math (§10, `rr-
   the floor, reading the result straight off the bundle while the bucket stays inactive.
   A missing factor result rejects (unavailable ≠ pass); the thin-coverage neutral-50
   passes any floor ≤ 50. Both at 50, with volume pruned, form the B9-selected stack
-  ([`B9_RERUN.md`](./B9_RERUN.md)) — validated, unadopted.
+  ([`B9_RERUN.md`](./B9_RERUN.md)) — **adopted into production 2026-07-20**
+  (`w-68f83d8edbf9`); still absent from the frozen baseline.
 
 ## 9. Experimental: BullPullbackStrategy
 
@@ -716,10 +717,9 @@ caveats; 13–17 are engineering/scope.)
 15. **Sector granularity:** 23 committed sector labels; some sectors have few members (SRS
     goes neutral below 3 peers); sector assignments are static (no reclassification history).
 16. **Research levers vs production config:** ~~production runs the baseline~~ **[STALE —
-    fixed by B2]** production runs `pullback+srs0.25` (`createProductionStrategy()`). The
-    B9-validated additions (ff50 + sf50 floors, volume pruned) remain research levers —
-    adopting the B9 stack into production is an **open operator decision** (it dominates
-    current production on every window/sizing/cost level measured, `B9_RERUN.md` §4).
+    fixed by B2, then B9]** production runs the full B9 stack
+    (`pullback+srs0.25+ff50+sf50-novol`, adopted by operator decision 2026-07-20,
+    `w-68f83d8edbf9`). `DEFAULT_STRATEGY_CONFIG` stays the frozen research control.
 17. **Operational gaps vs spec (documented drift):** no intraday thesis checks or pre-market
     job; `snapshotJson` stores the approved signal, not the full factor bundle;
     `instrumentMasterVersion` is best-effort. *(The "no FinBERT sidecar" item was resolved
@@ -728,7 +728,7 @@ caveats; 13–17 are engineering/scope.)
 ## 17. Current state & what's next
 
 **State:** a complete, reproducible, honestly-measured research platform. **[UPDATED
-2026-07-20]** 364 tests + golden gate green; whole stack deployed on AWS
+2026-07-20]** 369 tests + golden gate green; whole stack deployed on AWS
 (`DEPLOYMENT_AWS.md`). The Part-B program is **complete through B9**
 ([`B9_RERUN.md`](./B9_RERUN.md)): both orthogonal factors measured (bucket blends
 rejected; floor gates validated — the information lives in the negative tails), volume
@@ -757,6 +757,6 @@ risk-adjusted, net of costs, out-of-sample.
 ---
 
 *Every formula in this file was verified against `src/` at the 149-test state (§§1–14) and
-maintained forward; findings/limitations/state are current as of the 364-test state. If
+maintained forward; findings/limitations/state are current as of the 369-test state. If
 code and this file ever disagree, the code + golden fixture are the truth — update this
 file.*

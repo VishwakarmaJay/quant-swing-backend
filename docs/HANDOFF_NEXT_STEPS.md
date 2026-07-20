@@ -12,8 +12,8 @@
 > **through B9** (portfolio backtest, news archive + GDELT/BSE backfills, point-in-time
 > fundamentals, FinBERT, Fundamental + Sentiment factors, AWS deploy, joint selection —
 > [`B9_RERUN.md`](./B9_RERUN.md)) has landed. The §4 "what to do first" sequence is
-> **complete**, not pending; the open frontier is slot-allocation research + the operator
-> decision on adopting the B9 stack.
+> **complete**, not pending; the B9 stack was adopted into production (2026-07-20,
+> `w-68f83d8edbf9`) and the open frontier is slot-allocation research.
 
 ---
 
@@ -26,10 +26,10 @@ Paste this as your first message in the new session:
 > system for NSE equities. Phases 1–4 and the Part-B program (B1–B9) are **done**: one best
 > strategy exists (`pullback+srs0.25+ff50+sf50-novol`, `B9_RERUN.md`) with the first
 > positive absolute portfolio returns, but the B10 portfolio gate is still failed (−6.5%
-> vs Nifty +0.8% on the validated era), so Phase 5 stays hard-gated. The open work is
-> slot-allocation research and the operator decision on adopting the B9 stack into
-> production. Nothing graduates without walk-forward + portfolio evidence. Confirm you
-> understand the state, then ask me which task to start.
+> vs Nifty +0.8% on the validated era), so Phase 5 stays hard-gated. The stack IS the
+> production config (adopted 2026-07-20, `w-68f83d8edbf9`). The open work is
+> slot-allocation research. Nothing graduates without walk-forward + portfolio evidence.
+> Confirm you understand the state, then ask me which task to start.
 
 That's enough for the new session to orient itself and continue. *(The older kickoff
 pointed at Steps 1–2 of §4; those are long complete — see the banner above.)*
@@ -51,7 +51,7 @@ pointed at Steps 1–2 of §4; those are long complete — see the banner above.
   runs a BULL pullback entry over an SRS-weighted composite — `SYSTEM.md` §6.2a.)*
 - **Status *as this file was written*:** Phases 1–4 complete (data, factors, golden gate,
   decision layer, backtesting). 112 tests pass, typecheck clean.
-  *(Current: Phases 1–4 + Part B B1–B9 complete, 8 factors, **364 tests** — see
+  *(Current: Phases 1–4 + Part B B1–B9 complete, 8 factors, **369 tests** — see
   [`ROADMAP_CHECKLIST.md`](./ROADMAP_CHECKLIST.md).)*
 
 ## 2. The one finding that drives everything

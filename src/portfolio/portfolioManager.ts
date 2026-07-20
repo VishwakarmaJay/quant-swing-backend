@@ -13,15 +13,34 @@ import {
 } from './types';
 
 /**
- * Conviction-based sizing: capital allocated ∝ the strategy's composite score
- * (no per-trade capital cap), then the volatility size-reduction. qty = floor
- * of allocated capital ÷ entry.
+ * Position sizing, then the volatility size-reduction.
+ *
+ * `risk` (default): put a fixed % of the BOOK (baseCapitalPerTrade ×
+ * maxOpenPositions) at risk per trade — qty from the entry→stop distance,
+ * capped by the per-trade slot budget so a very tight stop can't consume the
+ * whole book. This mirrors the portfolio simulator's `risk` mode exactly, so
+ * live sizing is the model that was actually backtested.
+ *
+ * `conviction` (legacy): capital ∝ compositeScore. Kept switchable for
+ * comparison, but measured inferior on every window/key (B11 §4) — the
+ * composite it scales by ranks no better than random.
  */
 const sizePosition = (candidate: PortfolioCandidate, config: PortfolioConfig): PositionSizing => {
   const { levels, compositeScore } = candidate;
-  const allocatedCapital = round(config.baseCapitalPerTrade * (compositeScore / 100), 2);
+  const slotBudget = config.baseCapitalPerTrade;
 
-  let qty = Math.floor(allocatedCapital / levels.entry);
+  let allocatedCapital: number;
+  let qty: number;
+  if (config.sizingMode === 'risk') {
+    const book = slotBudget * config.maxOpenPositions;
+    const riskBudget = (book * config.riskPctPerTrade) / 100;
+    qty = levels.riskPerShare > 0 ? Math.floor(riskBudget / levels.riskPerShare) : 0;
+    qty = Math.min(qty, Math.floor(slotBudget / levels.entry)); // slot-budget cap
+    allocatedCapital = round(riskBudget, 2); // the risk envelope, not a cash budget
+  } else {
+    allocatedCapital = round(slotBudget * (compositeScore / 100), 2);
+    qty = Math.floor(allocatedCapital / levels.entry);
+  }
 
   const { fromAtrPct, toAtrPct, multiplier } = config.sizeReduction;
   const sizeReduced = levels.atrPct >= fromAtrPct && levels.atrPct < toAtrPct;

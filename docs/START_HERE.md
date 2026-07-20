@@ -37,7 +37,7 @@ OHLCV → DataQuality → 8 factors → regime → strategy (+ BULL pullback ent
 - **B9** ✅ joint selection → **one best strategy**: `pullback+srs0.25+ff50+sf50-novol`
   (both floor levers in, volume out), selected on all 4 coverage-era folds × both tiers
 
-**369 tests pass**, `bun run typecheck` clean.
+**416 tests pass**, `bun run typecheck` clean.
 
 ## ⚠️ The one thing you must know: still NO out-of-sample edge (but the gap is closing)
 
@@ -70,9 +70,26 @@ summary. In short:
    trails a flat Nifty (−6.5% vs +0.8%) → **B10 gate still failed**. See `B9_RERUN.md`.
    ⚙️ Operator decision taken (2026-07-20): **the stack IS the production config**
    (`w-68f83d8edbf9`, pinned by tests).
-3. **Slot-allocation research — the largest unworked lever.** The 2-slot book takes ~14%
-   of signals, picked by a ρ≈0 composite ranking; measuring better slot-pickers (and the
-   `maxOpenPositions` dose) through `backtest:portfolio` is the next frontier.
+3. ~~**Slot-allocation research**~~ ✅ **done (2026-07-20)** — and it answered **NO**:
+   no ordering (8 keys incl. sentiment/fundamental/SRS) beats a seeded **random control**
+   on both windows; the incumbent composite ranking *loses* to a coin flip; widening slots
+   makes it worse. ⇒ **The ~14% bottleneck is signal quality, not allocation** — a
+   portfolio optimizer is premature. See `SLOT_ALLOCATION.md`.
+4. ~~**Event typing for the right tail**~~ ✅ **done (2026-07-20)** — also **negative**:
+   57.7% of exchange filings typed deterministically (BSE labels its own), but **no event
+   type has a distinctively fat right tail** (p90 spans only 4.1–5.9 across all types), and
+   the untyped `OTHER` baseline is itself positive — so the correct null is "a company
+   filed something", against which only 3 of 12 types clear. `EARNINGS_RESULT` is flat:
+   we can type *that* results filed, not *whether they surprised* (needs paid estimates).
+   See `EVENT_STUDY.md`.
+5. ⚙️ **Operator decision TAKEN (2026-07-20):** production sizing switched conviction →
+   **risk** (`PORTFOLIO_SIZING_MODE`), because conviction sized capital ∝ a composite
+   measured at worse-than-random. Live sizing now matches the backtested model.
+6. **What's left for the right tail:** delivery % (NSE bhavcopy — the one high-ranked free
+   source still untouched) and de-confounding INSIDER_PLEDGE. If those come back flat too,
+   the honest conclusion is that this horizon + universe + free data may not contain an
+   exploitable right tail — and the real options become a different horizon, a different
+   universe, or paid data.
 
 > Production runs the full B9 stack (SRS 0.25 + BULL pullback entry + both floors at 50 +
 > volume pruned) — the best *validated* config, **not** an edge. Plan narrative:
@@ -108,8 +125,9 @@ bun run signals:run           # nightly run (persist + deliver)
 bun run backtest:run          # signal-edge replay vs Nifty
 bun run backtest:portfolio    # portfolio-level "beat Nifty" gate ← the decisive one
 bun run backtest:phase6       # embargoed walk-forward (OOS)
+bun run backtest:slots        # slot-allocation rank keys vs a random control
 
-bun test                      # 369 tests
+bun test                      # 416 tests
 bun run typecheck
 ```
 

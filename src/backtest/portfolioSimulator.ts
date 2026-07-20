@@ -36,6 +36,23 @@ import {
 
 export type SizingMode = 'flat' | 'conviction' | 'risk';
 
+/**
+ * Which key orders same-day candidates when slots are scarce (B11 slot-allocation
+ * research). B1/B9 measured that the 2-slot book takes only ~14% of signals, so
+ * *which* 14% is decided by this ordering — and Step-1 proved the incumbent key
+ * (composite) has ρ≈0 with outcomes. `random` is the CONTROL: if no key beats it,
+ * the bottleneck is signal quality, not allocation.
+ */
+export type RankKey =
+  | 'composite'   // incumbent (live PortfolioManager ordering)
+  | 'random'      // control — seeded, deterministic, uncorrelated with any factor
+  | 'sentiment'
+  | 'srs'
+  | 'fundamental'
+  | 'calm'        // volatility factor score desc ≈ lowest ATR% first
+  | 'tight-stop'  // smallest stop distance %, i.e. most R per rupee risked
+  | 'agreement';
+
 export type PortfolioSimConfig = {
   /** Starting capital for the single book (₹). */
   initialCapital: number;
@@ -49,6 +66,8 @@ export type PortfolioSimConfig = {
   costPctPerSide: number;
   /** Block next-day entries after a day losing ≥ this % of day-start equity (0 = off). */
   killSwitchDailyLossPct: number;
+  /** Slot-allocation ordering (default 'composite' = the live/incumbent behaviour). */
+  rankKey?: RankKey;
 };
 
 export const DEFAULT_PORTFOLIO_SIM_CONFIG: PortfolioSimConfig = {
@@ -92,12 +111,37 @@ export type PortfolioMetrics = {
   wins: number;
   winRatePct: number;
   skipped: Record<SkipReason, number>;
+  /**
+   * REGRET (B11): mean net-% of trades the book actually took vs the mean net-%
+   * of the candidates it had to skip for want of a slot. The ranking key adds
+   * value only if taken > skipped; taken ≈ skipped means the ordering carries no
+   * information (the ρ≈0 result, seen from the allocation side).
+   */
+  takenNetPctAvg: number;
+  skippedNetPctAvg: number;
+  /** takenNetPctAvg − skippedNetPctAvg. > 0 ⇒ the key picked better than it dropped. */
+  selectionEdgePct: number;
+  slotSkippedCount: number;
 };
 
 export type PortfolioResult = {
   equityCurve: EquityPoint[];
   trades: PortfolioTrade[];
   metrics: PortfolioMetrics;
+};
+
+/**
+ * Stable string → [0,1) hash (FNV-1a). Used only by the `random` rank key so the
+ * control ordering is reproducible run-to-run (determinism is sacred) while
+ * carrying no factor information.
+ */
+const hashUnit = (s: string): number => {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h / 0x100000000;
 };
 
 type OpenPosition = {
@@ -149,13 +193,35 @@ export const simulatePortfolio = (
       trade,
     });
   }
-  // Deterministic rank: composite desc, then symbol asc (matches the live PM ordering).
+  // Slot-allocation ordering (B11). Every key is DETERMINISTIC — including
+  // `random`, which hashes (symbol, entryDate) so the shuffle is stable across
+  // runs and uncorrelated with any factor. Ties always break on symbol asc, so
+  // the ordering is total and reproducible. Default = composite (live PM order).
+  const rankKey: RankKey = config.rankKey ?? 'composite';
+  const scoreOf = (c: Candidate): number => {
+    const f = c.signal.factorScores;
+    switch (rankKey) {
+      case 'composite':
+        return c.signal.evaluation.compositeScore;
+      case 'sentiment':
+        return f.sentiment ?? 50;
+      case 'srs':
+        return f.sectorRelativeStrength ?? 50;
+      case 'fundamental':
+        return f.fundamental ?? 50;
+      case 'calm':
+        return f.volatility ?? 50;
+      case 'agreement':
+        return c.signal.evaluation.agreementScore;
+      case 'tight-stop':
+        // Smallest stop distance ranks FIRST → negate so "desc" sorting works.
+        return -((c.signal.entry - c.signal.stopLoss) / c.signal.entry) * 100;
+      case 'random':
+        return hashUnit(`${c.signal.symbol}|${c.trade.entryDate}`);
+    }
+  };
   for (const list of byEntryDate.values()) {
-    list.sort(
-      (a, b) =>
-        b.signal.evaluation.compositeScore - a.signal.evaluation.compositeScore ||
-        a.signal.symbol.localeCompare(b.signal.symbol),
-    );
+    list.sort((a, b) => scoreOf(b) - scoreOf(a) || a.signal.symbol.localeCompare(b.signal.symbol));
   }
 
   // Per-instrument close lookup for daily mark-to-market.
@@ -180,6 +246,10 @@ export const simulatePortfolio = (
     'kill-switch': 0,
   };
   const equityCurve: EquityPoint[] = [];
+  /** Net-% of candidates dropped purely for want of a slot (B11 regret). */
+  const slotSkippedNetPct: number[] = [];
+  /** Net-% of candidates the book actually entered (same units, for comparison). */
+  const takenNetPct: number[] = [];
 
   let cash = config.initialCapital;
   let lastEquity = config.initialCapital;
@@ -200,6 +270,9 @@ export const simulatePortfolio = (
       }
       if (open.length >= config.maxOpenPositions) {
         skipped['position-limit']++;
+        // REGRET (B11): the trajectory of this signal is already precomputed, so
+        // what the book gave up is measurable at zero cost.
+        slotSkippedNetPct.push(trade.netReturnPct);
         continue;
       }
       if (
@@ -236,6 +309,7 @@ export const simulatePortfolio = (
       qty = Math.min(qty, affordable);
 
       const invested = qty * trade.entryPrice * (1 + costMult);
+      takenNetPct.push(trade.netReturnPct); // B11 regret: the "taken" side
       cash = round(cash - invested, 2);
       open.push({
         symbol: signal.symbol,
@@ -332,6 +406,9 @@ export const simulatePortfolio = (
   }
 
   const wins = closed.filter((t) => t.pnl > 0).length;
+  const mean = (xs: number[]): number => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
+  const takenAvg = mean(takenNetPct);
+  const skippedAvg = mean(slotSkippedNetPct);
 
   return {
     equityCurve,
@@ -347,6 +424,10 @@ export const simulatePortfolio = (
       wins,
       winRatePct: closed.length ? round((wins / closed.length) * 100, 1) : 0,
       skipped,
+      takenNetPctAvg: round(takenAvg, 3),
+      skippedNetPctAvg: round(skippedAvg, 3),
+      selectionEdgePct: round(takenAvg - skippedAvg, 3),
+      slotSkippedCount: slotSkippedNetPct.length,
     },
   };
 };

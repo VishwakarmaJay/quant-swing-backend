@@ -69,10 +69,29 @@ export type PortfolioState = {
 
 export const EMPTY_PORTFOLIO_STATE: PortfolioState = { openPositions: [], dailyRealizedLoss: 0 };
 
+/**
+ * How per-trade capital is decided.
+ *
+ * - `conviction` (legacy): allocated ∝ compositeScore. **Measured inferior.**
+ *   B1/B9/B11 all favour risk sizing, and B11 explains the mechanism: the
+ *   composite ranks trades no better than a coin flip (selEdge ≤ random), so
+ *   scaling capital by it sizes up on noise.
+ * - `risk` (default since 2026-07-20): a fixed % of the book is put at risk per
+ *   trade — qty from the entry→stop distance, capped by the slot budget. Best
+ *   returns AND roughly half the drawdown in every simulated cell
+ *   ([`SLOT_ALLOCATION.md`](../../docs/SLOT_ALLOCATION.md) §4).
+ */
+export type PortfolioSizingMode = 'conviction' | 'risk';
+
 export type PortfolioConfig = {
-  /** Capital allocated to a trade at composite 100; scaled by conviction
-   *  (compositeScore ÷ 100). No per-trade capital cap. */
+  /** Per-trade slot budget (the book is this × maxOpenPositions). Under
+   *  `conviction` it is scaled by compositeScore÷100; under `risk` it caps the
+   *  risk-derived quantity. */
   baseCapitalPerTrade: number;
+  /** Sizing model (default `risk` — see PortfolioSizingMode). */
+  sizingMode: PortfolioSizingMode;
+  /** `risk` mode: % of the whole book risked per trade (entry→stop distance). */
+  riskPctPerTrade: number;
   /** Realized daily loss (₹) that trips the kill switch. */
   dailyKillSwitch: number;
   maxOpenPositions: number;
@@ -86,6 +105,11 @@ export type PortfolioConfig = {
 
 export const DEFAULT_PORTFOLIO_CONFIG: PortfolioConfig = {
   baseCapitalPerTrade: 100_000, // placeholder — set to your intended per-trade budget
+  // Operator decision 2026-07-20 (B9 + B11 evidence): risk sizing replaced
+  // conviction sizing. 1% of the book matches what the portfolio simulator
+  // evaluated, so live sizing and the backtested sizing are the same model.
+  sizingMode: 'risk',
+  riskPctPerTrade: 1,
   dailyKillSwitch: 5_000, // revisit alongside the (now uncapped) capital model
   maxOpenPositions: 2,
   maxPerSector: 1,

@@ -57,5 +57,6 @@ export {
   type EquityPoint,
   type SizingMode,
   type SkipReason,
+  type RankKey,
 } from './portfolioSimulator';
 export { runSweep, DEFAULT_SWEEP_GRID, type SweepCombo, type SweepResult } from './sweep';

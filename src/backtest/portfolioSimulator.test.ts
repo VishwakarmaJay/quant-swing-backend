@@ -160,3 +160,86 @@ describe('simulatePortfolio', () => {
     expect(simulatePortfolio(store, signals, cfg(), noSlip)).toEqual(simulatePortfolio(store, signals, cfg(), noSlip));
   });
 });
+
+/**
+ * B11 slot allocation: with 1 slot and 2 same-day candidates, the rank key alone
+ * decides which trade the book takes — so these tests pin that the mechanism
+ * actually re-orders, stays deterministic, and measures its own regret.
+ */
+describe('slot allocation (B11)', () => {
+  /** One slot, two same-day candidates: WIN jumps +25%, LOSS stays flat (time-stop ≈ 0%). */
+  const contest = (winnerScores: Record<string, number>, loserScores: Record<string, number>) => {
+    const store = makeStore({
+      WIN: { candles: risingAfter(100, 7, 25), sector: 'IT' },
+      LOSS: { candles: flatSeries(100), sector: 'AUTO' },
+    });
+    const signals: RawSignal[] = [
+      { ...signal('WIN', 'IT', 5, 100, 95, 70), factorScores: winnerScores },
+      { ...signal('LOSS', 'AUTO', 5, 100, 95, 90), factorScores: loserScores },
+    ];
+    return { store, signals };
+  };
+
+  test('composite (default) takes the higher-composite candidate — here the loser', () => {
+    const { store, signals } = contest({ sentiment: 90 }, { sentiment: 10 });
+    const r = simulatePortfolio(store, signals, cfg({ maxOpenPositions: 1, initialCapital: 20_000 }), noSlip);
+    expect(r.trades).toHaveLength(1);
+    expect(r.trades[0]!.symbol).toBe('LOSS'); // composite 90 > 70 wins the slot
+    expect(r.metrics.skipped['position-limit']).toBe(1);
+  });
+
+  test('switching the rank key to sentiment takes the other candidate — the winner', () => {
+    const { store, signals } = contest({ sentiment: 90 }, { sentiment: 10 });
+    const r = simulatePortfolio(
+      store,
+      signals,
+      cfg({ maxOpenPositions: 1, initialCapital: 20_000, rankKey: 'sentiment' }),
+      noSlip,
+    );
+    expect(r.trades[0]!.symbol).toBe('WIN');
+  });
+
+  test('regret: selectionEdge is positive when the key picks the better trade, negative when it does not', () => {
+    const { store, signals } = contest({ sentiment: 90 }, { sentiment: 10 });
+    const good = simulatePortfolio(
+      store,
+      signals,
+      cfg({ maxOpenPositions: 1, initialCapital: 20_000, rankKey: 'sentiment' }),
+      noSlip,
+    ).metrics;
+    const bad = simulatePortfolio(store, signals, cfg({ maxOpenPositions: 1, initialCapital: 20_000 }), noSlip)
+      .metrics;
+
+    expect(good.slotSkippedCount).toBe(1);
+    expect(good.takenNetPctAvg).toBeGreaterThan(good.skippedNetPctAvg);
+    expect(good.selectionEdgePct).toBeGreaterThan(0);
+    // The incumbent key took the flat trade and skipped the winner → negative edge.
+    expect(bad.selectionEdgePct).toBeLessThan(0);
+    // Same candidate pool, opposite choices: the edges mirror each other.
+    expect(good.selectionEdgePct).toBeCloseTo(-bad.selectionEdgePct, 6);
+  });
+
+  test('the random control is deterministic across runs (seeded, not Math.random)', () => {
+    const { store, signals } = contest({ sentiment: 90 }, { sentiment: 10 });
+    const c = cfg({ maxOpenPositions: 1, initialCapital: 20_000, rankKey: 'random' });
+    expect(simulatePortfolio(store, signals, c, noSlip)).toEqual(simulatePortfolio(store, signals, c, noSlip));
+  });
+
+  test('tight-stop ranks the smallest stop distance first', () => {
+    const store = makeStore({
+      TIGHT: { candles: risingAfter(100, 7, 25), sector: 'IT' },
+      WIDE: { candles: risingAfter(100, 7, 25), sector: 'AUTO' },
+    });
+    const signals = [
+      signal('WIDE', 'AUTO', 5, 100, 80, 95), // 20% stop, highest composite
+      signal('TIGHT', 'IT', 5, 100, 98, 60), // 2% stop, lowest composite
+    ];
+    const r = simulatePortfolio(
+      store,
+      signals,
+      cfg({ maxOpenPositions: 1, initialCapital: 20_000, rankKey: 'tight-stop' }),
+      noSlip,
+    );
+    expect(r.trades[0]!.symbol).toBe('TIGHT');
+  });
+});

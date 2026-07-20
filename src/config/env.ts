@@ -22,12 +22,20 @@ const EnvSchema = z.object({
   POSITION_CLEANUP_POLL_MS: z.coerce.number().int().positive().default(1800000),
 
   // ---- PortfolioManager (sizing + limits; set at runtime) ----
-  /** Capital (₹) allocated to a trade at full conviction; scaled by composite. */
+  /** Per-trade slot budget (₹). The book is this × PORTFOLIO_MAX_OPEN_POSITIONS. */
   PORTFOLIO_BASE_CAPITAL: z.coerce.number().positive().default(100000),
   /** Max concurrent positions the PortfolioManager will hold. */
   PORTFOLIO_MAX_OPEN_POSITIONS: z.coerce.number().int().positive().default(2),
   /** Max concurrent positions per sector. */
   PORTFOLIO_MAX_PER_SECTOR: z.coerce.number().int().positive().default(1),
+  /**
+   * Sizing model. `risk` since 2026-07-20 (B9 + B11: best returns and ~half the
+   * drawdown in every simulated cell); `conviction` is the legacy composite-scaled
+   * model, kept switchable for comparison but measured inferior.
+   */
+  PORTFOLIO_SIZING_MODE: z.enum(['risk', 'conviction']).default('risk'),
+  /** `risk` mode: % of the whole book put at risk per trade (entry→stop). */
+  PORTFOLIO_RISK_PCT: z.coerce.number().positive().default(1),
   /**
    * Reject OMS placements outside 09:15–15:30 IST. Off by default: the Paper
    * broker exists to test after hours (hedged's marketTime guard was

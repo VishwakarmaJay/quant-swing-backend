@@ -47,7 +47,7 @@ RabbitMQ (jobs). All indicator math is in-house so it can be golden-tested byte-
 **Status:** Phases 1–4 complete + the Part-B research program (attribution, regime
 experiments, walk-forward, portfolio backtest, news archive + backfills, fundamentals,
 FinBERT, Fundamental + Sentiment factors) — **B1–B9 done** ([`B9_RERUN.md`](./B9_RERUN.md)).
-**369 tests, typecheck clean.** The strategy has been improved from clearly losing to near-breakeven **but has no
+**416 tests, typecheck clean.** The strategy has been improved from clearly losing to near-breakeven **but has no
 positive out-of-sample edge yet** — Phase 5 (paper trading) is gated (§15, §17).
 
 ## 2. The pipeline
@@ -728,7 +728,7 @@ caveats; 13–17 are engineering/scope.)
 ## 17. Current state & what's next
 
 **State:** a complete, reproducible, honestly-measured research platform. **[UPDATED
-2026-07-20]** 369 tests + golden gate green; whole stack deployed on AWS
+2026-07-20]** 416 tests + golden gate green; whole stack deployed on AWS
 (`DEPLOYMENT_AWS.md`). The Part-B program is **complete through B9**
 ([`B9_RERUN.md`](./B9_RERUN.md)): both orthogonal factors measured (bucket blends
 rejected; floor gates validated — the information lives in the negative tails), volume
@@ -757,6 +757,6 @@ risk-adjusted, net of costs, out-of-sample.
 ---
 
 *Every formula in this file was verified against `src/` at the 149-test state (§§1–14) and
-maintained forward; findings/limitations/state are current as of the 369-test state. If
+maintained forward; findings/limitations/state are current as of the 374-test state. If
 code and this file ever disagree, the code + golden fixture are the truth — update this
 file.*

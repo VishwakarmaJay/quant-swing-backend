@@ -408,6 +408,58 @@ Full doc: [`B9_RERUN.md`](./B9_RERUN.md) · anchored coverage-era folds (`makeAn
   its place. ✅ **Met. Next lever (new, measured): slot allocation — the 2-slot book takes
   ~14% of signals, picked by a ρ≈0 ranking; risk sizing is the drawdown-preserving default.**
 
+### ✅ B11. Slot-allocation research — DONE (2026-07-20); the ranking question, answered NO
+Full doc: [`SLOT_ALLOCATION.md`](./SLOT_ALLOCATION.md) · `bun run backtest:slots [tier]` ·
+379 tests. B9 named this the largest unworked lever; it is now measured and closed.
+- [x] **Mechanism:** `RankKey` on the portfolio simulator (8 orderings incl. a seeded,
+      deterministic **`random` control**) + **regret metrics** (`takenNetPctAvg`,
+      `skippedNetPctAvg`, **`selectionEdgePct`**) — the book's forgone trades are already
+      precomputed, so measuring what it gave up was free. Default stays `composite`
+      (byte-identical); +5 tests.
+- [x] **Pre-registered rule:** a key earns further work only if it beats `random` on
+      `selEdge` across BOTH windows. **Result: NOTHING PASSES.** `fundamental` wins the
+      coverage era (+0.14) and reverses on FULL (−0.06); everything else fails outright.
+- [x] **The incumbent composite ranking loses to a coin flip on both windows**
+      (−0.14 vs −0.01 coverage; +0.03 vs +0.05 FULL) — ρ≈0 reproduced from the allocation
+      side by an independent method. `calm`/`tight-stop` are consistently *harmful*
+      (−0.33…−0.49): real information, inverted.
+- [x] **Slots dose closed too:** widening `maxOpenPositions` degrades monotonically past 3
+      (6 slots: −14.8%) — taking more of a negative-expectancy pool compounds the drift.
+- [x] **Risk sizing dominates all 12 sizing cells** (composite −1.68 vs flat −16.31; best
+      drawdowns everywhere), corroborating B9. Mechanism: conviction sizing allocates ∝ the
+      composite — i.e. sizes up on a score that loses to random.
+- **Done when:** slot allocation is measured against a control. ✅ **Met — and the answer
+  redirects the roadmap: the ~14% bottleneck is SIGNAL QUALITY, not allocation. A portfolio
+  optimizer is premature (its objective function doesn't exist yet). Cost: one day; saved:
+  a month.**
+- [ ] ⚙️ Operator decision surfaced: switch production sizing conviction → **risk**
+      (`PORTFOLIO_*` env), on B9+B11 evidence.
+
+### ✅ B12. Event typing + event study — DONE (2026-07-20); right-tail hypothesis NOT confirmed
+Full doc: [`EVENT_STUDY.md`](./EVENT_STUDY.md) · `bun run events:study [1|3|5|10]` · 416 tests.
+B11 named the right tail as the frontier; this tests whether event typing finds it.
+- [x] **Deterministic classifier** (`src/events/classify.ts`, pure, versioned `ev-1.0.0`,
+      +27 tests): exchange-label first — BSE's own `(LODR)-<SubCategory>` survives in the
+      stored body (39.4% of rows) — then a tight keyword pack (+18%). **57.7% typed**, no
+      NLP. Untyped → `OTHER`, never guessed.
+- [x] **Event-study math** (`src/events/eventStudy.ts`, pure, +10 tests): forward excess vs
+      Nifty at 1/3/5/10d, anchored at the first close **strictly after `availableAt`**;
+      reports CI, hit rate and **p90 (the right-tail statistic)**.
+- [x] **Result: no event type has a distinctively fat right tail** — p90 spans just 4.1–5.9
+      across all 12 types at 5d. Hypothesis as posed is unsupported.
+- [x] **The `OTHER` baseline is the key control:** the untyped grab-bag is *also* positive
+      (+0.12, CI excludes 0) ⇒ the right null is "a company filed something", not zero.
+      Against it only **3 of 12** types clear (INSIDER_PLEDGE, RATING_ACTION, M_AND_A) —
+      and INSIDER_PLEDGE is confounded by scheduled trading-window notices.
+- [x] **What survives: small monotone drift**, not a tail — ORDER_WIN +0.78 and
+      INSIDER_PLEDGE +0.82 at 10d, vs a 0.25% round-trip cost. Thin.
+- [x] **EARNINGS_RESULT is flat at every horizon** — the sharpest statement yet of the
+      free-data ceiling: we can type *that* results were filed, not *whether they
+      surprised*. Surprise needs consensus estimates (paid). No PEAD without it.
+- **Done when:** event types are measured for right-tail contribution. ✅ **Met — negative.
+  Nothing graduates to a factor. Remaining free-data right-tail ideas: delivery %
+  (NSE bhavcopy, untouched) and de-confounding INSIDER_PLEDGE.**
+
 ### B10. Phase 5 — paper trading 🔒 HARD-GATED
 - **Gate (unchanged):** B1's portfolio-level backtest shows the B9 strategy **beats Nifty
   risk-adjusted, net of costs, out-of-sample.** Not before — paper-trading a known-negative

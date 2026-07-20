@@ -3,9 +3,10 @@ import { env } from '@config/env';
 import { DEFAULT_PORTFOLIO_CONFIG, type PortfolioConfig } from './types';
 
 /**
- * Builds the PortfolioConfig from runtime env vars, so the per-trade capital and
- * position limits are set without code changes:
+ * Builds the PortfolioConfig from runtime env vars, so capital, limits and the
+ * sizing model are set without code changes:
  *   PORTFOLIO_BASE_CAPITAL · PORTFOLIO_MAX_OPEN_POSITIONS · PORTFOLIO_MAX_PER_SECTOR
+ *   PORTFOLIO_SIZING_MODE (risk | conviction) · PORTFOLIO_RISK_PCT
  * Anything unset falls back to DEFAULT_PORTFOLIO_CONFIG.
  */
 export const portfolioConfigFromEnv = (): PortfolioConfig => ({
@@ -13,4 +14,6 @@ export const portfolioConfigFromEnv = (): PortfolioConfig => ({
   baseCapitalPerTrade: env.PORTFOLIO_BASE_CAPITAL,
   maxOpenPositions: env.PORTFOLIO_MAX_OPEN_POSITIONS,
   maxPerSector: env.PORTFOLIO_MAX_PER_SECTOR,
+  sizingMode: env.PORTFOLIO_SIZING_MODE,
+  riskPctPerTrade: env.PORTFOLIO_RISK_PCT,
 });

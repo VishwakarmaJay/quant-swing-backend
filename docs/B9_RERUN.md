@@ -83,7 +83,10 @@ One ₹2L book, 2-slot cap, 1-per-sector, kill switch; FULL / OOS(2023-01→) /
    pinned by `productionStrategy.test.ts`. Signals remain manual decision support.
 4. **Where the remaining gap points:** the 2-slot book takes ~14% of signals
    (position-limit skips ≈ 709/178 taken on coverage), still ranked by a composite with
-   ρ≈0. **Slot allocation is now the largest unworked lever**, ahead of any new factor.
+   ρ≈0. **[B11 UPDATE, same day: measured and closed.](./SLOT_ALLOCATION.md)** No ordering
+   beats a seeded random control on both windows — the incumbent composite ranking *loses*
+   to a coin flip, and widening slots degrades monotonically. The bottleneck is signal
+   quality, not allocation; a portfolio optimizer is premature.
    Risk sizing consistently delivers the smallest drawdowns and the best coverage-era
    result — the capital-preservation default.
 

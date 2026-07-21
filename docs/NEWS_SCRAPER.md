@@ -200,6 +200,7 @@ status`. Two purpose-built alarms:
 | Historical backfills (provenance-tagged) | GDELT: [`GDELT_BACKFILL.md`](./GDELT_BACKFILL.md) · BSE filings: [`BSE_BACKFILL.md`](./BSE_BACKFILL.md) |
 | Schema | `prisma/schema.prisma` → `news_article` (+ `origin`, `availableAt`, **`aliasVersion`**), `ingest_run` |
 | Alias-derivation version (B15) | `src/news/aliasVersion.ts` (`ALIAS_VERSION`, hashes dictionary + exclusions + Indian domains) |
+| Raw-payload capture / Bronze (B16) | `src/news/rawCapture.ts` — deduped raw fetch payloads → spool → S3 `raw/<sha>.gz`; `raw_capture` index table |
 | Env knobs | `NEWS_INGEST_INTERVAL_MS` · `NEWS_DEDUPE_WINDOW_DAYS` · `NEWS_FETCH_TIMEOUT_MS` |
 
 ## 11. Sentiment scoring (B6 — FinBERT sidecar)

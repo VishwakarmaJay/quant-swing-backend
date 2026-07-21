@@ -681,7 +681,7 @@ roundTripCostPct 0.25%, size-reduction 3–6% ATR × 0.75.
 | `sentiment:score` | FinBERT scoring catch-up (`--rescore` on model bumps) |
 | `fundamentals:backfill` / `:snapshot` / `:retry` | Point-in-time fundamentals history + weekly snapshotter (B4) |
 | `golden:snapshot` / `golden:update` | Refresh / re-baseline the golden fixture |
-| `test`, `typecheck` | **448 tests**; strict tsc |
+| `test`, `typecheck` | **457 tests**; strict tsc |
 
 **Cron schedule** (RabbitMQ-backed, IST):
 | Time | Job |
@@ -742,9 +742,10 @@ and persisted; the alert renders to Telegram.
 | **B9 — Phase 6 rerun** (joint selection over the enriched factor set) | ✅ **Done (2026-07-20)** — one best strategy; gate still failed ([`B9_RERUN.md`](./B9_RERUN.md)) |
 | 5 / B10 — Paper trading (≥2-week beat-Nifty gate) | 🔒 **Hard-gated — gate re-read after B9: still failed, gap narrowed** |
 
-> The live tracker is [`ROADMAP_CHECKLIST.md`](./ROADMAP_CHECKLIST.md); all math and the
-> full limitations list are in [`COMPLETE_REFERENCE.md`](./COMPLETE_REFERENCE.md). This
-> section is the summary, not the source of truth for task state.
+> The live tracker is [`ROADMAP_CHECKLIST.md`](./ROADMAP_CHECKLIST.md); **open tasks +
+> current limitations are in [`OPEN_ITEMS.md`](./OPEN_ITEMS.md)**; all math is in
+> [`COMPLETE_REFERENCE.md`](./COMPLETE_REFERENCE.md). This section is the summary, not the
+> source of truth for task state.
 
 ### Why Phase 5 is still NOT next
 Its gate is "beat Nifty risk-adjusted, net of costs, **out-of-sample**." The B9 portfolio
@@ -799,4 +800,4 @@ to the same reproducibility standard as the *factor pipeline*
 
 *§§1–12 were written at the completion of Phase 4 and remain the exact implementation in
 `src/`; §13 and the config/script tables are maintained forward. Covered by the
-**448-test** suite + the golden determinism gate.*
+**457-test** suite + the golden determinism gate.*

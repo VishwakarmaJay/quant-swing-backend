@@ -75,6 +75,10 @@ services:
       REDIS_PORT: '6379'
       RABBITMQ_URL: amqp://rabbitmq
       SENTIMENT_SIDECAR_URL: http://sidecar:8001
+      RAW_SPOOL_DIR: /raw-spool
+    volumes:
+      # B16: raw-payload spool — ingest writes here, the backup ships it to S3.
+      - /home/ubuntu/quantswing/raw-spool:/raw-spool
     ports:
       - '3000:3000'
     depends_on:

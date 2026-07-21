@@ -562,6 +562,38 @@ model IngestRun {
   @@map("ingest_run")
 }
 
+/// Raw-payload capture index (B16, the architecture-review "Bronze layer").
+/// The parser is regex-based and can silently drop malformed items; without the
+/// raw payload a parser bug found next month cannot be replayed against last
+/// month's feeds. This row is the INDEX — the payload bytes live in S3
+/// (gzipped, keyed by `sha`) so the Postgres dump stays small. One row per
+/// distinct payload content: identical re-fetches (CDN-cached feeds) collapse on
+/// the `sha` unique key, so a 15-min poll of an unchanged feed costs nothing.
+model RawCapture {
+  id         String   @id @default(uuid())
+  /// SHA-256 of the raw payload bytes — the dedup key and the S3 object name.
+  sha        String   @unique
+  /// Feed source id (ET_MARKETS, LIVEMINT, BSE_ANNOUNCEMENTS, GOOGLE_NEWS).
+  source     String
+  /// The exact URL fetched (BSE expands {date}, so this is the resolved URL).
+  url        String
+  httpStatus Int
+  /// Uncompressed payload size in bytes.
+  bytes      Int
+  /// S3 object key the gzipped payload was written to, or null if the upload
+  /// failed (the capture is non-fatal — ingest never fails on a raw-capture miss).
+  s3Key      String?
+  /// First time this exact payload content was seen.
+  firstSeen  DateTime @default(now())
+  /// Most recent fetch that returned this same content (updated on re-observe).
+  lastSeen   DateTime @default(now())
+  /// How many fetches have returned this exact payload (re-fetch count).
+  seenCount  Int      @default(1)
+
+  @@index([source, firstSeen])
+  @@map("raw_capture")
+}
+
 /// How a NewsArticle entered the archive (B3.5 provenance).
 enum NewsOrigin {
   /// Captured live from an RSS/Atom feed poll (as-of = capture time).

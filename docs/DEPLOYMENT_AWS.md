@@ -166,7 +166,10 @@ ap-south-1, private / versioned / AES256 / 90-day lifecycle, 30-day noncurrent e
 
 **Auth: instance IAM role, no keys on the box.** `quantswing-backup-role` (via
 `quantswing-backup-profile`) is attached to the instance; its policy allows **only**
-`s3:PutObject` to `…/backups/*` of this one bucket (no read of other buckets, no delete).
+`s3:PutObject` to `…/backups/*` and `…/raw/*` of this one bucket (no read of other buckets,
+no delete). The `raw/` prefix (B16) holds deduped raw fetch payloads (`raw/<sha>.gz`,
+180-day lifecycle); the backend can't reach IMDS from the compose network, so ingest
+**spools** payloads to a host-mounted dir and this same daily backup ships + prunes them.
 The box has no `aws` binary — the upload runs through the `amazon/aws-cli` Docker image
 with `--network host` so it can read credentials from instance metadata (IMDSv2). The
 upload is **non-fatal**: an S3 failure logs `S3 FAIL` but never fails the local backup.

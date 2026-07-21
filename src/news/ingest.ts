@@ -8,6 +8,7 @@ import { parseFeed } from './rssParser';
 import { NEWS_SOURCES, resolveSourceUrls } from './sources';
 import { mapArticleSymbols } from './symbolMapper';
 import { ALIAS_VERSION } from './aliasVersion';
+import { captureRawPayload } from './rawCapture';
 import { originForSource, type NewsSource, type NewsSourceId, type RawFeedItem } from './types';
 
 /** Per-source outcome of one ingestion run (for monitoring volume/dupe rate). */
@@ -100,6 +101,9 @@ export const ingestNews = async (sources: readonly NewsSource[] = NEWS_SOURCES):
         failedUrls++;
         continue;
       }
+      // B16: keep the raw payload (Bronze layer) before parsing, so a future
+      // parser fix can be replayed against it. Non-fatal, deduped by content.
+      await captureRawPayload(source.id, url, 200, payload);
       items.push(...parseFeed(payload, source.dialect));
     }
     if (failedUrls === urls.length) {

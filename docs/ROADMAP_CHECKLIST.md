@@ -5,7 +5,8 @@
 > the walk-forward harness where applicable, never off a single window. Keep this file
 > updated as work lands; details live in the linked docs.
 >
-> Companions: [`COMPLETE_REFERENCE.md`](./COMPLETE_REFERENCE.md) (all math + limitations) ·
+> Companions: [`OPEN_ITEMS.md`](./OPEN_ITEMS.md) (**open tasks + limitations, the live tail**) ·
+> [`COMPLETE_REFERENCE.md`](./COMPLETE_REFERENCE.md) (all math + limitations) ·
 > [`HANDOFF_NEXT_STEPS.md`](./HANDOFF_NEXT_STEPS.md) (narrative) · [`PHASE6.md`](./PHASE6.md) ·
 > [`ARCHITECTURE_REVIEW_B3_B4.md`](./ARCHITECTURE_REVIEW_B3_B4.md) (principal-architect review of the data layer — read before B5/B6 work)
 
@@ -496,7 +497,7 @@ Full doc: [`DELIVERY_STUDY.md`](./DELIVERY_STUDY.md) · `bun run bhavcopy:downlo
 
 ### ✅ B14. Longer horizon (the option-1 test) — DONE (2026-07-20); confirmed at signal level, killed at portfolio level
 Full doc: [`HORIZON_STUDY.md`](./HORIZON_STUDY.md) · `bun run backtest:horizon` +
-`backtest:horizon:portfolio` · 448 tests.
+`backtest:horizon:portfolio` · 457 tests.
 - [x] **Found and fixed a trap that would have produced a false negative:** thesis-break
       (`2 closes < EMA20 || MACD flip`) is a *7-day* thesis, so raising `timeStopDays`
       alone leaves holds **unchanged** (45d time stop → 8.6d actual hold). Now config
@@ -556,8 +557,19 @@ the archive's survival and integrity, so these come first.
       is honest — 172,867 version-only restamps), idempotent on re-run. A future dictionary
       change is now a **tracked** version bump the sentiment backtest can split/filter by,
       not a silent rewrite. The reproducibility guarantee `weightsVersion` gives the factor
-      pipeline, now extended to the archive. *(Raw-capture layer — the larger half of the
-      architecture-review debt — remains open.)*
+      pipeline, now extended to the archive.
+- [x] ✅ **B16 — Raw-payload capture (the "Bronze layer") — DONE (2026-07-20).** The
+      review's governing criticism ("no raw retention — a parser bug can't be replayed
+      against last month's feeds") is closed forward. Ingest captures each fetched payload,
+      **deduped by content SHA** (CDN-cached re-fetches just bump `seenCount`); bytes are
+      gzipped → spooled → shipped to **S3 `raw/<sha>.gz`** by the daily backup (payloads
+      out of the pg_dump, box disk bounded to <1 day). A `raw_capture` index row
+      (sha/source/url/status/bytes/s3Key) stays in Postgres forever. **Verified end-to-end
+      on the box:** live fetch → 5 deduped payloads → S3 → **content-address integrity
+      confirmed** (S3 object gunzips to bytes whose SHA == its filename). +4 tests, 457
+      total. Non-fatal (never fails ingest). → `NEWS_SCRAPER.md`, `DEPLOYMENT_AWS.md` §5.
+      *(Historical rows pre-B16 have no raw — their payloads were discarded at ingest and
+      can't be recovered; this is forward-only, as any Bronze layer added late must be.)*
 - [ ] De-confound `INSIDER_PLEDGE` (split scheduled trading-window notices from real
       SAST/PIT filings) — rescues or honestly kills B12's strongest cell.
 - [ ] One more attempt at historical index-constituent data (survivorship residual).

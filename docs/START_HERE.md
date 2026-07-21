@@ -36,8 +36,13 @@ OHLCV → DataQuality → 8 factors → regime → strategy (+ BULL pullback ent
   fundamentals · FinBERT sidecar · embargoed + anchored walk-forward · deployed on AWS
 - **B9** ✅ joint selection → **one best strategy**: `pullback+srs0.25+ff50+sf50-novol`
   (both floor levers in, volume out), selected on all 4 coverage-era folds × both tiers
+- **B11–B14** ✅ four more research lines — slot allocation, event typing, delivery %,
+  horizon — **all negative** (see the read-before-planning box below)
+- **B15/B16** ✅ consolidation: archive backups + offsite S3, `aliasVersion` stamping, and
+  raw-payload capture (Bronze layer) — the archive now meets the factor pipeline's
+  reproducibility standard. Direction: **consolidate + wait** (see [`OPEN_ITEMS.md`](./OPEN_ITEMS.md))
 
-**448 tests pass**, `bun run typecheck` clean.
+**457 tests pass**, `bun run typecheck` clean.
 
 ## ⚠️ The one thing you must know: still NO out-of-sample edge (but the gap is closing)
 
@@ -123,6 +128,7 @@ end state. Full argument: [`DELIVERY_STUDY.md`](./DELIVERY_STUDY.md) §4 +
 
 | To understand… | Read |
 |---|---|
+| **What's left + every known limitation** | [`docs/OPEN_ITEMS.md`](./OPEN_ITEMS.md) ← open tasks & the honest limitation list |
 | **What to do next, in order (live checklist)** | [`docs/ROADMAP_CHECKLIST.md`](./ROADMAP_CHECKLIST.md) ← the master tracker |
 | News scraper (sources, fetching, limitations) | [`docs/NEWS_SCRAPER.md`](./NEWS_SCRAPER.md) |
 | **Everything in one file** (all math, all factors, findings, limitations) | [`docs/COMPLETE_REFERENCE.md`](./COMPLETE_REFERENCE.md) |
@@ -151,7 +157,7 @@ bun run backtest:portfolio    # portfolio-level "beat Nifty" gate ← the decisi
 bun run backtest:phase6       # embargoed walk-forward (OOS)
 bun run backtest:slots        # slot-allocation rank keys vs a random control
 
-bun test                      # 448 tests
+bun test                      # 457 tests
 bun run typecheck
 ```
 

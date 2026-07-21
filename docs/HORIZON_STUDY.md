@@ -7,7 +7,7 @@
 > ⚠️ **Read §4 before §2.** §2's headline result is a bull-market artifact; the
 > walk-forward inverts it, and a claim made in the first draft of this doc is retracted.
 > **Code:** `src/backtest/tradeSimulator.ts` (horizon-scoped exits) ·
-> `src/scripts/{runHorizonSweep,runHorizonPortfolio,runHorizonWalkForward}.ts`. **Date:** 2026-07-20 · 448 tests.
+> `src/scripts/{runHorizonSweep,runHorizonPortfolio,runHorizonWalkForward}.ts`. **Date:** 2026-07-20 · 457 tests (448 at B14 landing).
 > Motivated by [`DELIVERY_STUDY.md`](./DELIVERY_STUDY.md) §4 option 1.
 
 ## 1. Why a longer horizon, and the trap that nearly hid the answer

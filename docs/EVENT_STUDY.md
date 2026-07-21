@@ -1,9 +1,14 @@
 # B12 — Event study: is the right tail in the events?
 
 > **Run it:** `bun run events:study [1|3|5|10]` (read-only).
-> **Code:** `src/events/classify.ts` (pure, versioned `ev-1.0.0`) ·
+> **Code:** `src/events/classify.ts` (pure, versioned `ev-1.1.0`) ·
 > `src/events/eventStudy.ts` (pure outcome math) · `src/scripts/runEventStudy.ts`.
 > **Date:** 2026-07-20 · 57,635 symbol-observations from 57,080 exchange filings.
+> **Update 2026-07-21 (`ev-1.1.0`):** `INSIDER_PLEDGE` de-confounded — scheduled
+> `TRADING_WINDOW` notices split into their own type. Result in §4b (the strong
+> `+0.82@10d` cell was the calendar artifact, not smart money). The §2/§3 tables
+> below are the original `ev-1.0.0` run; only the `INSIDER_PLEDGE` row changed —
+> every other cell is byte-identical.
 > Precedent: [`SLOT_ALLOCATION.md`](./SLOT_ALLOCATION.md) (B11 closed the allocation
 > question and named the right tail as the frontier).
 
@@ -91,13 +96,42 @@ a seasonality effect, not information. Splitting genuine SAST/PIT/pledge disclos
 trading-window notices is a prerequisite before this cell is believed. **Do not treat the
 +0.82 as a smart-money result.**
 
+> **✅ RESOLVED — de-confounded 2026-07-21 (`ev-1.1.0`).** The classifier now tests
+> `trading window` *before* the pledge rule (the scheduled notices carry PIT-regulation
+> boilerplate that would otherwise match `insider`), splitting the old bucket into
+> `TRADING_WINDOW` (scheduled) and `INSIDER_PLEDGE` (real SAST/PIT/pledge). Re-run,
+> BSE origins, every other cell byte-identical:
+>
+> | cell | n | 5d mean (CI) | 10d mean (CI) | 10d p90 |
+> |---|---|---|---|---|
+> | **old** INSIDER_PLEDGE (`ev-1.0.0`) | 1418 | +0.48 (+.26…+.70) | +0.82 (+.50…+1.13) | +7.38 |
+> | **TRADING_WINDOW** (scheduled artifact) | **1294** | +0.45 (+.22…+.67) | **+0.82 (+.49…+1.14)** | +7.34 |
+> | **INSIDER_PLEDGE** (real disclosures) | **124** | +0.80 (+.02…+1.59) | +0.79 (**−0.40**…+1.98) | **+8.37** |
+>
+> **The verdict is: the strong, tight cell was the calendar artifact.** 91% of the old
+> observations (1294/1418) were trading-window notices, and they retain the *entire*
+> well-powered positive drift (significant at 5d **and** 10d) — exactly the pre-earnings
+> seasonality §4b predicted, **not** information. The B12 §4b suspicion is confirmed:
+> **the celebrated `+0.82@10d` is not a smart-money result.**
+>
+> The genuine SAST/PIT/pledge remnant (n=124) is *not* cleanly killed, though — it keeps a
+> comparable magnitude (5d +0.80, 10d +0.79) and the **fattest p90 in the entire study**
+> (+8.37@10d), but at n≈125 its CI is significant at 5d and spans zero at 10d. Honest read:
+> **an underpowered candidate, not a result** — a thin, high-variance right-tail hypothesis
+> that neither the data nor the pre-registered n-floor lets us bank. It graduates to nothing;
+> if the archive accrues enough genuine-disclosure rows to tighten n, it is worth one re-look,
+> but the seasonality signal it was riding on has been removed.
+
 ## 5. Verdict
 
 1. **The right-tail hypothesis is not confirmed by event typing.** No type shows a
    distinctively fat upside tail; the p90 spread across all types is 4.1–5.9 at 5 days.
 2. **Only three types beat the filing baseline** (INSIDER_PLEDGE, RATING_ACTION, M_AND_A),
    and one of those three is confounded. Against the correct null, the effect count drops
-   from eight to two-and-a-half.
+   from eight to two-and-a-half. **[UPDATED — ev-1.1.0, §4b]** The confounded one is now
+   split: the strong cell was `TRADING_WINDOW` (a calendar artifact), and the genuine
+   `INSIDER_PLEDGE` remnant (n=124) no longer clears the baseline at 10d. So against the
+   correct null the durable count is **two** (RATING_ACTION, M_AND_A) — both thin.
 3. **The surviving signal is small monotone drift**, not a tail. ORDER_WIN and
    RATING_ACTION are the honest candidates: coherent across horizons, mechanism-plausible,
    but +0.4–0.8% at 10 days is thin against costs and a 2R/3R target structure that needs
@@ -120,8 +154,9 @@ Typing coverage 57.7% — untyped rows are excluded from typed cells, not assume
 observations, so cells are not independent across co-mentioned names. Survivorship
 (today's universe). No entry gate, sizing, or cost model — this measures what followed an
 event, not what a strategy would have earned. Cells with n < 30 are dropped rather than
-reported. Extractor `ev-1.0.0`: changing the rule pack changes the version, and any study
-should be re-run rather than compared across versions.
+reported. Extractor `ev-1.1.0` (was `ev-1.0.0` — the `TRADING_WINDOW`/`INSIDER_PLEDGE`
+split, §4b): changing the rule pack changes the version, and any study should be re-run
+rather than compared across versions.
 
 *Engineering note (fixed 2026-07-20): the first run reported zero observations — a
 symbol-join failure (news symbols are canonical, instrument symbols carry a `-EQ` series

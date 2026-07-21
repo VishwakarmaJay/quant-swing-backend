@@ -570,8 +570,13 @@ the archive's survival and integrity, so these come first.
       total. Non-fatal (never fails ingest). → `NEWS_SCRAPER.md`, `DEPLOYMENT_AWS.md` §5.
       *(Historical rows pre-B16 have no raw — their payloads were discarded at ingest and
       can't be recovered; this is forward-only, as any Bronze layer added late must be.)*
-- [ ] De-confound `INSIDER_PLEDGE` (split scheduled trading-window notices from real
-      SAST/PIT filings) — rescues or honestly kills B12's strongest cell.
+- [x] **De-confound `INSIDER_PLEDGE`** — DONE (2026-07-21, `ev-1.1.0`). Split scheduled
+      `TRADING_WINDOW` notices from real SAST/PIT/pledge disclosures (`trading window`
+      tested before the pledge rule; +5 classifier tests, 462 total, typecheck clean).
+      Re-ran `events:study` on the local archive: the strong `+0.82@10d` cell was the
+      **calendar artifact** — `TRADING_WINDOW` (n=1294) keeps the entire well-powered drift;
+      genuine `INSIDER_PLEDGE` (n=124) no longer clears the baseline at 10d (CI spans zero).
+      B12 §4b confirmed: not a smart-money result. → [`EVENT_STUDY.md`](./EVENT_STUDY.md) §4b.
 - [ ] One more attempt at historical index-constituent data (survivorship residual).
 
 ### B10. Phase 5 — paper trading 🔒 HARD-GATED

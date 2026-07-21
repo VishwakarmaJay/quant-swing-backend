@@ -20,7 +20,10 @@
  * `weightsVersion` pattern applied to derivation).
  */
 
-export const EXTRACTOR_VERSION = 'ev-1.0.0';
+// ev-1.1.0: split scheduled TRADING_WINDOW notices out of INSIDER_PLEDGE (B12
+// de-confound). The rule pack changed, so the version bumps — studies must be
+// re-run under the new version, never compared across versions.
+export const EXTRACTOR_VERSION = 'ev-1.1.0';
 
 export type EventType =
   | 'EARNINGS_RESULT'
@@ -32,7 +35,8 @@ export type EventType =
   | 'BOARD_MEETING'
   | 'MGMT_CHANGE'
   | 'CAPITAL_ISSUE'        // allotments, ESOP, fund raises
-  | 'INSIDER_PLEDGE'       // SAST/PIT, pledge, trading window
+  | 'INSIDER_PLEDGE'       // real SAST/PIT trade + pledge/encumbrance disclosures (information)
+  | 'TRADING_WINDOW'       // scheduled window closure/opening — a CALENDAR artifact, split from INSIDER_PLEDGE (B12)
   | 'MEDIA_ROUTINE'        // press release / newspaper publication — low signal, typed to keep it OUT of OTHER
   | 'OTHER';
 
@@ -56,7 +60,11 @@ const LABEL_MAP: [RegExp, EventType][] = [
   [/board meeting/i, 'BOARD_MEETING'],
   [/change in management|change in directorate|cessation|appointment|resignation|key managerial/i, 'MGMT_CHANGE'],
   [/allotment|issue of securities|fund ?rais|preferential issue|rights issue|buyback/i, 'CAPITAL_ISSUE'],
-  [/pledge|encumbrance|insider|trading window|sast/i, 'INSIDER_PLEDGE'],
+  // Trading-window MUST come before the pledge rule: a "Trading Window closure
+  // under SEBI (Prohibition of Insider Trading)" notice mentions both, and it is
+  // the scheduled calendar artifact, not a real disclosure (B12 de-confound).
+  [/trading window/i, 'TRADING_WINDOW'],
+  [/pledge|encumbrance|insider|sast/i, 'INSIDER_PLEDGE'],
   [/press release|media release|newspaper publication/i, 'MEDIA_ROUTINE'],
 ];
 
@@ -78,7 +86,12 @@ const KEYWORD_RULES: [RegExp, EventType][] = [
   [/acquisition|acquire[sd]?\b|scheme of arrangement|amalgamation|\bmerger\b|divestment|stake (sale|purchase)|(sale|transfer|disposal)[^.]{0,40}\b(subsidiary|SPV|undertaking|business|division|joint venture)\b/i, 'M_AND_A'],
   [/\bdividend\b/i, 'DIVIDEND'],
   [/board meeting|meeting of the board/i, 'BOARD_MEETING'],
-  [/pledge|encumbrance|\bSAST\b|substantial acquisition of shares|trading window|insider trading/i, 'INSIDER_PLEDGE'],
+  // Trading-window before pledge (see LABEL_MAP note): the scheduled window
+  // notices carry "insider trading" in their PIT-regulation boilerplate, so the
+  // more specific "trading window" phrase must win to keep them out of the
+  // INSIDER_PLEDGE cell (B12 de-confound).
+  [/trading window/i, 'TRADING_WINDOW'],
+  [/pledge|encumbrance|\bSAST\b|substantial acquisition of shares|insider trading/i, 'INSIDER_PLEDGE'],
   [/change in (key managerial|management|directorate)|appointment of|resignation of|cessation of/i, 'MGMT_CHANGE'],
   [/allotment|issue of securities|fund ?rais|preferential (issue|allotment)|rights issue|buyback|\bESOP\b/i, 'CAPITAL_ISSUE'],
   [/press release|media release|newspaper publication/i, 'MEDIA_ROUTINE'],

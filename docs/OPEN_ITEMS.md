@@ -41,10 +41,12 @@ only portfolio-level survivor of B14.
 None of these are blocking; the system runs without them. Ordered by value-per-effort.
 
 ### High value, low effort
-- [ ] **De-confound `INSIDER_PLEDGE`** *(hours)* — the B12 event bucket mixes scheduled
-      "Closure of Trading Window" notices (a calendar artifact, cluster pre-earnings) with
-      real SAST/PIT/pledge disclosures. Split them in `src/events/classify.ts` and re-run
-      `events:study`. Rescues or honestly kills B12's single strongest cell (+0.82 @10d).
+- [x] ~~**De-confound `INSIDER_PLEDGE`**~~ ✅ **done (2026-07-21, `ev-1.1.0`)** — split
+      scheduled `TRADING_WINDOW` notices from real SAST/PIT/pledge disclosures in
+      `src/events/classify.ts` and re-ran `events:study`. **Honestly killed** B12's single
+      strongest cell: the `+0.82 @10d` was the calendar artifact — `TRADING_WINDOW` (n=1294)
+      retains the whole significant drift; the genuine `INSIDER_PLEDGE` remnant (n=124) no
+      longer clears the baseline at 10d. See [`EVENT_STUDY.md`](./EVENT_STUDY.md) §4b.
 - [ ] **Backup: escape single account/region** *(hours)* — backups now sit in S3 (B15) but
       one AWS account, one region (ap-south-1). Cross-region replication or an occasional
       pull to non-AWS storage closes it. Low marginal value (~40 MB/day the workstation

@@ -67,7 +67,8 @@ describe('classifyEvent — keyword pack (unlabelled rows)', () => {
     ['CRISIL upgrades long-term rating', 'RATING_ACTION'],
     ['Intimation of sale and transfer of project specific SPV/ subsidiary', 'M_AND_A'],
     ['The Record date for the purpose of Interim Dividend for FY 2025-26', 'DIVIDEND'],
-    ['Closure of Trading Window', 'INSIDER_PLEDGE'],
+    ['Closure of Trading Window', 'TRADING_WINDOW'],
+    ['Disclosure under Regulation 31 of SEBI (SAST) - pledge of shares by promoter', 'INSIDER_PLEDGE'],
     ['Change in Key Managerial Personnel', 'MGMT_CHANGE'],
     ['Intimation of Loss of Share Certificate', 'OTHER'],
   ];
@@ -90,6 +91,53 @@ describe('classifyEvent — keyword pack (unlabelled rows)', () => {
     // "results-adjacent notice" failure the B4 architecture review flagged.
     const c = classifyEvent('Board Meeting Intimation for consideration of results', null);
     expect(c.type).toBe('BOARD_MEETING');
+  });
+});
+
+describe('TRADING_WINDOW vs INSIDER_PLEDGE — the B12 de-confound', () => {
+  // Scheduled trading-window notices are a calendar artifact (they cluster before
+  // earnings season); real SAST/PIT/pledge disclosures are information. B12 found
+  // INSIDER_PLEDGE's +0.82@10d cell was probably the former, so they must not share
+  // a type. The disambiguation is the "trading window" phrase winning over the PIT
+  // boilerplate that appears in both.
+
+  test('a bare window-closure notice is TRADING_WINDOW, not INSIDER_PLEDGE (keyword path)', () => {
+    for (const t of [
+      'Closure of Trading Window',
+      'Intimation of closure of Trading Window',
+      'Opening of Trading Window',
+    ]) {
+      expect(classifyEvent(t, null).type).toBe('TRADING_WINDOW');
+    }
+  });
+
+  test('window notice with PIT boilerplate still types TRADING_WINDOW (specific phrase wins)', () => {
+    // The scheduled notice carries "insider trading" in its regulation reference;
+    // "trading window" must win so it does not fall into the disclosure cell.
+    const c = classifyEvent(
+      'Closure of Trading Window under SEBI (Prohibition of Insider Trading) Regulations, 2015',
+      null,
+    );
+    expect(c.type).toBe('TRADING_WINDOW');
+  });
+
+  test('a real insider/pledge disclosure stays INSIDER_PLEDGE (keyword path)', () => {
+    for (const t of [
+      'Disclosure under Regulation 7(2) of SEBI (Prohibition of Insider Trading) Regulations',
+      'Disclosure of pledge / encumbrance of shares by promoter',
+      'Disclosure under Regulation 31 of SEBI (SAST) Regulations',
+    ]) {
+      expect(classifyEvent(t, null).type).toBe('INSIDER_PLEDGE');
+    }
+  });
+
+  test('exchange-label path splits the two as well', () => {
+    expect(classifyEvent('x', 'Co — Announcement under Regulation 30 (LODR)-Trading Window').type).toBe(
+      'TRADING_WINDOW',
+    );
+    expect(
+      classifyEvent('x', 'Co — Announcement under Regulation 30 (LODR)-Encumbrance of shares').type,
+    ).toBe('INSIDER_PLEDGE');
   });
 });
 

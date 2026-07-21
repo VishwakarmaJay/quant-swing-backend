@@ -20,15 +20,14 @@
  * 2021–2024 but collapsed before curation are absent, which flatters
  * backtested results.
  *
- * [UPDATED 2026-07-21] This is NOT blocked on data (see docs/SURVIVORSHIP.md).
- * The historical constituents are obtainable (niftyindices.com reconstitution
- * PDFs via curl + the Wayback Machine's archived ind_nifty200list.csv snapshots;
- * only the interactive listing page is JS/WAF-gated), and OHLCV for the delisted
- * names is already on disk in the B13 bhavcopy archive. Triaged surface: of 116
- * Nifty-200 names absent from today's universe, ~a dozen truly vanished (DHFL,
- * FRETAIL, RELCAPITAL, …) — the real bias source. Remaining work is a
- * bhavcopy→OHLCV ingest + membership windows + re-backtest, with one wrinkle
- * (bhavcopy is unadjusted, Angel candles are adjusted). Scoped in SURVIVORSHIP.md §4.
+ * [REPAIRED 2026-07-21 — see docs/SURVIVORSHIP.md] The "JS/WAF data block" was
+ * false: historical Nifty-200 constituents are obtainable (Wayback CSV snapshots +
+ * reconstitution PDFs) and delisted-name OHLCV is in the B13 bhavcopy archive. The
+ * 10 delisted victims below were ingested (`survivorship:ingest`) with the
+ * index-exit `to` windows in UNIVERSE_MEMBERSHIP, and the SRS pre-pass now honours
+ * `isMemberOn`. Measured impact: bias inflated the FULL deep window ~4.4pp but the
+ * validated COVERAGE gate is unchanged and the verdict holds. Residual: exact
+ * reconstitution dates would sharpen the ±1-reconstitution window precision.
  */
 
 export type MembershipWindow = { from?: string; to?: string };
@@ -36,19 +35,26 @@ export type MembershipWindow = { from?: string; to?: string };
 /** Canonical symbol → membership exception window. `to` is exclusive. */
 export const UNIVERSE_MEMBERSHIP: Readonly<Record<string, MembershipWindow>> = {
   // Survivorship victims ingested from the bhavcopy archive (docs/SURVIVORSHIP.md).
-  // Their candles already end at delisting, so these windows are belt-and-suspenders
-  // + documentation: `to` = the trading day AFTER their last bhavcopy row, so they
-  // are members only while they actually traded and never signal in the live era.
-  DHFL: { to: '2021-06-14' },
-  RELCAPITAL: { to: '2022-05-25' },
-  FRETAIL: { to: '2022-07-25' },
-  FCONSUMER: { to: '2024-05-16' },
-  TV18BRDCST: { to: '2024-10-16' },
-  RELINFRA: { to: '2025-06-05' },
-  PEL: { to: '2025-09-23' },
-  RAJESHEXPO: { to: '2025-12-26' },
-  DISHTV: { to: '2026-04-22' },
-  GSPL: { to: '2026-05-12' },
+  // `to` = when the name left the Nifty-200 LARGE-CAP UNIVERSE (index-exit), NOT its
+  // delisting date — using delist-date would let the backtest trade a name during a
+  // period it had already dropped to small-cap (e.g. RELINFRA's 2024 13× rally after
+  // it left the index in ~2022), which is a look-ahead-style bias, not a correction.
+  // Exit dates are bracketed by the Nifty-200 constituent snapshots (2021-03 / 2022-03
+  // / 2023-08 / current): the 8 below were confirmed members in 2021-03 and absent by
+  // 2022-03, so `to` ≈ the 2022-Q1 reconstitution; PEL survived to 2023-08; DHFL
+  // delisted mid-membership (2021-06). ⚠️ The snapshots are annual, so exit is precise
+  // only to ±1 reconstitution — a rigorous version needs the exact reconstitution
+  // dates from the press-release PDFs (docs/SURVIVORSHIP.md §4).
+  DHFL: { to: '2021-06-14' }, // delisted while a member (insolvency)
+  RELCAPITAL: { to: '2022-04-01' },
+  FRETAIL: { to: '2022-04-01' },
+  FCONSUMER: { to: '2022-04-01' },
+  GSPL: { to: '2022-04-01' },
+  RELINFRA: { to: '2022-04-01' },
+  DISHTV: { to: '2022-04-01' },
+  TV18BRDCST: { to: '2022-04-01' },
+  RAJESHEXPO: { to: '2022-04-01' },
+  PEL: { to: '2024-04-01' }, // present through the 2023-08 snapshot
 };
 
 /** Is `symbol` a universe member on `dateIso`? (No entry → always a member.) */

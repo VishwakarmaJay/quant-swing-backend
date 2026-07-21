@@ -95,6 +95,12 @@ export const generateRawSignals = (store: CandleStore, opts: BacktestOptions = {
     for (const inst of store.instruments) {
       const slice = (store.seriesById.get(inst.id) ?? []).filter((c) => c.tradeDate <= asOf);
       if (!slice.length || slice[slice.length - 1]!.tradeDate !== asOf) continue;
+      // B8.2: the pre-pass (sector peer returns, sector P/E ranking, breadth) must
+      // reflect the TRADEABLE universe as-of, not every instrument that happens to
+      // have candles. A name that has left the universe (survivorship victim, past
+      // its `to`) must not pollute its old sector's peer ranking or the breadth.
+      // Baseline-neutral: with an empty membership map every stock is always a member.
+      if (!isMemberOn(canonicalSymbol(inst.symbol), asOf)) continue;
       slices.set(inst.id, slice);
       const closes = slice.map((c) => c.close);
       const ema50 = emaLatest(closes, 50);

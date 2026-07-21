@@ -26,7 +26,7 @@ So the next direction is a **choice, not a task**:
 | option | what it is | odds / cost |
 |---|---|---|
 | **A. Consolidate + wait** *(current)* | Stop hunting edge; let the archive accrue; revisit ~Jan 2027 when the live-only sentiment tier is backtestable. | Near-zero cost; the only genuinely *new* information source. Chosen 2026-07-20. |
-| **B. Mid/small-cap universe** | Large caps are the most efficiently priced segment; free-data inefficiency is likelier down-cap. | Moderate odds. Real cost: new universe curation, thinner liquidity, **worse survivorship** (see L3). |
+| **B. Mid/small-cap universe** | Large caps are the most efficiently priced segment; free-data inefficiency is likelier down-cap. | Moderate odds. Real cost: new universe curation, thinner liquidity, **worse survivorship** (L5) — though the survivorship tooling + prerequisite check now exist ([`SURVIVORSHIP.md`](./SURVIVORSHIP.md)): bhavcopy→OHLCV ingest + point-in-time membership are built and reusable down-cap. |
 | **C. Buy consensus estimates** | Unlocks earnings-surprise / PEAD — the one documented effect at this horizon we structurally cannot see. | Highest odds of working. A recurring-cost decision, not engineering. |
 | **D. Accept as decision support** | Freeze research; keep the nightly factory running as-is. | A legitimate end state, not a failure. |
 
@@ -54,16 +54,16 @@ None of these are blocking; the system runs without them. Ordered by value-per-e
       over a non-AWS pull, low marginal value). See [`DEPLOYMENT_AWS.md`](./DEPLOYMENT_AWS.md) §5.
 
 ### Medium value, medium effort
-- [ ] **Historical index-constituent data (survivorship)** *(~1 day — NOT blocked; see
-      [`SURVIVORSHIP.md`](./SURVIVORSHIP.md))* — the backtest universe is *today's* 167 names
-      replayed into the past (L5). **[RE-EXAMINED 2026-07-21]** The "blocked on a JS/WAF
-      source" premise is retired: historical Nifty-200 constituents are obtainable (Wayback
-      CSV snapshots + reconstitution PDFs), and OHLCV for the delisted names is **already on
-      disk** in the B13 bhavcopy archive. Triaged: of 116 Nifty-200 names absent from the
-      universe, only ~a dozen truly vanished (DHFL, FRETAIL, RELCAPITAL, …) — the real bias.
-      Remaining work is engineering: bhavcopy→OHLCV ingest + membership windows + re-backtest,
-      with one wrinkle (bhavcopy unadjusted vs Angel adjusted). **Still the prerequisite before
-      the §1 Option-B mid-cap move.**
+- [x] ~~**Historical index-constituent data (survivorship)**~~ ✅ **DONE (2026-07-21)** —
+      built + measured, see [`SURVIVORSHIP.md`](./SURVIVORSHIP.md). The "blocked on a JS/WAF
+      source" premise was false (constituents via Wayback CSVs + reconstitution PDFs; delisted
+      OHLCV already on disk in the B13 bhavcopy archive). Ingested the 10 delisted Nifty-200
+      victims (`survivorship:ingest`, point-in-time membership at index-exit dates, pre-pass
+      membership-gated). **Result: survivorship inflated the FULL deep-window return ~4.4pp
+      (+4.72%→+0.29%) but the decisive COVERAGE gate is unchanged (−17.08% vs Nifty +0.80%) —
+      verdict unchanged on every window. Survivorship is NOT masking an edge.** This is the
+      prerequisite check the §1 Option-B mid-cap move wanted. Residual: exact reconstitution
+      dates would sharpen the ±1-reconstitution window precision (low value; COVERAGE unaffected).
 - [ ] **Salience / two-tier symbol tagging** *(days)* — the mapper is precision-first, so
       per-stock article counts undercount (L4). A `symbols_loose` tier (bare tickers, group
       words) stored *separately* from the strict tier would let research measure whether
@@ -102,9 +102,11 @@ and recorded in their own docs.
   rows (GDELT/BSE) carry *reconstructed* `availableAt` — weaker evidence, hence per-origin
   evaluation everywhere.
 - **L5 — Survivorship bias in the archive & backtest.** Universe = today's constituents.
-  Partially addressed forward (B8.2); the pre-2024 past is unrepaired (§2). **[2026-07-21:
-  no longer blocked on data — the constituents + delisted-name OHLCV are both obtainable; it
-  is now unbuilt engineering. See [`SURVIVORSHIP.md`](./SURVIVORSHIP.md).]**
+  Addressed forward (B8.2) and now **measured for the past too (2026-07-21)**: the 10 delisted
+  Nifty-200 victims were ingested from bhavcopy with point-in-time membership — bias inflated
+  the FULL deep window ~4.4pp but left the validated COVERAGE gate unchanged and the verdict
+  intact. Largely closed; residual is ±1-reconstitution window precision. See
+  [`SURVIVORSHIP.md`](./SURVIVORSHIP.md).
 - **L6 — Coverage skew + recall sacrifice.** Precision-first mapping undercounts thinly-
   covered names; sentiment biases toward large caps. Deliberate (precision > recall), a
   documented trade, not an accident.

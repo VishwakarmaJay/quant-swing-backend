@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 
-import { backAdjustSplits, parseBhavcopyOhlcv, type BhavOhlcvRow } from '@/ohlcv/bhavcopyOhlcv';
+import { parseBhavcopyOhlcv, type BhavOhlcvRow } from '@/ohlcv/bhavcopyOhlcv';
 import { prisma } from '@services/prisma';
 
 /**
@@ -65,16 +65,29 @@ const run = async () => {
 
   let totalCandles = 0;
   for (const { symbol, name, sector } of DELISTED) {
-    const raw = (bySymbol.get(symbol) ?? []).sort((a, b) => a.tradeDate.localeCompare(b.tradeDate));
-    if (raw.length === 0) {
+    const collected = bySymbol.get(symbol) ?? [];
+    if (collected.length === 0) {
       console.log(`  ${symbol.padEnd(12)} — NO bhav rows, skipped`);
       continue;
     }
-    const { rows: adj, events } = backAdjustSplits(raw);
+    // Dedup by trade date: some bhavcopy files are stale republications of the
+    // prior day (e.g. 2022-08-31.csv carries 2022-08-30's rows).
+    const byDate = new Map<string, BhavOhlcvRow>();
+    for (const r of collected) byDate.set(r.tradeDate, r); // identical dups anyway
+    const adj = [...byDate.values()].sort((a, b) => a.tradeDate.localeCompare(b.tradeDate));
+    // NB: `backAdjustSplits` is deliberately NOT applied here. Its PREV_CLOSE
+    // heuristic is unreliable on this data — the bhavcopy archive has missing
+    // days, so a "previous row" can be several sessions old, and NSE's PREV_CLOSE
+    // (always the TRUE prior-session close) then reads as a false split on
+    // ordinary penny-stock volatility. These 10 delisted names were verified to
+    // have no material in-window split/bonus (distressed companies don't split),
+    // so raw deduped prices are artifact-free. PEL's 2022 Piramal Pharma demerger
+    // is left as a real ~−45% price drop (the loss a PEL-only holder took; the
+    // demerged shares are not credited — conservative for a survivorship check).
+    // See docs/SURVIVORSHIP.md §4.
     const first = adj[0]!.tradeDate;
     const last = adj[adj.length - 1]!.tradeDate;
-    const splitNote = events.length ? ` · ${events.length} corp-action(s): ${events.map((e) => `${e.exDate}×${e.ratio.toFixed(2)}`).join(', ')}` : '';
-    console.log(`  ${symbol.padEnd(12)} ${first}→${last}  ${String(adj.length).padStart(4)} candles${splitNote}`);
+    console.log(`  ${symbol.padEnd(12)} ${first}→${last}  ${String(adj.length).padStart(4)} candles`);
     totalCandles += adj.length;
     if (dryRun) continue;
 

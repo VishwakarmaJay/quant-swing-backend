@@ -376,16 +376,14 @@ every evaluation runs **per-origin** (live-only vs +BSE_BACKFILL vs +GDELT).
       `src/universe/membership.ts` (`UNIVERSE_MEMBERSHIP` windows + `isMemberOn`,
       enforced in `generateRawSignals`). **The rule going forward: never delete a
       symbol from the universe — set its `to` date here instead**, so history stays and
-      the bias stops compounding. ⚠️ Residual: the pre-curation past is unrepaired.
-      **[RE-EXAMINED 2026-07-21 — NOT a data block after all, see
-      [`SURVIVORSHIP.md`](./SURVIVORSHIP.md)]** Historical Nifty-200 constituents ARE
-      obtainable (Wayback CSV snapshots + reconstitution PDFs; only the interactive listing
-      page is JS/WAF-gated), and OHLCV for the delisted names is already on disk in the B13
-      bhavcopy archive. Triaged: of 116 dropped Nifty-200 names, ~a dozen truly vanished
-      (DHFL, FRETAIL, RELCAPITAL, …) — the real bias. Remaining = engineering (bhavcopy→OHLCV
-      ingest + membership windows + re-backtest; one wrinkle: bhavcopy unadjusted vs Angel
-      adjusted). Revisit before B9's conclusions / the §1 Option-B mid-cap move are treated
-      as final.
+      the bias stops compounding. ✅ **Pre-curation past now REPAIRED + MEASURED (2026-07-21,
+      see [`SURVIVORSHIP.md`](./SURVIVORSHIP.md)).** The "JS/WAF data block" was false;
+      ingested the 10 delisted Nifty-200 victims from the B13 bhavcopy archive
+      (`survivorship:ingest`) with point-in-time membership at index-exit dates + a
+      membership-gated SRS pre-pass. **Result: survivorship inflated the FULL deep window
+      ~4.4pp (b9 risk +4.72%→+0.29%), the decisive COVERAGE gate is UNCHANGED (−17.08% vs
+      Nifty +0.80%), and the verdict holds on every window — survivorship is not masking an
+      edge.** Residual: ±1-reconstitution window precision (low value).
 
 ### ✅ B9. Phase 6 rerun — DONE (2026-07-20); one best strategy, gate still failed
 Full doc: [`B9_RERUN.md`](./B9_RERUN.md) · anchored coverage-era folds (`makeAnchoredFolds`,
@@ -407,7 +405,9 @@ Full doc: [`B9_RERUN.md`](./B9_RERUN.md) · anchored coverage-era folds (`makeAn
       hash — any behavioural knob added to production must be); +5 pin tests
       (`productionStrategy.test.ts`), 369/369 pass; frozen research baseline untouched.
       Signals stay manual; B10 stays gated.
-- [ ] Revisit the survivorship residual (B8.2) before treating conclusions as final — still open
+- [x] Revisit the survivorship residual (B8.2) — ✅ **done 2026-07-21**: measured, the B9
+      conclusions survive it (COVERAGE gate unchanged; FULL −4.4pp; verdict intact). See
+      [`SURVIVORSHIP.md`](./SURVIVORSHIP.md).
 - [ ] Learned weighting still correctly deferred (all Spearman ≈ 0; working levers are
       tail-trims, not rankings)
 - **Done when:** one best evaluated strategy, OOS-validated, with every component earning

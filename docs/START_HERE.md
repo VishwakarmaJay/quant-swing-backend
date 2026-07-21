@@ -42,7 +42,7 @@ OHLCV → DataQuality → 8 factors → regime → strategy (+ BULL pullback ent
   raw-payload capture (Bronze layer) — the archive now meets the factor pipeline's
   reproducibility standard. Direction: **consolidate + wait** (see [`OPEN_ITEMS.md`](./OPEN_ITEMS.md))
 
-**462 tests pass**, `bun run typecheck` clean.
+**469 tests pass**, `bun run typecheck` clean.
 
 ## ⚠️ The one thing you must know: still NO out-of-sample edge (but the gap is closing)
 
@@ -157,7 +157,7 @@ bun run backtest:portfolio    # portfolio-level "beat Nifty" gate ← the decisi
 bun run backtest:phase6       # embargoed walk-forward (OOS)
 bun run backtest:slots        # slot-allocation rank keys vs a random control
 
-bun test                      # 462 tests
+bun test                      # 469 tests
 bun run typecheck
 ```
 

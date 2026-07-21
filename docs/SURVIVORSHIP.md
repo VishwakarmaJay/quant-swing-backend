@@ -83,29 +83,72 @@ full-market daily dump:
 
 So **both** inputs the repair needs are in hand. This is unbuilt, not blocked.
 
-## 4. Plan to actually repair it (unblocked; ~1 day + one wrinkle)
+## 4. What was built and measured (2026-07-21) — DONE
 
-1. **Point-in-time membership.** From the Nifty 200 historical snapshots, derive each
-   survivorship-victim's `[from, to]` window in the tradeable universe (`to` = the
-   reconstitution that dropped it / its delisting date). These become `UNIVERSE_MEMBERSHIP`
-   entries + `equityUniverse.ts` additions (never delete — the B8.2 rule).
-2. **bhavcopy → OHLCV ingest.** New ingest path mapping bhavcopy `EQ` rows to `ohlcv` for the
-   added instruments over their live window. Idempotent, per the existing loaders.
-3. **Re-run** `backtest:portfolio` on the corrected universe and measure how much of the
-   "positive absolute returns" was survivorship. This is the honest number OPEN_ITEMS §1 says
-   must exist **before** the strategic fork's Option B (mid/small-cap) is credible.
+The full repair is built and the impact is measured. **Headline: survivorship bias inflated
+the deep-window return by ~4.4pp, but it does NOT change the verdict — the strategy still
+fails Nifty on every window, and the decisive COVERAGE gate is completely unaffected.**
 
-### ⚠️ The one real wrinkle: corporate-action adjustment
-Angel OHLCV is **corp-action-adjusted** (verified, B4 audit); bhavcopy is **raw/unadjusted**.
-Splicing unadjusted bhavcopy series next to adjusted Angel series is a data-quality hazard
-(a split would look like a crash). Mitigations: for *delisted* names there is no post-window
-adjustment to reconcile, and within-window splits/bonuses for this short list can be handled
-explicitly or the names flagged. This wrinkle — not data availability — is the actual
-difficulty, and it must be handled before these candles enter the golden/quality path.
+### The pieces
+1. **`src/ohlcv/bhavcopyOhlcv.ts`** (+7 tests) — bhavcopy → OHLC parser + `backAdjustSplits`
+   (detects corp actions from PREV_CLOSE discontinuities and back-adjusts to the Angel
+   adjusted convention). Kept as a general tool; see the wrinkle below for why it is not
+   applied to *this* ingest.
+2. **`bun run survivorship:ingest`** (`src/scripts/ingestSurvivorshipOhlcv.ts`) — ingests
+   bhavcopy OHLCV for the 10 delisted Nifty-200 victims as EQ instruments, so
+   `loadCandleStore` (which selects EQ instruments with candles, **not** `EQUITY_UNIVERSE`)
+   picks them up automatically. **Zero `equityUniverse.ts` change → the live universe and the
+   news alias-coverage contract are untouched.** 7,873 candles, 10 names.
+3. **Point-in-time membership** (`UNIVERSE_MEMBERSHIP`) — `to` = each name's **index-exit**
+   date (when it left the Nifty 200), bracketed by the constituent snapshots — **not** its
+   delisting date (see the trap below).
+4. **Pre-pass membership gate** (`backtestEngine.ts`) — the SRS sector-peer pre-pass + breadth
+   now honour `isMemberOn`, so a name that has left the universe no longer pollutes its old
+   sector's peer ranking. **Baseline-neutral** (empty membership ⇒ every stock always a member).
+
+### The result — `backtest:portfolio`, B9 stack (production), risk sizing
+| window | baseline (167) | corrected (177) | Δ | Nifty B&H |
+|---|---|---|---|---|
+| **COVERAGE** (2024-07→, the gate) | −17.08% | **−17.08%** | **0.00** | +0.80% |
+| OOS (2023-01→) | +8.41% | +7.14% | −1.27pp | +34.39% |
+| FULL (2021-11→) | +4.72% | **+0.29%** | **−4.43pp** | +42.92% |
+
+- **COVERAGE is identical** — every victim had left the index by 2024, so the validated era is
+  untouched. This both confirms the pre-pass fix works and shows survivorship bias does not
+  reach the window the B9 config was validated on.
+- **FULL drops −4.4pp** — the honest direction: the 2021–22 hidden names dragged the deep
+  window down. So the bias was real and *was* flattering results.
+- **Verdict unchanged on every window.** The strategy still trails Nifty by 30–40pp. **A
+  survivorship-corrected backtest does NOT rescue the edge** — this removes "maybe it's just
+  survivorship" as an explanation and is the prerequisite check OPEN_ITEMS §1 wanted before
+  Option B (mid-cap).
+
+### Three traps found and fixed during verification (why the first pass was wrong)
+1. **Duplicate-row artifact.** Some bhavcopy files are stale republications of the prior day
+   (`2022-08-31.csv` carries 2022-08-30's rows). Running `backAdjustSplits` over the collected
+   rows before dedup planted a false same-date "corp action" that corrupted whole series
+   (PEL showed a spurious −83% day). Fix: dedup by trade date first.
+2. **Adjustment heuristic is fragile on gappy distressed data.** With missing archive days,
+   NSE's PREV_CLOSE (always the *true* prior-session close) reads as a false split against a
+   several-sessions-old previous row, on ordinary penny-stock volatility. These 10 names had
+   **no material in-window split/bonus** (verified — distressed companies don't split), so the
+   ingest uses **raw deduped prices**; `backAdjustSplits` stays a tested tool for clean data.
+   PEL's 2022 Piramal Pharma demerger is left as a real ~−45% drop (conservative).
+3. **delist-date ≠ index-exit-date.** Using the delisting date as `to` let the backtest trade
+   a name during periods it had already dropped to small-cap — e.g. **RELINFRA's +345% (2021)
+   and 13× (by 2024) rally after it left the index in ~2022**. That is a look-ahead-style bias
+   that made the naive first run come out *better*, not worse. Fixed to index-exit windows.
+   ⚠️ Snapshots are annual, so exit is precise only to ±1 reconstitution.
+
+### Residual / follow-ups (small)
+- **Exact reconstitution dates** would sharpen the ±1-reconstitution window imprecision (parse
+  the 2021 press-release PDFs). Given COVERAGE is unaffected and the verdict is robust, low value.
+- **Cohort scope.** Only the 10 delisted Nifty-200 victims are added. The ~73 "still in Nifty
+  500 today, outside our 167" names (§2 bucket [2]) are a *universe-widening* decision, not a
+  survivorship fix, and are deliberately excluded.
 
 ## 5. Status change this doc records
-- ❌→✅ **"Blocked on an NSE source"** is retired: the constituent data is obtainable
-  (Wayback CSVs + reconstitution PDFs) and the price data is already local (bhavcopy).
-- The remaining work is **engineering + one adjustment wrinkle**, scoped above. It is a real
-  ~1-day build touching production reference data (`equityUniverse.ts`), so it is surfaced as
-  an operator-scoped decision rather than done silently.
+- ❌→✅ **"Blocked on an NSE source"** — retired. Constituents obtainable (Wayback CSVs +
+  reconstitution PDFs), prices already local (bhavcopy).
+- ✅ **Survivorship repair BUILT + MEASURED.** Bias inflated the deep window ~4.4pp; verdict
+  unchanged; the validated COVERAGE era is unaffected. 469 tests pass, typecheck clean.

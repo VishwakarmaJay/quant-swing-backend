@@ -47,7 +47,7 @@ RabbitMQ (jobs). All indicator math is in-house so it can be golden-tested byte-
 **Status:** Phases 1–4 complete + the Part-B research program (attribution, regime
 experiments, walk-forward, portfolio backtest, news archive + backfills, fundamentals,
 FinBERT, Fundamental + Sentiment factors) — **B1–B9 done** ([`B9_RERUN.md`](./B9_RERUN.md)).
-**462 tests, typecheck clean.** The strategy has been improved from clearly losing to near-breakeven **but has no
+**469 tests, typecheck clean.** The strategy has been improved from clearly losing to near-breakeven **but has no
 positive out-of-sample edge yet** — Phase 5 (paper trading) is gated (§15, §17).
 
 ## 2. The pipeline
@@ -739,7 +739,7 @@ caveats; 13–17 are engineering/scope.)
 ## 17. Current state & what's next
 
 **State:** a complete, reproducible, honestly-measured research platform. **[UPDATED
-2026-07-21]** 462 tests + golden gate green; whole stack deployed on AWS
+2026-07-21]** 469 tests + golden gate green; whole stack deployed on AWS
 (`DEPLOYMENT_AWS.md`). The Part-B program is **complete through B9**
 ([`B9_RERUN.md`](./B9_RERUN.md)): both orthogonal factors measured (bucket blends
 rejected; floor gates validated — the information lives in the negative tails), volume

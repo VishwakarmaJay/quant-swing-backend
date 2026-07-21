@@ -88,9 +88,18 @@ export const loadNewsBySymbol = async (origins?: readonly string[]): Promise<New
   return bySymbol;
 };
 
-export const loadCandleStore = async (opts?: { sentimentOrigins?: readonly string[] }): Promise<CandleStore> => {
+export const loadCandleStore = async (opts?: {
+  sentimentOrigins?: readonly string[];
+  /**
+   * Which universe to load. Default `EQ` = the large-cap production universe.
+   * `EQ_MID` = the Option-B Nifty Midcap 150 spike universe (docs/MIDCAP_SPIKE.md),
+   * ingested separately so the default never sees it. Benchmark stays NIFTY either
+   * way (RS factor + regime are market-wide).
+   */
+  universeType?: 'EQ' | 'EQ_MID';
+}): Promise<CandleStore> => {
   const instruments = await prisma.instrument.findMany({
-    where: { instrumentType: 'EQ' },
+    where: { instrumentType: opts?.universeType ?? 'EQ' },
     select: { id: true, symbol: true, name: true, sector: true },
     orderBy: { name: 'asc' },
   });

@@ -42,7 +42,7 @@ OHLCV → DataQuality → 8 factors → regime → strategy (+ BULL pullback ent
   raw-payload capture (Bronze layer) — the archive now meets the factor pipeline's
   reproducibility standard. Direction: **consolidate + wait** (see [`OPEN_ITEMS.md`](./OPEN_ITEMS.md))
 
-**469 tests pass**, `bun run typecheck` clean.
+**473 tests pass**, `bun run typecheck` clean.
 
 ## ⚠️ The one thing you must know: still NO out-of-sample edge (but the gap is closing)
 
@@ -108,17 +108,19 @@ but never *whether they surprised* — surprise needs paid consensus estimates.
 exploitable right tail.** Option (1), a longer horizon, has since been **tested and also
 failed the gate** ([`HORIZON_STUDY.md`](./HORIZON_STUDY.md)): the right tail *does* appear
 with room to run (p90 +5.3 → +16.7, PF 1.07 → 1.42) but most of that is **market beta**,
-and every variant still loses to a flat Nifty on the validated era. That is **five**
-independent negatives.
+and every variant still loses to a flat Nifty on the validated era. With the mid-cap spike
+(below) that is now **six** independent negatives.
 
 ⚠️ The horizon work produced **no** durable configuration: a ~30-day claim was made and
 then **retracted the same day** when the walk-forward inverted it (7d incumbent is best
 OOS; longer is monotonically worse — the gain was regime-specific beta). **Keep the 7-day
-exit.** Remaining structural options: **(2)** mid/small-cap universe (untested, most plausible
-free-data avenue left), **(3)** buy consensus estimates (unlocks the PEAD effect B12 proved
-we structurally cannot see), **(4)** accept the system as decision support — a legitimate
-end state. Full argument: [`DELIVERY_STUDY.md`](./DELIVERY_STUDY.md) §4 +
-[`HORIZON_STUDY.md`](./HORIZON_STUDY.md) §6.
+exit.** Remaining structural options: ~~**(2)** mid/small-cap universe~~ **TESTED 2026-07-21 →
+NEGATIVE** ([`MIDCAP_SPIKE.md`](./MIDCAP_SPIKE.md)): the strategy is markedly *worse* on a
+point-in-time Nifty Midcap 150 universe (loses every window, trails the segment by ~120pp);
+**(3)** buy consensus estimates (unlocks the PEAD effect B12 proved we structurally cannot
+see), **(4)** accept the system as decision support — a legitimate end state. Full argument:
+[`DELIVERY_STUDY.md`](./DELIVERY_STUDY.md) §4 + [`HORIZON_STUDY.md`](./HORIZON_STUDY.md) §6 +
+[`MIDCAP_SPIKE.md`](./MIDCAP_SPIKE.md).
 
 > Production runs the full B9 stack (SRS 0.25 + BULL pullback entry + both floors at 50 +
 > volume pruned) — the best *validated* config, **not** an edge. Plan narrative:
@@ -157,7 +159,7 @@ bun run backtest:portfolio    # portfolio-level "beat Nifty" gate ← the decisi
 bun run backtest:phase6       # embargoed walk-forward (OOS)
 bun run backtest:slots        # slot-allocation rank keys vs a random control
 
-bun test                      # 469 tests
+bun test                      # 473 tests
 bun run typecheck
 ```
 

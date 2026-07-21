@@ -49,50 +49,51 @@ describe('parseBhavcopyOhlcv', () => {
 });
 
 describe('backAdjustSplits — the corp-action wrinkle', () => {
+  // Detection reads PREV_CLOSE/OPEN within one row: on a split ex-date NSE leaves
+  // PREV_CLOSE at the RAW pre-split level while OPEN is already post-split. `mk`
+  // takes (date, prevClose, price) with open=high=low=close=price (a flat day).
   const mk = (date: string, prev: number, price: number, vol = 100): BhavOhlcvRow => ({
     symbol: 'X', tradeDate: date, open: price, high: price, low: price, close: price, prevClose: prev, volume: vol,
   });
 
   test('no action → series returned unchanged, no events', () => {
-    const rows = [mk('2021-01-01', 100, 100), mk('2021-01-02', 100, 102), mk('2021-01-03', 102, 101)];
+    // Each day: prevClose = prior day close, open ≈ prevClose → ratio ≈ 1.
+    const rows = [mk('2021-01-01', 99, 100), mk('2021-01-02', 100, 102), mk('2021-01-03', 102, 101)];
     const { rows: adj, events } = backAdjustSplits(rows);
     expect(events).toEqual([]);
     expect(adj.map((r) => r.close)).toEqual([100, 102, 101]);
   });
 
   test('2:1 split → pre-split prices halved, ex-date and later untouched, volume scaled up', () => {
-    // Day 2 is the ex-date: prior close 100 but PREV_CLOSE stamped 50 (adjusted).
+    // Day 2 ex-date: PREV_CLOSE 100 (raw, pre-split), OPEN 50 (post-split) → ratio 2.
     const rows = [
-      mk('2021-01-01', 98, 100, 1000), // pre-split (scale 100)
-      mk('2021-01-02', 50, 50, 2000), // ex-date (scale 50), PREV_CLOSE adjusted
+      mk('2021-01-01', 99, 100, 1000), // pre-split (scale 100)
+      mk('2021-01-02', 100, 50, 2000), // ex-date: prevClose raw 100, open 50
       mk('2021-01-03', 50, 52, 2200),
     ];
     const { rows: adj, events } = backAdjustSplits(rows);
     expect(events).toHaveLength(1);
     expect(events[0]!.exDate).toBe('2021-01-02');
     expect(events[0]!.ratio).toBeCloseTo(2, 5);
-    // pre-split day halved onto the new scale; volume doubled
-    expect(adj[0]!.close).toBeCloseTo(50, 5);
-    expect(adj[0]!.volume).toBeCloseTo(2000, 5);
-    // ex-date + later unchanged (already on new scale)
-    expect(adj[1]!.close).toBeCloseTo(50, 5);
+    expect(adj[0]!.close).toBeCloseTo(50, 5); // pre-split halved
+    expect(adj[0]!.volume).toBeCloseTo(2000, 5); // volume doubled
+    expect(adj[1]!.close).toBeCloseTo(50, 5); // ex-date unchanged (already post-split)
     expect(adj[2]!.close).toBeCloseTo(52, 5);
-    // continuity restored: no artificial gap between day1 and day2
-    expect(Math.abs(adj[0]!.close - adj[1]!.close)).toBeLessThan(1);
+    expect(Math.abs(adj[0]!.close - adj[1]!.close)).toBeLessThan(1); // continuity
   });
 
   test('reverse split (consolidation) → pre-action prices scaled UP', () => {
-    // Distressed penny stock 1→10 consolidation: price jumps 2 → 20.
-    const rows = [mk('2021-06-01', 2.1, 2.0, 5000), mk('2021-06-02', 20, 20, 500)];
+    // 1:10 consolidation: PREV_CLOSE 2 (raw), OPEN 20 (post) → ratio 0.1.
+    const rows = [mk('2021-06-01', 2.05, 2.0, 5000), mk('2021-06-02', 2.0, 20, 500)];
     const { rows: adj, events } = backAdjustSplits(rows);
     expect(events[0]!.ratio).toBeCloseTo(0.1, 5);
     expect(adj[0]!.close).toBeCloseTo(20, 5); // 2.0 × (1/0.1)
     expect(adj[1]!.close).toBeCloseTo(20, 5);
   });
 
-  test('ordinary dividend gap below threshold is NOT adjusted (price, not total-return)', () => {
-    // 3% dividend: PREV_CLOSE 97 vs prior close 100 → ratio 1.03, under threshold.
-    const rows = [mk('2021-03-01', 99, 100), mk('2021-03-02', 97, 97)];
+  test('ordinary gap below threshold is NOT adjusted (price, not total-return)', () => {
+    // −3% overnight gap: PREV_CLOSE 100, OPEN 97 → ratio 1.03, under threshold.
+    const rows = [mk('2021-03-01', 99, 100), mk('2021-03-02', 100, 97)];
     const { rows: adj, events } = backAdjustSplits(rows);
     expect(events).toEqual([]);
     expect(adj[0]!.close).toBe(100);
@@ -101,9 +102,9 @@ describe('backAdjustSplits — the corp-action wrinkle', () => {
   test('two actions compound correctly', () => {
     // 2:1 split then another 2:1 split → earliest day scaled by 1/4.
     const rows = [
-      mk('2021-01-01', 390, 400), // scale 400
-      mk('2021-02-01', 200, 200), // ex1 (2:1)
-      mk('2021-03-01', 100, 100), // ex2 (2:1)
+      mk('2021-01-01', 399, 400), // scale 400
+      mk('2021-02-01', 400, 200), // ex1: prevClose 400, open 200 (2:1)
+      mk('2021-03-01', 200, 100), // ex2: prevClose 200, open 100 (2:1)
     ];
     const { rows: adj, events } = backAdjustSplits(rows);
     expect(events).toHaveLength(2);

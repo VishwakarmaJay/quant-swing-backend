@@ -7,26 +7,30 @@
 >
 > **One-line state:** a complete, reproducible, honestly-measured signal factory running
 > nightly (B9 stack, `w-68f83d8edbf9`) with a versioned + raw-retained + thrice-backed-up
-> archive. **No benchmark-beating edge** — five independent research lines say so. The
+> archive. **No benchmark-beating edge** — six independent research lines say so (incl. the
+> negative mid-cap spike, [`MIDCAP_SPIKE.md`](./MIDCAP_SPIKE.md)). The
 > highest-value next input is *calendar time*, not more code.
 
 ---
 
 ## 1. The strategic fork (this is the real decision)
 
-Five methodologically independent studies — factor floors (B5/B7), slot allocation (B11),
-event typing (B12), delivery % (B13), holding horizon (B14) — **all** conclude the same
-thing: every lever trims the *left* tail; nothing finds large winners; the strategy does
-not beat Nifty risk-adjusted at any horizon/allocation/event/data tried within the
-free-data constraint. B12 pinned *why*: we can type *that* earnings were filed but never
-*whether they surprised* — surprise needs paid consensus estimates.
+**Six** methodologically independent studies — factor floors (B5/B7), slot allocation (B11),
+event typing (B12), delivery % (B13), holding horizon (B14), and now the **mid-cap universe
+spike** ([`MIDCAP_SPIKE.md`](./MIDCAP_SPIKE.md)) — **all** conclude the same thing: every
+lever trims the *left* tail; nothing finds large winners; the strategy does not beat the
+benchmark risk-adjusted at any horizon/allocation/event/data/**segment** tried within the
+free-data constraint. The midcap spike is the sharpest: the strategy is markedly *worse*
+down-cap (loses in every window, trails the segment by ~120pp), refuting Option B's premise.
+B12 pinned *why*: we can type *that* earnings were filed but never *whether they surprised* —
+surprise needs paid consensus estimates.
 
 So the next direction is a **choice, not a task**:
 
 | option | what it is | odds / cost |
 |---|---|---|
 | **A. Consolidate + wait** *(current)* | Stop hunting edge; let the archive accrue; revisit ~Jan 2027 when the live-only sentiment tier is backtestable. | Near-zero cost; the only genuinely *new* information source. Chosen 2026-07-20. |
-| **B. Mid/small-cap universe** | Large caps are the most efficiently priced segment; free-data inefficiency is likelier down-cap. | Moderate odds. Real cost: new universe curation, thinner liquidity, **worse survivorship** (L5) — though the survivorship tooling + prerequisite check now exist ([`SURVIVORSHIP.md`](./SURVIVORSHIP.md)): bhavcopy→OHLCV ingest + point-in-time membership are built and reusable down-cap. |
+| **B. Mid/small-cap universe** | ~~Free-data inefficiency likelier down-cap.~~ **✅ SPIKE-TESTED 2026-07-21 → NEGATIVE ([`MIDCAP_SPIKE.md`](./MIDCAP_SPIKE.md)).** The B9 strategy on a point-in-time Nifty Midcap 150 universe **loses in every window and trails the midcap segment by ~120pp** (segment +104%, strategy −25% FULL) — markedly *worse* down-cap, not better. Sixth independent negative. | Was "moderate"; now **low**. Reopening = a full midcap-specific research program (own attribution + walk-forward + midcap news/fundamentals) against a 120pp deficit. Tooling exists if ever undertaken. |
 | **C. Buy consensus estimates** | Unlocks earnings-surprise / PEAD — the one documented effect at this horizon we structurally cannot see. | Highest odds of working. A recurring-cost decision, not engineering. |
 | **D. Accept as decision support** | Freeze research; keep the nightly factory running as-is. | A legitimate end state, not a failure. |
 
@@ -88,7 +92,7 @@ and recorded in their own docs.
 ### Alpha / edge (the ones that matter)
 - **L1 — No benchmark-beating out-of-sample edge.** The central fact. Best jointly-selected
   strategy (B9 stack): signal-edge OOS −0.04/PF 0.97; portfolio trails Nifty on every
-  validated window. Five independent negatives (§1).
+  validated window. Six independent negatives (§1), incl. the mid-cap spike.
 - **L2 — Free-data ceiling on the highest-value catalyst.** Earnings *surprise* (PEAD) is
   the most documented effect at this horizon and we structurally cannot see it without paid
   consensus estimates (B12 §4). "Results happened" is not a signal.

@@ -47,6 +47,8 @@
     "bhavcopy:download": "bun src/scripts/downloadBhavcopy.ts",
     "delivery:study": "bun src/scripts/runDeliveryStudy.ts",
     "survivorship:ingest": "bun src/scripts/ingestSurvivorshipOhlcv.ts",
+    "midcap:ingest": "bun src/scripts/ingestMidcapUniverse.ts",
+    "midcap:spike": "bun src/scripts/runMidcapSpike.ts",
     "golden:snapshot": "bun src/scripts/goldenSnapshot.ts",
     "golden:update": "bun src/scripts/goldenUpdate.ts",
     "listen:ltp": "bun src/scripts/ltpListener.ts",

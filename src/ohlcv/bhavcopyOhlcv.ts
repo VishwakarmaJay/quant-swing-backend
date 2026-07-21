@@ -9,12 +9,15 @@
  *
  * ⚠️ THE WRINKLE this module exists to handle: Angel candles are corp-action
  * ADJUSTED (verified, B4 audit); bhavcopy prices are RAW. Splicing raw series
- * next to adjusted ones would make a split look like a crash. Bhavcopy itself
- * carries the fix: on a split/bonus ex-date the exchange stamps `PREV_CLOSE`
- * with the *adjusted* prior close, so a discontinuity between `CLOSE[D-1]` and
- * `PREV_CLOSE[D]` reveals the action and its ratio. `backAdjustSplits` uses that
- * to back-adjust the pre-action prices, producing a continuous series in the
- * same convention as the Angel candles — without any external split table.
+ * next to adjusted ones would make a split look like a crash. The fix reads off
+ * one bhavcopy row: NSE stamps `PREV_CLOSE` with the **raw** prior-session close
+ * (verified — it is NOT split-adjusted), so on a split/bonus ex-date `PREV_CLOSE`
+ * is the pre-split level while `OPEN` is already post-split. The ratio
+ * `PREV_CLOSE / OPEN` is therefore the corp-action factor (NAUKRI 1:5 → 6984/1387
+ * ≈ 5.03), and it is **self-contained per row** — robust to the archive's missing
+ * days, unlike a cross-row comparison. `backAdjustSplits` back-adjusts the
+ * pre-action prices to the post-action scale, matching the Angel convention,
+ * without any external split table.
  *
  * Columns (0-indexed): 0 SYMBOL · 1 SERIES · 2 DATE1 · 3 PREV_CLOSE ·
  *   4 OPEN · 5 HIGH · 6 LOW · 7 LAST · 8 CLOSE · 9 AVG · 10 TTL_TRD_QNTY · … ·
@@ -105,41 +108,43 @@ export const parseBhavcopyOhlcv = (
 export type SplitEvent = {
   /** Ex-date (the first day priced on the new, post-action scale). */
   exDate: string;
-  /** CLOSE[D-1] / PREV_CLOSE[D] — >1 for a split/bonus, <1 for a consolidation. */
+  /** PREV_CLOSE[D] / OPEN[D] — >1 for a split/bonus, <1 for a consolidation. */
   ratio: number;
 };
 
 /**
  * Minimum |ratio − 1| that counts as a split/bonus rather than an ordinary
- * dividend. A 20% single-day PREV_CLOSE gap is far larger than any dividend
- * yield but comfortably below the smallest common split (1:4 bonus = +25%,
- * ratio 1.25 → 0.80). Ordinary/special dividends adjust PREV_CLOSE by a few
- * percent at most and are deliberately left in (matching a price series, not a
- * total-return series — the Angel convention per the B4 audit).
+ * overnight gap. Real splits/bonuses gap the ex-date open far from the raw prior
+ * close (2:1 → 1.0, 1:1 bonus → 1.0, 3:2 bonus → 0.5, 1:5 split → 4.0); a
+ * catastrophic news gap on a liquid midcap is rarely ≥35%, so 0.35 catches every
+ * common split/bonus while leaving ordinary gaps (and small 5:4-type bonuses)
+ * alone. Dividends do not move OPEN vs PREV_CLOSE materially and are left in
+ * (price series, not total-return — the Angel convention per the B4 audit).
  */
-export const SPLIT_THRESHOLD = 0.2;
+export const SPLIT_THRESHOLD = 0.35;
 
 /**
- * Detects corp actions from PREV_CLOSE/CLOSE discontinuities and back-adjusts
- * the pre-action OHLCV so the whole series is on the latest (post-action) scale
- * — the same back-adjusted convention as the Angel candles.
+ * Detects corp actions from the per-row PREV_CLOSE/OPEN gap and back-adjusts the
+ * pre-action OHLCV so the whole series is on the latest (post-action) scale — the
+ * same back-adjusted convention as the Angel candles.
  *
- * Rows must be ascending by date. Returns the adjusted rows plus the events
- * found (for logging/auditing). Volume is inversely adjusted so share count and
- * turnover stay consistent across the action.
+ * Rows must be ascending by date. Detection is self-contained per row (no
+ * cross-row comparison), so it is robust to the bhavcopy archive's missing days.
+ * Returns the adjusted rows plus the events found. Volume is inversely adjusted
+ * so share count and turnover stay consistent across the action.
  */
 export const backAdjustSplits = (
   rows: readonly BhavOhlcvRow[],
 ): { rows: BhavOhlcvRow[]; events: SplitEvent[] } => {
   if (rows.length < 2) return { rows: [...rows], events: [] };
 
-  // First pass (ascending): find each ex-date and its ratio.
+  // First pass: find each ex-date and its factor from PREV_CLOSE/OPEN (both raw,
+  // from the same row — PREV_CLOSE is pre-split, OPEN is already post-split).
   const events: SplitEvent[] = [];
-  for (let i = 1; i < rows.length; i++) {
-    const prevClose = rows[i]!.prevClose;
-    const lastClose = rows[i - 1]!.close;
-    if (prevClose <= 0 || lastClose <= 0) continue;
-    const ratio = lastClose / prevClose; // >1 split/bonus, <1 consolidation
+  for (let i = 0; i < rows.length; i++) {
+    const { prevClose, open } = rows[i]!;
+    if (prevClose <= 0 || open <= 0) continue;
+    const ratio = prevClose / open; // >1 split/bonus, <1 consolidation
     if (Math.abs(ratio - 1) >= SPLIT_THRESHOLD) {
       events.push({ exDate: rows[i]!.tradeDate, ratio });
     }

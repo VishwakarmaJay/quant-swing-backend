@@ -5,6 +5,7 @@ import { NewsOrigin } from '@generated/prisma/enums';
 import { DatedTitleIndex, normalizeTitle } from '../dedupe';
 import { sliceDateRange } from '../gdelt/download';
 import { mapArticleSymbols } from '../symbolMapper';
+import { ALIAS_VERSION } from '@/news/aliasVersion';
 import type { RawFeedItem } from '../types';
 import { downloadScripWindow } from './download';
 
@@ -46,6 +47,7 @@ export type BseRow = {
   titleNormalized: string;
   body: string | null;
   symbols: string[];
+  aliasVersion: string;
   publishedAt: Date;
   fetchedAt: Date;
   availableAt: Date;
@@ -140,6 +142,7 @@ export const processBseItems = (
       fetchedAt: importedAt,
       availableAt: new Date(publishedAt.getTime() + latencyMinutes * 60_000),
       origin: NewsOrigin.BSE_BACKFILL,
+      aliasVersion: ALIAS_VERSION,
     });
     companyTitles.add(titleNormalized, publishedAt.getTime());
     existingKeys.add(key);

@@ -547,9 +547,17 @@ the archive's survival and integrity, so these come first.
       through the `amazon/aws-cli` Docker image over IMDSv2). Non-fatal on failure.
       **Verified by restoring the S3 copy end-to-end**: box → S3 → scratch DB, all counts
       exact. → [`DEPLOYMENT_AWS.md`](./DEPLOYMENT_AWS.md) §5. Residual: single account/region.
-- [ ] `aliasVersion` stamping + raw-capture layer (architecture-review debt) — the archive
-      is not yet held to the reproducibility standard the factor pipeline meets, and
-      `symbols[]` has already been retroactively rewritten once (24,671 tags).
+- [x] ✅ **`aliasVersion` stamping — DONE (2026-07-20).** `symbols[]` now carries the
+      derivation version that produced it: `ALIAS_VERSION` = `av-<hash>` of the alias
+      dictionary + exclusions + Indian-domain allowlist (`src/news/aliasVersion.ts`, +5
+      tests). Stamped at every write site (ingest, GDELT/BSE backfill, remap); migration
+      `b15_alias_version` adds the nullable column; a one-time `news:remap` stamped all
+      **172,867** existing rows (0 retagged — the dict is unchanged, confirming the stamp
+      is honest — 172,867 version-only restamps), idempotent on re-run. A future dictionary
+      change is now a **tracked** version bump the sentiment backtest can split/filter by,
+      not a silent rewrite. The reproducibility guarantee `weightsVersion` gives the factor
+      pipeline, now extended to the archive. *(Raw-capture layer — the larger half of the
+      architecture-review debt — remains open.)*
 - [ ] De-confound `INSIDER_PLEDGE` (split scheduled trading-window notices from real
       SAST/PIT filings) — rescues or honestly kills B12's strongest cell.
 - [ ] One more attempt at historical index-constituent data (survivorship residual).

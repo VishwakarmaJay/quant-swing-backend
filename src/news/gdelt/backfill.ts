@@ -7,6 +7,7 @@ import { EQUITY_UNIVERSE } from '@/universe/equityUniverse';
 
 import { DatedTitleIndex, normalizeTitle } from '../dedupe';
 import { mapArticleSymbols } from '../symbolMapper';
+import { ALIAS_VERSION } from '@/news/aliasVersion';
 import { GDELT_COVERAGE_START } from './gdeltClient';
 import { buildSymbolQuery, downloadWindowBatch, sliceDateRange, windowDays } from './download';
 import { toGdeltRecords, type GdeltRecord } from './parser';
@@ -74,6 +75,7 @@ export type GdeltRow = {
   titleNormalized: string;
   body: string | null;
   symbols: string[];
+  aliasVersion: string;
   publishedAt: Date;
   fetchedAt: Date;
   availableAt: Date;
@@ -141,6 +143,7 @@ export const processGdeltRecords = (
       fetchedAt: importedAt,
       availableAt: record.availableAt,
       origin: NewsOrigin.GDELT,
+      aliasVersion: ALIAS_VERSION,
     });
     corpus.add(titleNormalized, record.publishedAt.getTime());
     existingUrls.add(record.url);

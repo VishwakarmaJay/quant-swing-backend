@@ -198,7 +198,8 @@ status`. Two purpose-built alarms:
 | Manual run/report | `src/scripts/runNewsIngest.ts` (`bun run news:ingest`) |
 | Domain-aware re-tag after alias growth | `src/scripts/remapSymbols.ts` (`bun run news:remap`) |
 | Historical backfills (provenance-tagged) | GDELT: [`GDELT_BACKFILL.md`](./GDELT_BACKFILL.md) · BSE filings: [`BSE_BACKFILL.md`](./BSE_BACKFILL.md) |
-| Schema | `prisma/schema.prisma` → `news_article` (+ `origin`, `availableAt`), `ingest_run` |
+| Schema | `prisma/schema.prisma` → `news_article` (+ `origin`, `availableAt`, **`aliasVersion`**), `ingest_run` |
+| Alias-derivation version (B15) | `src/news/aliasVersion.ts` (`ALIAS_VERSION`, hashes dictionary + exclusions + Indian domains) |
 | Env knobs | `NEWS_INGEST_INTERVAL_MS` · `NEWS_DEDUPE_WINDOW_DAYS` · `NEWS_FETCH_TIMEOUT_MS` |
 
 ## 11. Sentiment scoring (B6 — FinBERT sidecar)

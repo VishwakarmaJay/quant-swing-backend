@@ -1,4 +1,5 @@
 import { mapArticleSymbols } from '@/news';
+import { ALIAS_VERSION } from '@/news/aliasVersion';
 import { isIndianNewsDomain } from '@/news/indianDomains';
 import { prisma } from '@services/prisma';
 import { NewsOrigin } from '@generated/prisma/enums';
@@ -41,6 +42,7 @@ const run = async () => {
   let changed = 0;
   let foreignUnmapped = 0;
   let newlyMapped = 0;
+  let versionOnly = 0; // symbols unchanged, aliasVersion stamp refreshed
   let nowUnmatched = 0;
   let cursor: string | undefined;
 
@@ -50,7 +52,7 @@ const run = async () => {
       orderBy: { id: 'asc' },
       take: BATCH,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      select: { id: true, origin: true, url: true, title: true, body: true, symbols: true },
+      select: { id: true, origin: true, url: true, title: true, body: true, symbols: true, aliasVersion: true },
     });
     if (rows.length === 0) break;
     cursor = rows[rows.length - 1]!.id;
@@ -59,14 +61,29 @@ const run = async () => {
       scanned++;
       const symbols = deriveSymbols(row);
       const same = symbols.length === row.symbols.length && symbols.every((s, i) => s === row.symbols[i]);
-      if (same) continue;
-      changed++;
-      if (row.symbols.length > 0 && symbols.length === 0) {
-        nowUnmatched++;
-        if (row.origin === NewsOrigin.GDELT && !isIndianNewsDomain(row.url)) foreignUnmapped++;
+
+      // Every scanned row's symbols[] now reflects the CURRENT dictionary — even
+      // an unchanged one has been verified under it — so all get stamped with the
+      // current ALIAS_VERSION. That is the whole point: after a remap the version
+      // column truthfully says "these tags are current". A no-op row (same tags,
+      // same version) is skipped to avoid a pointless write.
+      if (same && row.aliasVersion === ALIAS_VERSION) continue;
+      if (!same) {
+        changed++;
+        if (row.symbols.length > 0 && symbols.length === 0) {
+          nowUnmatched++;
+          if (row.origin === NewsOrigin.GDELT && !isIndianNewsDomain(row.url)) foreignUnmapped++;
+        }
+        if (row.symbols.length === 0 && symbols.length > 0) newlyMapped++;
+      } else {
+        versionOnly++;
       }
-      if (row.symbols.length === 0 && symbols.length > 0) newlyMapped++;
-      if (!dryRun) await prisma.newsArticle.update({ where: { id: row.id }, data: { symbols } });
+      if (!dryRun) {
+        await prisma.newsArticle.update({
+          where: { id: row.id },
+          data: same ? { aliasVersion: ALIAS_VERSION } : { symbols, aliasVersion: ALIAS_VERSION },
+        });
+      }
     }
     if (scanned % 10000 < BATCH) {
       console.log(`  ${scanned}/${total} scanned · ${changed} changed · ${foreignUnmapped} foreign-unmapped`);
@@ -75,7 +92,8 @@ const run = async () => {
 
   console.log(
     `\nRemap ${dryRun ? '(dry run) ' : ''}complete: ${scanned} scanned · ${changed} retagged · ` +
-      `${foreignUnmapped} foreign-domain GDELT unmapped · ${nowUnmatched} total now-unmatched · ${newlyMapped} newly mapped`,
+      `${foreignUnmapped} foreign-domain GDELT unmapped · ${nowUnmatched} total now-unmatched · ${newlyMapped} newly mapped · ` +
+      `${versionOnly} version-only restamps → aliasVersion now ${ALIAS_VERSION}`,
   );
 };
 

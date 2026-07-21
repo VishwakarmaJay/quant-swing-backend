@@ -507,6 +507,13 @@ model NewsArticle {
   /// Provenance (B3.5): which collection path produced the row. Research must
   /// always know live-captured from retro-imported.
   origin          NewsOrigin
+  /// Derivation version of `symbols[]` (B15): `av-<hash>` of the alias
+  /// dictionary + exclusions + Indian-domain allowlist that produced the tags.
+  /// Stamped whenever symbols[] is written (ingest, backfill, remap), so a
+  /// dictionary change is a *tracked* version bump rather than a silent rewrite —
+  /// the reproducibility guarantee `weightsVersion` gives the factor pipeline.
+  /// Null only for rows written before B15 that predate a remap.
+  aliasVersion    String?
   createdAt       DateTime @default(now())
 
   // ── FinBERT sentiment (ROADMAP B6, scored by the sidecar) ──

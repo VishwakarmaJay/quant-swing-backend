@@ -7,6 +7,7 @@ import { fetchFeed } from './fetch';
 import { parseFeed } from './rssParser';
 import { NEWS_SOURCES, resolveSourceUrls } from './sources';
 import { mapArticleSymbols } from './symbolMapper';
+import { ALIAS_VERSION } from './aliasVersion';
 import { originForSource, type NewsSource, type NewsSourceId, type RawFeedItem } from './types';
 
 /** Per-source outcome of one ingestion run (for monitoring volume/dupe rate). */
@@ -140,6 +141,7 @@ export const ingestNews = async (sources: readonly NewsSource[] = NEWS_SOURCES):
             // Live capture: the moment we fetched it is the moment we could act on it.
             availableAt: fetchedAt,
             origin: originForSource(source.id),
+            aliasVersion: ALIAS_VERSION,
           },
         });
         result.inserted++;

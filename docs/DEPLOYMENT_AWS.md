@@ -159,16 +159,34 @@ statements for a role absent on the restore host. **These are benign; zero data 
 Verified counts after restore: 173,168 articles (100% scored, 138,267 mapped),
 227,001 candles, 1,984 fundamental quarters, all four origins intact.
 
-### ⚠️ Residual risk — still single-location
-Backups live on the **same EBS volume** as the database. This protects against DB
-corruption, a bad migration, or an accidental drop — **not** against volume loss or
-instance termination. Closing that needs one of:
-- `aws ec2 create-snapshot` on a schedule (coarse, no extra moving parts), or
-- S3 upload via an instance IAM role (proper offsite; ~50 MB/day, pennies/month), or
-- a periodic `scp` pull to the workstation (manual, so it will drift).
+### Offsite: S3 ✅ DONE (2026-07-20)
+Backups previously lived only on the DB's own EBS volume — safe from corruption, not from
+volume loss. Now every daily run also pushes to **S3** (`quantswing-archive-283443834610`,
+ap-south-1, private / versioned / AES256 / 90-day lifecycle, 30-day noncurrent expiry).
 
-A copy was pulled to the workstation on 2026-07-20 as an interim baseline. **Given the
-6-month accrual plan, wiring S3 or EBS snapshots is the highest-value remaining ops task.**
+**Auth: instance IAM role, no keys on the box.** `quantswing-backup-role` (via
+`quantswing-backup-profile`) is attached to the instance; its policy allows **only**
+`s3:PutObject` to `…/backups/*` of this one bucket (no read of other buckets, no delete).
+The box has no `aws` binary — the upload runs through the `amazon/aws-cli` Docker image
+with `--network host` so it can read credentials from instance metadata (IMDSv2). The
+upload is **non-fatal**: an S3 failure logs `S3 FAIL` but never fails the local backup.
+
+**Verified end-to-end 2026-07-20** — not just "it uploaded": pulled `quant-latest.sql.gz`
+back *from S3*, restored into a scratch database, confirmed 173,168 articles / 227,001
+candles / 1,984 quarters, 30 benign role-GRANT errors, zero data errors. This is a real
+recovery path: box → S3 → any host → running DB.
+
+**Rebuild-from-zero pointers** (if the whole AWS account were lost, these are the resources
+this backup depends on):
+- bucket `quantswing-archive-283443834610`, prefix `backups/`
+- role `quantswing-backup-role` + instance profile `quantswing-backup-profile` (put-only)
+- backup script `~/quantswing/backup-archive.sh`, cron `30 20 * * *` UTC
+
+### Residual risk (now small)
+Single AWS **account** and single **region** (ap-south-1). A full account compromise or an
+ap-south-1 outage would still be uncovered; cross-region replication or an occasional pull
+to non-AWS storage would close that, but the marginal value is low for a ~40 MB/day archive
+that the workstation also holds a copy of.
 
 ## 6. Health / verification checklist
 

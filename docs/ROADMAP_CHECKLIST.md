@@ -541,9 +541,12 @@ the archive's survival and integrity, so these come first.
       hit for real). **Restore verified by actually restoring**: 30 benign role-GRANT
       errors, zero data errors, all 173,168 articles / 227,001 candles / 1,984 quarters
       intact. → [`DEPLOYMENT_AWS.md`](./DEPLOYMENT_AWS.md) §5
-- [ ] ⚠️ **Offsite copy** — backups still sit on the same EBS volume as the DB (protects
-      corruption, not volume loss). S3 via instance IAM role, or scheduled EBS snapshots.
-      **Highest-value remaining ops task given the 6-month plan.**
+- [x] ✅ **Offsite copy — DONE (2026-07-20).** Daily push to S3
+      (`quantswing-archive-283443834610`, private/versioned/encrypted, 90-day lifecycle) via
+      an **instance IAM role** (put-only, scoped to one bucket — no keys on the box; upload
+      through the `amazon/aws-cli` Docker image over IMDSv2). Non-fatal on failure.
+      **Verified by restoring the S3 copy end-to-end**: box → S3 → scratch DB, all counts
+      exact. → [`DEPLOYMENT_AWS.md`](./DEPLOYMENT_AWS.md) §5. Residual: single account/region.
 - [ ] `aliasVersion` stamping + raw-capture layer (architecture-review debt) — the archive
       is not yet held to the reproducibility standard the factor pipeline meets, and
       `symbols[]` has already been retroactively rewritten once (24,671 tags).

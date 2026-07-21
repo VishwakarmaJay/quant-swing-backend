@@ -115,8 +115,9 @@ and every variant still loses to a flat Nifty on the validated era. With the mid
 then **retracted the same day** when the walk-forward inverted it (7d incumbent is best
 OOS; longer is monotonically worse — the gain was regime-specific beta). **Keep the 7-day
 exit.** Remaining structural options: ~~**(2)** mid/small-cap universe~~ **TESTED 2026-07-21 →
-NEGATIVE** ([`MIDCAP_SPIKE.md`](./MIDCAP_SPIKE.md)): the strategy is markedly *worse* on a
-point-in-time Nifty Midcap 150 universe (loses every window, trails the segment by ~120pp);
+NEGATIVE** ([`MIDCAP_SPIKE.md`](./MIDCAP_SPIKE.md)): on a point-in-time Nifty Midcap 150 universe
+the fair signal-edge walk-forward is −0.04%/PF 0.98 — **no better than large-caps** (the −120pp
+portfolio gap vs the +104% segment is largely an exposure/beta confound);
 **(3)** buy consensus estimates (unlocks the PEAD effect B12 proved we structurally cannot
 see), **(4)** accept the system as decision support — a legitimate end state. Full argument:
 [`DELIVERY_STUDY.md`](./DELIVERY_STUDY.md) §4 + [`HORIZON_STUDY.md`](./HORIZON_STUDY.md) §6 +

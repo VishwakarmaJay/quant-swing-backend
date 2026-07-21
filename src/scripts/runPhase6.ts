@@ -93,10 +93,11 @@ const run = async () => {
     process.exitCode = 1;
     return;
   }
-  console.log(`Loading candles… (sentiment origin tier: ${tier})`);
-  const store: CandleStore = await loadCandleStore({ sentimentOrigins: SENTIMENT_ORIGIN_TIERS[tier] });
+  const midcap = args.includes('--midcap'); // Option-B: run the walk-forward on the EQ_MID universe
+  console.log(`Loading candles… (sentiment origin tier: ${tier}${midcap ? ', MIDCAP universe' : ''})`);
+  const store: CandleStore = await loadCandleStore({ sentimentOrigins: SENTIMENT_ORIGIN_TIERS[tier], universeType: midcap ? 'EQ_MID' : 'EQ' });
   const total = store.tradingDates.length;
-  console.log(`Universe ${store.instruments.length} stocks, ${total} trading days (tier ${tier}).\n`);
+  console.log(`Universe ${store.instruments.length} stocks, ${total} trading days (tier ${tier}${midcap ? ', MIDCAP' : ''}).\n`);
 
   // The B9 joint grid: incumbents as controls, each validated floor alone, the
   // fold-3 stack, and volume-pruned variants. Dose-neighbours (ff45/sf48) served

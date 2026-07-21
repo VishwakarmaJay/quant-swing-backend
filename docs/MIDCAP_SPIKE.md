@@ -23,10 +23,27 @@ B9 stack (production config: `pullback+srs0.25+ff50+sf50-novol`), risk sizing, �
   window).
 - The strategy **lost money in every window** and trailed the segment by ~120pp (FULL/OOS),
   ~28pp (COVERAGE). It also lost to a flat Nifty.
-- Mechanism: at ~25% exposure with tight ATR stops and a pullback entry, the config is
-  whipsawed by midcap volatility (**win rate 31–38%** vs 40%+ on large-caps), capturing almost
-  none of the +100% beta while paying the noise. It is not "no edge down-cap" — it is
-  **structurally worse** down-cap.
+- Mechanism: at ~25% exposure with tight ATR stops and a pullback entry, the config captures
+  almost none of the +100% beta while paying the volatility. **But the −120pp is largely an
+  exposure/beta confound** — a concentrated 2-slot book *cannot* track a 100%-invested basket in
+  a +104% tape by construction, so "trails the equal-weight segment" overstates the selection
+  failure. The fair, exposure-independent read is the walk-forward below.
+
+## 1a. The fair test — signal-edge walk-forward (`backtest:phase6 --midcap`)
+Letting the harness **select** among 8 configs per fold (3 embargoed folds), judged on per-trade
+net % (no 2-slot cap → exposure-neutral):
+
+| | test n | OOS exp% | PF |
+|---|---|---|---|
+| walk-forward **selected** | 1078 | **−0.04** | **0.98** |
+| baseline (control) | 1204 | −0.09 | 0.95 |
+
+Per-fold picks churn (baseline +0.41/1.27, then srs0.25 −0.59/0.71, then the stack −0.04/0.97) —
+no config generalizes. **The decisive fact:** midcap OOS per-trade edge is **−0.04% / PF 0.98 —
+essentially identical to large-caps (−0.04 / PF 0.97, B9).** So at the signal level the strategy
+is **no better down-cap, not markedly worse** — the same near-breakeven-negative it is
+everywhere. The "inefficiency is likelier down-cap" thesis is refuted either way: down-cap offers
+**no improvement**.
 
 ## 2. Method (what makes this a fair, honest test)
 - **Universe:** the **2021-03 Nifty Midcap 150 cohort** (150 names → 141 with bhav data), a
@@ -60,9 +77,11 @@ B9 stack (production config: `pullback+srs0.25+ff50+sf50-novol`), risk sizing, �
   equal-weight (not cap-weight) benchmark. None of these threaten a 120pp verdict.
 
 ## 4. Verdict
-**Option B is not supported by the cheap test.** The current strategy is *worse* on midcaps,
-not better — refuting the "free-data inefficiency is likelier down-cap → a strategy could find
-edge there" thesis *for this strategy*. Combined with the five prior negatives and B12's
+**Option B is not supported.** The fair signal-edge test (§1a) shows the strategy is **no better
+on midcaps than large-caps** — OOS per-trade −0.04% / PF 0.98, near-breakeven-negative on both —
+refuting the "free-data inefficiency is likelier down-cap" thesis. (The portfolio-level −120pp of
+§1 is real but largely an exposure/beta confound, not uniquely-bad midcap selection.) Combined
+with the five prior negatives and B12's
 structural result (free data can't see earnings surprise), the evidence continues to point at
 **Option A (consolidate + wait)** or **Option D (accept as decision support)** rather than a
 mid/small-cap pivot. Reopening B would mean a full midcap-specific research program (its own

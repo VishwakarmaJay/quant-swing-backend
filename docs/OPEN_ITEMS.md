@@ -30,13 +30,30 @@ So the next direction is a **choice, not a task**:
 | option | what it is | odds / cost |
 |---|---|---|
 | **A. Consolidate + wait** *(current)* | Stop hunting edge; let the archive accrue; revisit ~Jan 2027 when the live-only sentiment tier is backtestable. | Near-zero cost; the only genuinely *new* information source. Chosen 2026-07-20. |
-| **B. Mid/small-cap universe** | ~~Free-data inefficiency likelier down-cap.~~ **✅ SPIKE-TESTED 2026-07-21 → NEGATIVE ([`MIDCAP_SPIKE.md`](./MIDCAP_SPIKE.md)).** The B9 strategy on a point-in-time Nifty Midcap 150 universe **loses in every window and trails the midcap segment by ~120pp** (segment +104%, strategy −25% FULL) — markedly *worse* down-cap, not better. Sixth independent negative. | Was "moderate"; now **low**. Reopening = a full midcap-specific research program (own attribution + walk-forward + midcap news/fundamentals) against a 120pp deficit. Tooling exists if ever undertaken. |
-| **C. Buy consensus estimates** | Unlocks earnings-surprise / PEAD — the one documented effect at this horizon we structurally cannot see. | Highest odds of working. A recurring-cost decision, not engineering. |
+| **B. Mid/small-cap universe** | ~~Free-data inefficiency likelier down-cap.~~ **✅ TESTED 2026-07-21 → NEGATIVE ([`MIDCAP_SPIKE.md`](./MIDCAP_SPIKE.md)).** On a point-in-time Nifty Midcap 150 universe the fair signal-edge walk-forward gives OOS −0.04%/PF 0.98 — **no better than large-caps** (−0.04/0.97), no config generalizes. (Portfolio-level it trails the +104% segment by ~120pp, but that is largely an exposure/beta confound.) Sixth independent negative. | Was "moderate"; now **low**. Reopening = a full midcap-specific research program vs a lever with no edge signal. Tooling exists if ever undertaken. |
+| **C. Buy consensus estimates** | Unlocks earnings-surprise / PEAD — the one documented effect at this horizon we structurally cannot see. **Scoped 2026-07-21: [`OPTION_C_ESTIMATES.md`](./OPTION_C_ESTIMATES.md)** (data needed, providers/cost, engineering-ready design). | Highest odds of working. A **spend** decision (ideally a one-time historical snapshot first), not engineering. |
 | **D. Accept as decision support** | Freeze research; keep the nightly factory running as-is. | A legitimate end state, not a failure. |
 
 Full argument: [`DELIVERY_STUDY.md`](./DELIVERY_STUDY.md) §4 · [`HORIZON_STUDY.md`](./HORIZON_STUDY.md) §6.
-**Durable finding to carry into B or C:** ~30-day horizon with risk sizing (not 7d) — the
+**Durable finding to carry into C:** ~30-day horizon with risk sizing (not 7d) — the
 only portfolio-level survivor of B14.
+
+### Resolution (2026-07-21) — the fork is now down to one real question
+The free-data avenues are **exhausted**: B was spike-tested and is negative (six independent
+negatives total). That leaves exactly one lever with a *prior reason* to work — **C, and C is a
+purchase, not code** (scoped in [`OPTION_C_ESTIMATES.md`](./OPTION_C_ESTIMATES.md)). So the
+standing posture is:
+- **A (consolidate + wait) is the active default** — the archive accrues, the sentiment clock
+  runs to ~Jan 2027, everything is versioned/backed-up (B15/B16). Near-zero cost.
+- **D (accept as decision support) is the honest end state** if C is not funded — the nightly
+  factory is complete, reproducible, and useful as-is; freezing research is a legitimate landing,
+  not a failure.
+- **C is the only path to an *edge*** and is a spend decision for the operator. Recommended first
+  step if pursued: buy a **one-time historical estimate snapshot** to backtest PEAD before
+  committing to a recurring feed.
+
+There is no remaining *free* engineering that changes the verdict — the next move is a **budget
+call (fund C) or a stance (accept A/D)**, not another study.
 
 ---
 

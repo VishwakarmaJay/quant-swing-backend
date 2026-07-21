@@ -78,7 +78,7 @@ Angel One (scrip master + daily candles + live LTP)
  Signal math (ATR/swing stop, 2R/3R targets, R:R vs resistance) ──► levels | Rejection
         │
         ▼
- PortfolioManager (conviction sizing, caps, kill switch) ──► ApprovedSignal | Rejection
+ PortfolioManager (risk sizing [default], caps, kill switch) ──► ApprovedSignal | Rejection
         │
         ▼
  Persistence (SignalRun + Signal + SignalRejection, version-stamped, append-only)
@@ -443,10 +443,16 @@ Order: kill switch → per-candidate viability → rank-order allocation.
 ```
 KILL SWITCH : dailyRealizedLoss ≥ ₹5,000  → reject ALL ("kill-switch")
 
-SIZING (conviction-based — no fixed-risk model, no capital cap):
-  allocatedCapital = baseCapitalPerTrade × (composite / 100)     // base ₹100,000 (env)
-  qty              = floor(allocatedCapital / entry)
-  size-reduction   : if 3 ≤ atrPct < 6 → qty = floor(qty × 0.75)
+SIZING — PORTFOLIO_SIZING_MODE (default `risk`; `conviction` kept switchable, legacy):
+  risk (DEFAULT — mirrors the backtested portfolio simulator exactly):
+    book       = baseCapitalPerTrade × maxOpenPositions
+    riskBudget = book × riskPctPerTrade / 100          // PORTFOLIO_RISK_PCT
+    qty        = floor(riskBudget / riskPerShare)       // size by entry→stop distance
+    qty        = min(qty, floor(baseCapitalPerTrade / entry))   // slot-budget cap
+  conviction (LEGACY — capital ∝ composite; B11: the composite ranks no better than random):
+    allocatedCapital = baseCapitalPerTrade × (composite / 100)   // base ₹100,000 (env)
+    qty              = floor(allocatedCapital / entry)
+  size-reduction   : if 3 ≤ atrPct < 6 → qty = floor(qty × 0.75)   // both modes
   REJECT "sizing"  if qty < 1
 
 COST-DRAG:
@@ -462,11 +468,14 @@ ALLOCATION (candidates ranked by composite, descending):
 ```
 
 Runtime env knobs: `PORTFOLIO_BASE_CAPITAL`, `PORTFOLIO_MAX_OPEN_POSITIONS`,
-`PORTFOLIO_MAX_PER_SECTOR`.
+`PORTFOLIO_MAX_PER_SECTOR`, `PORTFOLIO_SIZING_MODE`, `PORTFOLIO_RISK_PCT`.
 
-**Known tension (from attribution):** composite ρ ≈ 0 vs outcomes (§15 Step 1) — so
-conviction sizing currently allocates more capital to trades that are *not* measurably
-better. Flagged for the eventual weighting rework.
+**Resolved tension (from attribution):** composite ρ ≈ 0 vs outcomes (§15 Step 1), so
+conviction sizing allocated more capital to trades that are *not* measurably better. **[FIXED
+— operator decision 2026-07-20]** production sizing was switched **conviction → `risk`** (the
+new default; the box carries no `PORTFOLIO_SIZING_MODE` override, so it inherits it), and live
+sizing now matches the backtested model instead of scaling by a ρ≈0 score. Conviction is kept
+only as a comparison lever. Learned weighting stays deferred (all Spearman ≈ 0).
 
 ## 12. Persistence & version stamps
 
@@ -676,9 +685,11 @@ caveats; 13–17 are engineering/scope.)
    reconstructed). See `GDELT_BACKFILL.md`, `BSE_BACKFILL.md`, `GDELT_PRECISION_FIX.md`.
 5. **BULL remains net-negative** (−0.32 OOS even with the pullback entry). The buy-strength
    style is structurally wrong there, and the pullback style only reduces the damage.
-6. **The conviction/composite score is uninformative (ρ ≈ 0)** — yet it drives position
-   sizing, so sizing currently adds no value (may subtract). Needs orthogonal signal before
-   reweighting/learning can fix it.
+6. **The conviction/composite score is uninformative (ρ ≈ 0).** **[UPDATED — 2026-07-20]**
+   It no longer drives production sizing: sizing was switched conviction → `risk` (§11), so
+   capital is now sized by the entry→stop distance, not by the ρ≈0 composite. The score's
+   uninformativeness still blocks learned reweighting (needs an orthogonal signal first), but
+   it is no longer *scaling capital*.
 7. **Survivorship bias:** the universe is *today's* 166 constituents replayed into the past —
    results are optimistic; delisted/degraded names are absent. **[PARTIALLY ADDRESSED —
    B8.2]** `src/universe/membership.ts` adds point-in-time membership windows, enforced in

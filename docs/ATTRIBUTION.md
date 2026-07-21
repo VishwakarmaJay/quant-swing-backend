@@ -48,8 +48,9 @@ Spearman(score, net return) for every decision input, over the 981 trades:
 Every correlation is ≈ 0 (|ρ| < 0.06). The terciles confirm it — expectancy does **not** rise from
 the low-score to the high-score third for any feature; it wanders. **The composite is the headline:
 the score that ranks conviction and drives position sizing is uninformative about returns.** More
-composite ≠ better trade, so conviction-based sizing is allocating more capital to trades that are
-not actually better.
+composite ≠ better trade, so conviction-based sizing was allocating more capital to trades that are
+not actually better. *(This finding drove the 2026-07-20 switch to `risk` sizing — production no
+longer sizes by the composite; see ROADMAP B11 / SYSTEM §6.)*
 
 > Caveat: conditioning is range-restricted — every trade already cleared the gates, so scores span a
 > narrow band. It measures marginal discrimination *within* the selected set, not standalone power.

@@ -66,7 +66,7 @@ Angel One (scrip master + historical candles + live LTP)
  Signal math (ATR stop, targets, R:R)                   ──► levels | Rejection
         │
         ▼
- PortfolioManager (conviction sizing, caps, kill switch) ──► ApprovedSignal | Rejection
+ PortfolioManager (risk sizing [default], caps, kill switch) ──► ApprovedSignal | Rejection
         │
         ▼
  Persistence (SignalRun + Signal + SignalRejection, version-stamped)
@@ -444,10 +444,16 @@ Order of checks: kill switch → per-candidate viability → rank-order allocati
 ```
 KILL SWITCH:  if dailyRealizedLoss ≥ dailyKillSwitch → reject ALL ("kill-switch")
 
-SIZING (conviction-based, no capital cap):
-  allocatedCapital = baseCapitalPerTrade × (compositeScore / 100)
-  qty              = floor(allocatedCapital / entry)
-  size-reduction:  if 3% ≤ atrPct < 6% → qty = floor(qty × 0.75)
+SIZING — PORTFOLIO_SIZING_MODE (default `risk`; `conviction` switchable, legacy):
+  risk (DEFAULT — mirrors the backtested simulator; matches live to the model):
+    book       = baseCapitalPerTrade × maxOpenPositions
+    riskBudget = book × riskPctPerTrade/100                (PORTFOLIO_RISK_PCT)
+    qty        = floor(riskBudget / riskPerShare)          (size by entry→stop distance)
+    qty        = min(qty, floor(baseCapitalPerTrade / entry))   (slot-budget cap)
+  conviction (LEGACY — capital ∝ composite; B11: composite ranks no better than random):
+    allocatedCapital = baseCapitalPerTrade × (compositeScore / 100)
+    qty              = floor(allocatedCapital / entry)
+  size-reduction:  if 3% ≤ atrPct < 6% → qty = floor(qty × 0.75)   (both modes)
   REJECT "sizing"  if qty < 1
 
 COST-DRAG:
@@ -461,9 +467,11 @@ ALLOCATION (candidates ranked by composite desc):
   REJECT "sector-cap"      if sector already at maxPerSector (1)
   else APPROVE, decrement slots, mark sector
 ```
-`baseCapitalPerTrade` and `maxOpenPositions` (+ `maxPerSector`) are **runtime env vars**
-(`PORTFOLIO_BASE_CAPITAL`, `PORTFOLIO_MAX_OPEN_POSITIONS`, `PORTFOLIO_MAX_PER_SECTOR`) —
-set per run/deploy, no code change.
+`baseCapitalPerTrade`, `maxOpenPositions` (+ `maxPerSector`), the sizing mode and risk % are
+all **runtime env vars** (`PORTFOLIO_BASE_CAPITAL`, `PORTFOLIO_MAX_OPEN_POSITIONS`,
+`PORTFOLIO_MAX_PER_SECTOR`, `PORTFOLIO_SIZING_MODE`, `PORTFOLIO_RISK_PCT`) — set per
+run/deploy, no code change. Production runs `risk` (the code default; the box sets no
+override) since the 2026-07-20 operator switch conviction → risk (B9/B11).
 
 An `ApprovedSignal` carries: symbol, sector, regime, composite/agreement, full levels
 (entry band, SL, T1/T2, risk/share, R:R, atrPct), and sizing (qty, positionValue,

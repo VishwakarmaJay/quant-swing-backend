@@ -109,9 +109,10 @@ here so it cannot be rediscovered later and mistaken for a result.
    on `selEdge`, on both windows, before anything is built on top of it. The control and
    the metric are permanent fixtures of the simulator.
 4. **Two actionable outputs**, both matters for the operator:
-   - ⚙️ **Sizing:** production uses *conviction* sizing (capital ∝ composite). The evidence
-     across B9 and B11 says **risk sizing** is the better default in both return and
-     drawdown. Changing it is an operator decision (`PORTFOLIO_*` env knobs).
+   - ⚙️ **Sizing:** production ran *conviction* sizing (capital ∝ composite) at the time; the
+     evidence across B9 and B11 says **risk sizing** is the better default in both return and
+     drawdown. **✅ Adopted (operator, 2026-07-20):** production switched conviction → `risk`
+     — now the code default (`PORTFOLIO_SIZING_MODE`; the box sets no override).
    - The composite's role in *ranking* and *sizing* is now measured as ≤ random. It should
      not be given more responsibility until something has predictive power.
 5. **Where the effort should go instead:** the right tail. Everything measured so far —

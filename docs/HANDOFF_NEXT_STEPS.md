@@ -111,7 +111,8 @@ trend strength) is the problem — which reframes Steps 3–4.
 Built `bun run backtest:attribution` (conditioning + gate/factor leave-one-out). Over the same
 981 trades:
 - **Nothing discriminates winners from losers** — Spearman(score, return) ≈ 0 for every factor
-  *and for the composite* (ρ = −0.02). The conviction score that drives sizing is uninformative.
+  *and for the composite* (ρ = −0.02). The conviction score is uninformative — which is why
+  production sizing was later switched conviction → `risk` (2026-07-20), so it no longer sizes by it.
 - **The scoring gates are largely inert** — the composite-threshold and technical-floor gates earn
   nothing (disabling them doesn't change expectancy); only the **RSI 35–68 band** does real
   filtering. Gates trim the losing tail but can't create edge.

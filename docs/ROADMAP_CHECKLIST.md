@@ -433,8 +433,13 @@ Full doc: [`SLOT_ALLOCATION.md`](./SLOT_ALLOCATION.md) · `bun run backtest:slot
   redirects the roadmap: the ~14% bottleneck is SIGNAL QUALITY, not allocation. A portfolio
   optimizer is premature (its objective function doesn't exist yet). Cost: one day; saved:
   a month.**
-- [ ] ⚙️ Operator decision surfaced: switch production sizing conviction → **risk**
-      (`PORTFOLIO_*` env), on B9+B11 evidence.
+- [x] ⚙️ **Operator decision TAKEN (2026-07-20): production sizing switched conviction →
+      `risk`** on B9+B11 evidence. Enacted as the code default (`PortfolioSizingMode`
+      default `risk` in `src/portfolio/types.ts`; `portfolioConfigFromEnv` reads
+      `PORTFOLIO_SIZING_MODE`, wired into `runPipeline`); the box carries **no**
+      `PORTFOLIO_*` override, so production inherits `risk`. Verified 2026-07-21 (code +
+      live `.env`). Live sizing now matches the backtested model instead of scaling by a
+      ρ≈0 composite.
 
 ### ✅ B12. Event typing + event study — DONE (2026-07-20); right-tail hypothesis NOT confirmed
 Full doc: [`EVENT_STUDY.md`](./EVENT_STUDY.md) · `bun run events:study [1|3|5|10]` · 416 tests.

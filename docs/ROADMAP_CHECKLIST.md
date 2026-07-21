@@ -547,7 +547,10 @@ the archive's survival and integrity, so these come first.
       an **instance IAM role** (put-only, scoped to one bucket — no keys on the box; upload
       through the `amazon/aws-cli` Docker image over IMDSv2). Non-fatal on failure.
       **Verified by restoring the S3 copy end-to-end**: box → S3 → scratch DB, all counts
-      exact. → [`DEPLOYMENT_AWS.md`](./DEPLOYMENT_AWS.md) §5. Residual: single account/region.
+      exact. → [`DEPLOYMENT_AWS.md`](./DEPLOYMENT_AWS.md) §5. ~~Residual: single
+      account/region.~~ **[2026-07-21]** Region axis closed by cross-region replication
+      (ap-south-1 → ap-southeast-1, `quantswing-archive-dr-…`, role `quantswing-crr-role`,
+      verified ~20s); single-**account** is the accepted residual.
 - [x] ✅ **`aliasVersion` stamping — DONE (2026-07-20).** `symbols[]` now carries the
       derivation version that produced it: `ALIAS_VERSION` = `av-<hash>` of the alias
       dictionary + exclusions + Indian-domain allowlist (`src/news/aliasVersion.ts`, +5

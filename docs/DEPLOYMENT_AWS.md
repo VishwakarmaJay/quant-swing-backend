@@ -185,11 +185,45 @@ this backup depends on):
 - role `quantswing-backup-role` + instance profile `quantswing-backup-profile` (put-only)
 - backup script `~/quantswing/backup-archive.sh`, cron `30 20 * * *` UTC
 
-### Residual risk (now small)
-Single AWS **account** and single **region** (ap-south-1). A full account compromise or an
-ap-south-1 outage would still be uncovered; cross-region replication or an occasional pull
-to non-AWS storage would close that, but the marginal value is low for a ~40 MB/day archive
-that the workstation also holds a copy of.
+### Cross-region replication (CRR) ✅ DONE (2026-07-21) — closes L14's region axis
+The ap-south-1 bucket now replicates **automatically** to a second region, so an ap-south-1
+outage or bucket loss no longer takes the only offsite copy with it. Set up once; hands-off
+thereafter (no cron, no script — S3 does it server-side).
+
+| resource | value |
+|---|---|
+| destination bucket | `quantswing-archive-dr-283443834610` (**ap-southeast-1**, Singapore) |
+| dest hardening | versioned · AES256 · all public access blocked · lifecycle **mirrors source** (`backups/` 90d + 30d noncurrent, `raw/` 180d) |
+| replication role | `quantswing-crr-role` (inline policy `quantswing-crr-policy`: source-read + dest-write only) |
+| rule (on source) | `replicate-archive-to-dr`, Status Enabled, **all prefixes** (empty filter) |
+| delete-marker replication | **Disabled — deliberate.** A delete on the source does NOT delete the replica, so the DR bucket protects against accidental/malicious deletion, not just region loss. |
+
+Two properties worth knowing:
+1. **CRR only replicates objects written *after* it was enabled.** The 7 pre-existing objects
+   were seeded once with `aws s3 sync s3://…archive… s3://…archive-dr…`. Every nightly backup
+   from 2026-07-21 on replicates on its own (verified: a test PUT reached the DR bucket in ~20s,
+   `ReplicationStatus PENDING→COMPLETED` on source, `REPLICA` on dest).
+2. **The nightly dump is a *complete* DB dump**, so one replicated night = a full recoverable
+   copy in region 2. The `raw/` Bronze layer is forward-only supplementary (B16/L8).
+
+**Verify CRR health:**
+```bash
+aws s3api get-bucket-replication --bucket quantswing-archive-283443834610   # rule Enabled
+aws s3 ls s3://quantswing-archive-dr-283443834610/backups/                  # today's dump present
+# restore drills identically from the DR bucket — just swap the bucket name in the §5 restore block.
+```
+
+**Rebuild-from-zero (the CRR half):** dest bucket `quantswing-archive-dr-283443834610`
+(ap-southeast-1, versioned) + role `quantswing-crr-role` (trust `s3.amazonaws.com`, inline
+`quantswing-crr-policy`) + `put-bucket-replication` on the source pointing at the dest. Cost
+is negligible — a second ~40 MB/day copy + inter-region transfer, lifecycle-bounded.
+
+### Residual risk (now smaller)
+Single AWS **account**. Region loss is now covered (CRR above); a full *account* compromise
+would still reach both buckets, since the DR bucket lives in the same account. Closing that
+last axis needs a second AWS account or a pull to non-AWS storage — deferred as low-value for
+a ~40 MB/day archive the workstation also holds a copy of (the operator chose CRR over the
+non-AWS pull on 2026-07-21, accepting the account axis as the accepted residual).
 
 ## 6. Health / verification checklist
 

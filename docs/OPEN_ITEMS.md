@@ -47,10 +47,11 @@ None of these are blocking; the system runs without them. Ordered by value-per-e
       strongest cell: the `+0.82 @10d` was the calendar artifact — `TRADING_WINDOW` (n=1294)
       retains the whole significant drift; the genuine `INSIDER_PLEDGE` remnant (n=124) no
       longer clears the baseline at 10d. See [`EVENT_STUDY.md`](./EVENT_STUDY.md) §4b.
-- [ ] **Backup: escape single account/region** *(hours)* — backups now sit in S3 (B15) but
-      one AWS account, one region (ap-south-1). Cross-region replication or an occasional
-      pull to non-AWS storage closes it. Low marginal value (~40 MB/day the workstation
-      also holds), but cheap.
+- [x] ~~**Backup: escape single account/region**~~ ✅ **region axis done (2026-07-21)** —
+      S3 Cross-Region Replication ap-south-1 → **ap-southeast-1** (`quantswing-archive-dr-…`,
+      role `quantswing-crr-role`), verified end-to-end (new object replicated in ~20s). The
+      **account axis is the accepted residual** (DR bucket is same-account; operator chose CRR
+      over a non-AWS pull, low marginal value). See [`DEPLOYMENT_AWS.md`](./DEPLOYMENT_AWS.md) §5.
 
 ### Medium value, medium effort
 - [ ] **Historical index-constituent data (survivorship)** *(days; blocked on a source)* —
@@ -122,7 +123,9 @@ and recorded in their own docs.
 - **L13 — Source fragility.** All feeds are free, unofficial, revocable endpoints
   (Moneycontrol froze silently; Screener IP-blocked; BSE params from a devtools capture).
   Detected (FROZEN alerts, zero-parse tripwires), not preventable.
-- **L14 — Backups: single AWS account/region** (§2). Small residual.
+- **L14 — Backups: single AWS account** (§2). **[NARROWED — 2026-07-21]** Region axis closed
+  by cross-region replication (ap-south-1 → ap-southeast-1); the same-account exposure is the
+  accepted residual.
 
 ### Closed since the architecture review (kept here as pointers, not open)
 - ✅ Raw-payload retention → B16 · ✅ Unversioned entity resolution → B15 (`aliasVersion`) ·

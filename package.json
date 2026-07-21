@@ -46,6 +46,7 @@
     "events:study": "bun src/scripts/runEventStudy.ts",
     "bhavcopy:download": "bun src/scripts/downloadBhavcopy.ts",
     "delivery:study": "bun src/scripts/runDeliveryStudy.ts",
+    "survivorship:ingest": "bun src/scripts/ingestSurvivorshipOhlcv.ts",
     "golden:snapshot": "bun src/scripts/goldenSnapshot.ts",
     "golden:update": "bun src/scripts/goldenUpdate.ts",
     "listen:ltp": "bun src/scripts/ltpListener.ts",

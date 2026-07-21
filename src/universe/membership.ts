@@ -33,10 +33,22 @@
 
 export type MembershipWindow = { from?: string; to?: string };
 
-/** Canonical symbol → membership exception window. Empty = no exceptions yet. */
+/** Canonical symbol → membership exception window. `to` is exclusive. */
 export const UNIVERSE_MEMBERSHIP: Readonly<Record<string, MembershipWindow>> = {
-  // (none yet — TMCV/TMPV post-demerger listings are naturally bounded by
-  // their first candles; no symbol has left the universe since curation)
+  // Survivorship victims ingested from the bhavcopy archive (docs/SURVIVORSHIP.md).
+  // Their candles already end at delisting, so these windows are belt-and-suspenders
+  // + documentation: `to` = the trading day AFTER their last bhavcopy row, so they
+  // are members only while they actually traded and never signal in the live era.
+  DHFL: { to: '2021-06-14' },
+  RELCAPITAL: { to: '2022-05-25' },
+  FRETAIL: { to: '2022-07-25' },
+  FCONSUMER: { to: '2024-05-16' },
+  TV18BRDCST: { to: '2024-10-16' },
+  RELINFRA: { to: '2025-06-05' },
+  PEL: { to: '2025-09-23' },
+  RAJESHEXPO: { to: '2025-12-26' },
+  DISHTV: { to: '2026-04-22' },
+  GSPL: { to: '2026-05-12' },
 };
 
 /** Is `symbol` a universe member on `dateIso`? (No entry → always a member.) */

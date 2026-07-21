@@ -18,9 +18,17 @@
  * ⚠️ Residual, honestly stated: this mechanism cannot repair the PAST — the
  * universe was curated in 2025, so stocks that would have been picked in
  * 2021–2024 but collapsed before curation are absent, which flatters
- * backtested results. Repairing that needs historical NSE index change
- * records (niftyindices.com serves them only via a JS/WAF-guarded page —
- * attempted 2026-07-18, left as an open data task).
+ * backtested results.
+ *
+ * [UPDATED 2026-07-21] This is NOT blocked on data (see docs/SURVIVORSHIP.md).
+ * The historical constituents are obtainable (niftyindices.com reconstitution
+ * PDFs via curl + the Wayback Machine's archived ind_nifty200list.csv snapshots;
+ * only the interactive listing page is JS/WAF-gated), and OHLCV for the delisted
+ * names is already on disk in the B13 bhavcopy archive. Triaged surface: of 116
+ * Nifty-200 names absent from today's universe, ~a dozen truly vanished (DHFL,
+ * FRETAIL, RELCAPITAL, …) — the real bias source. Remaining work is a
+ * bhavcopy→OHLCV ingest + membership windows + re-backtest, with one wrinkle
+ * (bhavcopy is unadjusted, Angel candles are adjusted). Scoped in SURVIVORSHIP.md §4.
  */
 
 export type MembershipWindow = { from?: string; to?: string };

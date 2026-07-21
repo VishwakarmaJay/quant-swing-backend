@@ -376,11 +376,16 @@ every evaluation runs **per-origin** (live-only vs +BSE_BACKFILL vs +GDELT).
       `src/universe/membership.ts` (`UNIVERSE_MEMBERSHIP` windows + `isMemberOn`,
       enforced in `generateRawSignals`). **The rule going forward: never delete a
       symbol from the universe — set its `to` date here instead**, so history stays and
-      the bias stops compounding. ⚠️ Residual (honest): the pre-curation past can't be
-      repaired without historical NSE index change records — niftyindices.com serves
-      them only behind a JS/WAF-guarded page (fetch attempted 2026-07-18, endpoint not
-      statically discoverable). Open data task; revisit before B9's conclusions are
-      treated as final.
+      the bias stops compounding. ⚠️ Residual: the pre-curation past is unrepaired.
+      **[RE-EXAMINED 2026-07-21 — NOT a data block after all, see
+      [`SURVIVORSHIP.md`](./SURVIVORSHIP.md)]** Historical Nifty-200 constituents ARE
+      obtainable (Wayback CSV snapshots + reconstitution PDFs; only the interactive listing
+      page is JS/WAF-gated), and OHLCV for the delisted names is already on disk in the B13
+      bhavcopy archive. Triaged: of 116 dropped Nifty-200 names, ~a dozen truly vanished
+      (DHFL, FRETAIL, RELCAPITAL, …) — the real bias. Remaining = engineering (bhavcopy→OHLCV
+      ingest + membership windows + re-backtest; one wrinkle: bhavcopy unadjusted vs Angel
+      adjusted). Revisit before B9's conclusions / the §1 Option-B mid-cap move are treated
+      as final.
 
 ### ✅ B9. Phase 6 rerun — DONE (2026-07-20); one best strategy, gate still failed
 Full doc: [`B9_RERUN.md`](./B9_RERUN.md) · anchored coverage-era folds (`makeAnchoredFolds`,

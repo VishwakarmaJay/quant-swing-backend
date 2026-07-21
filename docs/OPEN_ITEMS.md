@@ -54,11 +54,16 @@ None of these are blocking; the system runs without them. Ordered by value-per-e
       over a non-AWS pull, low marginal value). See [`DEPLOYMENT_AWS.md`](./DEPLOYMENT_AWS.md) §5.
 
 ### Medium value, medium effort
-- [ ] **Historical index-constituent data (survivorship)** *(days; blocked on a source)* —
-      the backtest universe is *today's* 166 names replayed into the past (L3). The
-      forward-looking fix exists (`UNIVERSE_MEMBERSHIP`, B8.2); repairing history needs NSE
-      index-change records, which sit behind a JS/WAF page that resisted fetching. **Must be
-      revisited before B or the mid-cap move**, since down-cap survivorship is worse.
+- [ ] **Historical index-constituent data (survivorship)** *(~1 day — NOT blocked; see
+      [`SURVIVORSHIP.md`](./SURVIVORSHIP.md))* — the backtest universe is *today's* 167 names
+      replayed into the past (L5). **[RE-EXAMINED 2026-07-21]** The "blocked on a JS/WAF
+      source" premise is retired: historical Nifty-200 constituents are obtainable (Wayback
+      CSV snapshots + reconstitution PDFs), and OHLCV for the delisted names is **already on
+      disk** in the B13 bhavcopy archive. Triaged: of 116 Nifty-200 names absent from the
+      universe, only ~a dozen truly vanished (DHFL, FRETAIL, RELCAPITAL, …) — the real bias.
+      Remaining work is engineering: bhavcopy→OHLCV ingest + membership windows + re-backtest,
+      with one wrinkle (bhavcopy unadjusted vs Angel adjusted). **Still the prerequisite before
+      the §1 Option-B mid-cap move.**
 - [ ] **Salience / two-tier symbol tagging** *(days)* — the mapper is precision-first, so
       per-stock article counts undercount (L4). A `symbols_loose` tier (bare tickers, group
       words) stored *separately* from the strict tier would let research measure whether
@@ -97,7 +102,9 @@ and recorded in their own docs.
   rows (GDELT/BSE) carry *reconstructed* `availableAt` — weaker evidence, hence per-origin
   evaluation everywhere.
 - **L5 — Survivorship bias in the archive & backtest.** Universe = today's constituents.
-  Partially addressed forward (B8.2); the pre-2024 past is unrepaired (§2, blocked on data).
+  Partially addressed forward (B8.2); the pre-2024 past is unrepaired (§2). **[2026-07-21:
+  no longer blocked on data — the constituents + delisted-name OHLCV are both obtainable; it
+  is now unbuilt engineering. See [`SURVIVORSHIP.md`](./SURVIVORSHIP.md).]**
 - **L6 — Coverage skew + recall sacrifice.** Precision-first mapping undercounts thinly-
   covered names; sentiment biases toward large caps. Deliberate (precision > recall), a
   documented trade, not an accident.

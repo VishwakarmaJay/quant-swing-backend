@@ -1,0 +1,84 @@
+# QuantSwing Price / Schema Audit
+# generated 2026-07-22T08:28:55.081Z
+
+EQ universe: 177 instruments
+ohlcv rows (all): 347725
+
+## 1. Duplicate (instrumentId, tradeDate) keys: 0
+
+## 2. OHLC consistency violations (high<low, out-of-range, non-positive): 9
+   NSE:BHARATFORG-EQ Fri Mar 03 2023 05:30:00 GMT+0530 (India Standard Time) O844.95 H843.2 L814.5 C825.05
+   NSE:BANKBARODA-EQ Fri Mar 03 2023 05:30:00 GMT+0530 (India Standard Time) O168 H173.75 L168.25 C172.9
+   NSE:MAZDOCK-EQ Fri Mar 03 2023 05:30:00 GMT+0530 (India Standard Time) O364.5 H371.7 L364.55 C365.88
+   NSE:IRCTC-EQ Fri Mar 03 2023 05:30:00 GMT+0530 (India Standard Time) O611 H617.5 L611.2 C613.95
+   NSE:PNB-EQ Fri Mar 03 2023 05:30:00 GMT+0530 (India Standard Time) O50.15 H51.9 L50.35 C51.8
+   NSE:RECLTD-EQ Fri Mar 03 2023 05:30:00 GMT+0530 (India Standard Time) O116.5 H118.9 L117.15 C118.15
+   NSE:SBILIFE-EQ Fri Mar 03 2023 05:30:00 GMT+0530 (India Standard Time) O1100.15 H1132.7 L1100.2 C1129.25
+   NSE:TORNTPHARM-EQ Fri Mar 03 2023 05:30:00 GMT+0530 (India Standard Time) O1505.55 H1505.45 L1486.8 C1493.25
+   NSE:UNIONBANK-EQ Fri Mar 03 2023 05:30:00 GMT+0530 (India Standard Time) O67.55 H73 L67.75 C72.4
+
+## 3. EQ days with |1-day return| > 20%: 24
+   top 25 by magnitude (likely splits/bonuses if unadjusted, or genuine limit moves):
+   NSE:PEL Tue Aug 30 2022 05:30:00 GMT+0530 (India Standard Time) ret -0.4479
+   NSE:RELCAPITAL Tue Jan 04 2022 05:30:00 GMT+0530 (India Standard Time) ret -0.3765
+   NSE:ADANIENT-EQ Wed Feb 01 2023 05:30:00 GMT+0530 (India Standard Time) ret -0.282
+   NSE:TV18BRDCST Tue Apr 23 2024 05:30:00 GMT+0530 (India Standard Time) ret -0.2772
+   NSE:INDUSINDBK-EQ Tue Mar 11 2025 05:30:00 GMT+0530 (India Standard Time) ret -0.2716
+   NSE:ADANIENT-EQ Thu Feb 02 2023 05:30:00 GMT+0530 (India Standard Time) ret -0.267
+   NSE:IDEA-EQ Thu Sep 16 2021 05:30:00 GMT+0530 (India Standard Time) ret 0.257
+   NSE:RECLTD-EQ Tue Jun 04 2024 05:30:00 GMT+0530 (India Standard Time) ret -0.2519
+   NSE:PFC-EQ Tue Jun 04 2024 05:30:00 GMT+0530 (India Standard Time) ret -0.2308
+   NSE:ADANIENT-EQ Thu Nov 21 2024 05:30:00 GMT+0530 (India Standard Time) ret -0.2261
+   NSE:GODREJCP-EQ Wed May 12 2021 05:30:00 GMT+0530 (India Standard Time) ret 0.2187
+   NSE:ADANIGREEN-EQ Fri Nov 29 2024 05:30:00 GMT+0530 (India Standard Time) ret 0.2177
+   NSE:ADANIPORTS-EQ Tue Jun 04 2024 05:30:00 GMT+0530 (India Standard Time) ret -0.2115
+   NSE:POLYCAB-EQ Thu Jan 11 2024 05:30:00 GMT+0530 (India Standard Time) ret -0.2104
+   NSE:KEI-EQ Thu Feb 27 2025 05:30:00 GMT+0530 (India Standard Time) ret -0.2103
+   NSE:BHEL-EQ Tue Jun 04 2024 05:30:00 GMT+0530 (India Standard Time) ret -0.2084
+   NSE:IDEA-EQ Fri Dec 29 2023 05:30:00 GMT+0530 (India Standard Time) ret 0.2075
+   NSE:IDEA-EQ Tue Jan 11 2022 05:30:00 GMT+0530 (India Standard Time) ret -0.2054
+   NSE:TMPV-EQ Wed Oct 13 2021 05:30:00 GMT+0530 (India Standard Time) ret 0.2045
+   NSE:IDEA-EQ Mon Feb 06 2023 05:30:00 GMT+0530 (India Standard Time) ret 0.2044
+   NSE:ADANIENT-EQ Wed Feb 08 2023 05:30:00 GMT+0530 (India Standard Time) ret 0.2004
+   NSE:SAIL-EQ Tue Jun 04 2024 05:30:00 GMT+0530 (India Standard Time) ret -0.2002
+   NSE:PAYTM-EQ Fri Feb 02 2024 05:30:00 GMT+0530 (India Standard Time) ret -0.2
+   NSE:RELINFRA Wed Apr 10 2024 05:30:00 GMT+0530 (India Standard Time) ret -0.2
+
+## 4. Stale-price runs (3+ consecutive identical closes), EQ anchor days: 79
+
+## 5. Public tables (schema dump):
+   _prisma_migrations, app_config, broker_log, broker_token, fundamental_snapshot, ingest_run, instrument, news_article, ohlcv, order, position, position_leg, quarterly_fundamental, raw_capture, signal, signal_rejection, signal_run, system_log, trade_setup, trade_setup_leg, undelivered_alert, user
+   options/flow/pledge tables: NONE
+
+## 6. ohlcv date range: 2021-01-01 → 2026-07-17
+
+## 7. Timezone consistency (Task 10.3)
+grep of src/news, src/fundamentals, src/backtest confirms all as-of cutoffs
+anchor to midnight-UTC of the ISO tradeDate:
+  - candles:      tradeDate <= new Date(`${asOf}T00:00:00.000Z`)   (factors/context.ts, backtestEngine.ts)
+  - news:         availableAt <= same midnight-UTC cutoff, keyed on availableAt (not publishedAt)
+  - fundamentals: q.availableAt <= asOfIso (lexicographic ISO compare, same boundary)
+All three agree: a same-UTC-day event is usable D+1. No cross-stream mismatch (no H-10 leak).
+
+## 8. Trial count (Task 10.4) — garden-of-forking-paths proxy (H-15)
+Repo is NOT shallow (git rev-parse --is-shallow-repository = false).
+  commits touching src/backtest/ or docs/ : 51
+  total commits, all branches             : 74
+Interpretation: study designs were informed by prior results on the same data;
+the effective trial count is at least this order, so any single nominal t-stat
+must be discounted for multiplicity (Harvey-Liu-Zhu t>3.0 hurdle applied in the
+measurement summary).
+
+## Audit verdict
+Price data is clean for close-based measurement:
+  - 0 duplicate keys (composite PK enforces uniqueness).
+  - 9 OHLC violations, ALL open-price glitches confined to 2023-03-03 (0.0026%);
+    close-to-close labels and factor closes are unaffected; at most a handful of
+    next-open simulator entries touched.
+  - 24 |return|>20% days are all economically genuine (Adani/Hindenburg Jan-Feb
+    2023; the 2024-06-04 election-result crash; RBI actions on PAYTM/INDUSINDBK;
+    PEL/RELCAPITAL demergers). None are split-adjustment failures — an unadjusted
+    split would show ~-50%/-80% single-day drops; none appear (splits are
+    back-adjusted; only dividends are not).
+  - 79 stale-price 3-run anchor days across 347,725 rows (0.02%) — negligible.
+  - No options / flow / pledge tables exist; schema is exactly the documented set.

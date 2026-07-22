@@ -1,0 +1,20 @@
+Loading candle store…
+Universe 177 · 1356 trading days.
+Building full factor panel (heavy)…
+Panel rows: 190543  (93s)
+Joining forward labels…
+Residualising fwd per horizon…
+Computing IC + quantiles…
+  trend done (119s)
+  momentum done (131s)
+  relativeStrength done (140s)
+  sectorRelativeStrength done (151s)
+  volume done (162s)
+  volatility done (176s)
+  fundamental done (186s)
+  sentiment done (196s)
+  composite done (208s)
+
+Done in 208s.
+IC rows 810 · quantile rows 16200 · flagged 0.
+Wrote research-output/rank_ic.csv, research-output/quantile_spread.csv, research-output/measurement_summary.md

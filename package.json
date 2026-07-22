@@ -46,6 +46,8 @@
     "events:study": "bun src/scripts/runEventStudy.ts",
     "bhavcopy:download": "bun src/scripts/downloadBhavcopy.ts",
     "delivery:study": "bun src/scripts/runDeliveryStudy.ts",
+    "research:control": "bun src/scripts/runPositiveControl.ts",
+    "research:measure": "bun src/scripts/runMeasurement.ts",
     "survivorship:ingest": "bun src/scripts/ingestSurvivorshipOhlcv.ts",
     "midcap:ingest": "bun src/scripts/ingestMidcapUniverse.ts",
     "midcap:spike": "bun src/scripts/runMidcapSpike.ts",

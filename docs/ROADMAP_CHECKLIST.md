@@ -142,8 +142,16 @@ is a week of sentiment backtest lost. Module built under `src/news/` (+ `bun run
       subsidiaries (SBI Life — itself SBILIFE! — SBI Funds, SBI Capital). Fixed with a
       general **`ALIAS_EXCLUSIONS`** negative-lookahead mechanism (+7 tests, 189/189 pass);
       stored archive remapped (exactly those 6 rows) → **sample now 100%**.
-- [ ] ⏳ Ops residual: keep the server (cron) running; glance at volume/dupe rates over the
-      next few days; grow the alias dictionary from the unmatched-headline log.
+- [x] ✅ Ops residual — reviewed 2026-07-21. **(a) Alias dictionary: growth loop has
+      converged** — a systematic scan of all 34,681 unmatched titles found **zero** missed
+      universe companies (every full name is already aliased; remaining unmatched are correctly-
+      ignored non-universe news). Nothing to add. **(b) Ingest health: the box was found
+      WEDGED** (EC2 instance status `impaired` ~2h, the CPU-credit/RAM wall escalated to a full
+      OS hang; 3-day `ingest_run` = 47 ok / 38 degraded / 13 failed — resource starvation).
+      Recovered by reboot; added a CloudWatch **auto-reboot alarm** so future wedges self-heal;
+      recommended the **t3.small→t3.medium resize** (root fix, operator cost decision). See
+      [`DEPLOYMENT_AWS.md`](./DEPLOYMENT_AWS.md) §1. **(c)** Flagged a boot-race bug: `SIGNAL_RUN`
+      can fire before RabbitMQ connects on startup and skip the run.
 - **Done when:** articles/day flowing for all 4 sources, deduped, ≥90% of matched symbols
   correct on a manual sample. ✅ **Met (in-repo). Archive clock started 2026-07-18 —
   B7's ~6-month sentiment-backtest countdown runs from this date.**

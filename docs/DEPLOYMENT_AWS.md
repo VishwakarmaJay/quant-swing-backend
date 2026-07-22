@@ -48,6 +48,18 @@ Hit **three times** during the 2026-07-18/19 news backfills.
 - **Recover:** `aws ec2 reboot-instances --instance-ids <id>` (compose `restart:
   unless-stopped` brings every container back; the DB volume + all data survive). Then let
   the box idle to re-accrue credits (t3.small earns 24/hr) before the next heavy job.
+- **✅ AUTO-RECOVERY (added 2026-07-21):** a CloudWatch alarm
+  `quantswing-instance-impaired-autoreboot` (`StatusCheckFailed_Instance` ≥ 1 for 3 min →
+  action `arn:aws:automate:ap-south-1:ec2:reboot`) now **auto-reboots the box** when the OS
+  reachability check fails, so a wedge self-heals in ~3 min instead of sitting dead for hours.
+- ⚠️ **2026-07-21 incident — the wall escalated from "slow SSH" to a full OS WEDGE.** The
+  instance status check went `impaired` (reachability failed) for ~2h — SSH *and* app port
+  both dead, CPU flatlined at ~6% (I/O-wait, not pinned). Root cause is as much **RAM as CPU
+  credits**: the box idles at **~1.4 GB used / <100 MB free on 1.9 GB**, so a FinBERT scoring
+  burst (~1.5–2 GB) tips it into swap-thrash and the OS stops responding. Recovered by reboot;
+  the auto-reboot alarm now covers the next occurrence. **Ingest health over the prior 3 days
+  was poor** (47 ok / 38 degraded / 13 failed `ingest_run` rows) — the degradation is this
+  resource starvation. The **real fix is more RAM** — see the resize note below.
 - **`Unlimited` credits are BLOCKED on this account** (`aws ec2
   modify-instance-credit-specification … CpuCredits=unlimited` → "This account cannot run
   burstable instances with Unlimited enabled"). So the only real fixes are: (a) run
@@ -55,6 +67,11 @@ Hit **three times** during the 2026-07-18/19 news backfills.
   `news:gal:download` runs on the Mac and only `news:gal:import` runs on the box); or
   (b) **resize to a non-burstable instance** (m-family) or a larger t3 before B7/B9's
   backtests — those will hit this wall hard.
+- **⭐ RECOMMENDED ROOT FIX (operator cost decision): resize t3.small → t3.medium** (2 vCPU /
+  **4 GB**, ~2× RAM, ~$30/mo). The 2026-07-21 wedge was memory-driven (FinBERT bursts on a
+  2 GB box); doubling RAM removes the swap-thrash death. Procedure: `stop` → `modify-instance-attribute
+  --instance-type t3.medium` → `start` (~2 min downtime; **public IP changes** unless an Elastic
+  IP is attached — see §2.4). The auto-reboot alarm is the *stopgap*; the resize is the *fix*.
 - **Don't run two CPU-heavy jobs at once here.** A large import + the 15-min FinBERT
   scoring cron competing on a 0-credit box is what caused the worst stall. Import first
   (unscored rows accumulate harmlessly), let scoring catch up after.
